@@ -1,0 +1,179 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%; overflow: hidden;
+  background: #0d0820;
+  color: #ccc;
+  font-family: 'Segoe UI', Arial, sans-serif;
+  font-size: 13px;
+  display: flex;
+}
+
+/* ============================================================
+   レイアウト: サイドバー(固定幅) + キャンバスエリア(残り)
+   ============================================================ */
+#sidebar {
+  width: 190px;
+  flex-shrink: 0;
+  height: 100%;
+  overflow-y: auto;
+  background: #130d28;
+  border-right: 1px solid rgba(140,100,255,0.25);
+  padding: 12px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+#canvas-wrap {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+}
+
+canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: top left;
+  cursor: crosshair;
+}
+
+/* ============================================================
+   サイドバー内パーツ
+   ============================================================ */
+#sidebar-title {
+  font-size: 16px;
+  font-weight: bold;
+  color: #a080ff;
+  letter-spacing: 0.05em;
+}
+
+#palette-label {
+  font-size: 11px;
+  color: rgba(255,255,255,0.4);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+/* 天体パレット */
+#palette {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.palette-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 7px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 6px;
+  color: #ccc;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s, border-color 0.12s;
+  width: 100%;
+}
+.palette-btn:hover  { background: rgba(140,100,255,0.18); border-color: rgba(140,100,255,0.4); }
+.palette-btn.active {
+  background: rgba(140,100,255,0.30);
+  border-color: rgba(160,120,255,0.7);
+  box-shadow: 0 0 6px rgba(140,100,255,0.3);
+  color: #fff;
+}
+
+.pb-key   { font-size: 10px; color: rgba(255,255,255,0.35); width: 14px; flex-shrink: 0; text-align: center; }
+.pb-emoji { font-size: 16px; line-height: 1; width: 20px; text-align: center; flex-shrink: 0; }
+.pb-name  { flex: 1; font-size: 11px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.pb-r     { font-size: 10px; color: rgba(255,255,255,0.35); flex-shrink: 0; }
+
+/* 選択中天体の詳細 */
+#selected-info-box {
+  background: rgba(0,0,0,0.3);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 6px;
+  padding: 6px 8px;
+  min-height: 32px;
+}
+#selected-info {
+  font-size: 12px;
+  color: #ffe566;
+  line-height: 1.5;
+}
+
+/* 区切り線 */
+.divider {
+  border: none;
+  border-top: 1px solid rgba(255,255,255,0.08);
+}
+
+/* コントロールボタン */
+#controls {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.ctrl-btn {
+  padding: 7px 10px;
+  font-size: 12px;
+  background: rgba(140,100,255,0.15);
+  border: 1px solid rgba(140,100,255,0.3);
+  border-radius: 6px;
+  color: #ccc;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s, border-color 0.12s;
+  width: 100%;
+}
+.ctrl-btn:hover  { background: rgba(140,100,255,0.30); color: #fff; }
+.ctrl-btn.active {
+  background: rgba(255,150,0,0.25);
+  border-color: rgba(255,150,0,0.6);
+  color: #ffcc44;
+}
+.ctrl-btn.danger { border-color: rgba(255,60,60,0.35); }
+.ctrl-btn.danger:hover { background: rgba(255,60,60,0.25); border-color: rgba(255,60,60,0.6); color: #ff8080; }
+
+/* キーボードショートカットヒント */
+#hint {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.hint-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: rgba(255,255,255,0.4);
+}
+kbd {
+  display: inline-block;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 3px;
+  padding: 1px 4px;
+  font-size: 10px;
+  font-family: monospace;
+  color: rgba(255,255,255,0.6);
+  white-space: nowrap;
+}
+
+/* 配置数カウンター */
+#body-count {
+  font-size: 11px;
+  color: rgba(255,255,255,0.4);
+  margin-top: auto;
+  padding-top: 4px;
+}
+#count-val {
+  color: #a080ff;
+  font-weight: bold;
+}
