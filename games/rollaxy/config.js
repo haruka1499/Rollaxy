@@ -103,7 +103,7 @@ const CFG = {
 
   // X（Twitter）シェア設定
   SHARE: {
-    URL: '', // シェアに含めるゲームの URL（空文字の場合は URL なし）
+    URL: 'https://novoragame.com/games/rollaxy/', // シェアに含めるゲームの URL（空文字の場合は URL なし）
   },
 
   // 効果音設定

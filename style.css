@@ -1,0 +1,273 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:       #080c14;
+  --bg2:      #0e1422;
+  --accent:   #7c5cfc;
+  --accent2:  #3ecfff;
+  --text:     #e8eaf0;
+  --muted:    #6b7280;
+  --card-bg:  #111827;
+  --card-border: rgba(124, 92, 252, 0.35);
+  --glow:     rgba(124, 92, 252, 0.18);
+}
+
+html { font-size: 16px; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Header ── */
+.site-header {
+  text-align: center;
+  padding: 64px 20px 48px;
+  position: relative;
+}
+.site-header::after {
+  content: '';
+  display: block;
+  width: 120px; height: 2px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  margin: 24px auto 0;
+}
+
+.site-title {
+  font-size: clamp(2rem, 8vw, 3.6rem);
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  background: linear-gradient(135deg, #fff 30%, var(--accent2));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  line-height: 1.1;
+}
+
+.site-desc {
+  margin-top: 14px;
+  font-size: clamp(0.9rem, 3vw, 1.05rem);
+  color: var(--muted);
+  letter-spacing: 0.04em;
+}
+
+/* ── Main ── */
+main {
+  flex: 1;
+  width: 100%;
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 8px 20px 64px;
+}
+
+.section-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  color: var(--accent);
+  text-transform: uppercase;
+  margin-bottom: 20px;
+}
+
+/* ── Game Grid ── */
+.game-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 20px;
+}
+
+.game-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 16px;
+  text-decoration: none;
+  color: inherit;
+  overflow: hidden;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+  box-shadow: 0 0 0 transparent;
+}
+.game-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--accent);
+  box-shadow: 0 8px 32px var(--glow), 0 0 0 1px var(--accent);
+}
+.game-card:active { transform: translateY(-1px); }
+
+.game-thumb {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: linear-gradient(135deg, #0e1a30, #1a0e30);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 64px;
+  line-height: 1;
+  border-bottom: 1px solid var(--card-border);
+}
+
+.game-info {
+  padding: 18px 20px 20px;
+}
+.game-info h2 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  margin-bottom: 6px;
+}
+.game-info p {
+  font-size: 0.88rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.game-badge {
+  display: inline-block;
+  margin-top: 12px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent2);
+  border: 1px solid rgba(62, 207, 255, 0.4);
+  border-radius: 4px;
+  padding: 2px 8px;
+}
+
+/* ── Footer ── */
+.site-footer {
+  text-align: center;
+  padding: 24px 20px;
+  font-size: 0.8rem;
+  color: var(--muted);
+  border-top: 1px solid rgba(255,255,255,0.05);
+}
+
+/* ── Navigation ── */
+.site-nav {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: rgba(8, 12, 20, 0.92);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(124, 92, 252, 0.2);
+}
+.nav-inner {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 0 20px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.nav-logo {
+  font-weight: 800;
+  font-size: 0.9rem;
+  letter-spacing: 0.14em;
+  color: #fff;
+  text-decoration: none;
+  margin-right: auto;
+  white-space: nowrap;
+  transition: opacity 0.15s;
+}
+.nav-logo:hover { opacity: 0.75; }
+.nav-links {
+  display: flex;
+  list-style: none;
+  gap: 2px;
+}
+.nav-links a {
+  text-decoration: none;
+  color: var(--muted);
+  font-size: 0.85rem;
+  padding: 6px 12px;
+  border-radius: 6px;
+  transition: color 0.15s, background 0.15s;
+  white-space: nowrap;
+}
+.nav-links a:hover { color: var(--text); background: rgba(255,255,255,0.06); }
+.nav-links a.active { color: var(--accent2); }
+
+/* ── Page Hero（サブページ用コンパクトヘッダー） ── */
+.page-hero {
+  text-align: center;
+  padding: 48px 20px 36px;
+  position: relative;
+}
+.page-hero::after {
+  content: '';
+  display: block;
+  width: 80px; height: 2px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  margin: 20px auto 0;
+}
+.page-hero h1 {
+  font-size: clamp(1.6rem, 6vw, 2.4rem);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  background: linear-gradient(135deg, #fff 30%, var(--accent2));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.page-hero p {
+  margin-top: 10px;
+  font-size: 0.95rem;
+  color: var(--muted);
+}
+
+/* ── Prose（About・Privacy 本文） ── */
+.prose {
+  max-width: 680px;
+  margin: 0 auto;
+  line-height: 1.8;
+}
+.prose h2 {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--accent2);
+  letter-spacing: 0.05em;
+  margin: 36px 0 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(62, 207, 255, 0.2);
+}
+.prose p  { font-size: 0.92rem; color: #c4c8d4; margin-bottom: 12px; }
+.prose ul { padding-left: 1.4em; margin-bottom: 12px; }
+.prose li { font-size: 0.92rem; color: #c4c8d4; margin-bottom: 4px; }
+.prose a  { color: var(--accent2); text-decoration: underline; text-underline-offset: 3px; }
+
+.prose-updated {
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin-bottom: 32px;
+}
+
+/* ── Footer links ── */
+.footer-links {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin-bottom: 10px;
+}
+.footer-links a {
+  font-size: 0.8rem;
+  color: var(--muted);
+  text-decoration: none;
+  transition: color 0.15s;
+}
+.footer-links a:hover { color: var(--text); }
+
+/* ── Responsive ── */
+@media (max-width: 400px) {
+  .game-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 480px) {
+  .nav-links a { padding: 6px 8px; font-size: 0.8rem; }
+}
