@@ -1393,49 +1393,15 @@ function _dataURLtoBlob(dataUrl) {
 function shareToX() {
   const text    = T('tweetText')(score);
   // 共有 URL: 個別シェアページ（生成済み）> ゲームトップページ > なし
-  const shareId = _pendingShareId;
+  // サーバー側で OGP 画像を生成するので canvas スクショは不要
+  const shareId  = _pendingShareId;
   const shareUrl = shareId
     ? `${CFG.SHARE.URL.replace(/\/$/, '')}/share/${shareId}`
     : (CFG.SHARE.URL || '');
 
-  // ── Web Share API（iOS / HTTPS 環境のスマホ向け）──────────────────
-  if (typeof navigator.canShare === 'function') {
-    let dataUrl;
-    try { dataUrl = canvas.toDataURL('image/png'); } catch (_) {}
-    if (dataUrl) {
-      const blob = _dataURLtoBlob(dataUrl);
-      const file = new File([blob], 'rollaxy-result.png', { type: 'image/png' });
-      if (navigator.canShare({ files: [file] })) {
-        navigator.share({
-          files: [file],
-          text: text + (shareUrl ? ' ' + shareUrl : ''),
-        }).catch(e => {
-          if (e.name !== 'AbortError') console.warn('Web Share failed', e);
-        });
-        return;
-      }
-    }
-  }
-
-  // ── フォールバック: Twitter Intent + 画像ダウンロード ────────────
-  // window.open を必ず先に呼ぶ（ポップアップブロッカー対策）
   const tweetUrl = 'https://twitter.com/intent/tweet?text=' + encodeURIComponent(text)
     + (shareUrl ? '&url=' + encodeURIComponent(shareUrl) : '');
   window.open(tweetUrl, '_blank');
-
-  // 画像ダウンロード（toDataURL が失敗しても Twitter Intent には影響させない）
-  try {
-    const dataUrl = canvas.toDataURL('image/png');
-    const a = document.createElement('a');
-    a.href = dataUrl;
-    a.download = 'rollaxy-result.png';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-
-    const noteEl = document.getElementById('share-note');
-    if (noteEl) { noteEl.textContent = T('shareNote'); noteEl.classList.add('show'); }
-  } catch (_) {}
 }
 
 shareBtn.addEventListener('click',    () => shareToX());
