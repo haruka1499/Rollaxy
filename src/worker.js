@@ -42,6 +42,10 @@ function nanoid() {
 const GAME_ID      = 'rollaxy';
 const SITE_URL     = 'https://novoragame.com';
 
+// tier n を達成するには最低限これだけのスコアが必要（粗い整合性チェック用）
+// 計算根拠: tier n を作るには tier 0 が 2^n 個必要 → スコアの合計下限
+const MIN_SCORE_FOR_TIER = [0, 1, 3, 6, 11, 20, 35, 60, 100, 160, 250, 380];
+
 const BODY_EMOJIS = ['💫','🪨','🌙','🌍','🪐','☀️','🔴','⭐','💠','🌑','🌌','🌐'];
 const BODY_COLORS = ['#b0a090','#807060','#d0c8b0','#3388cc','#d4a870','#ffcc00',
                      '#cc2200','#c8d8ff','#2244cc','#110022','#7744cc','#aa44ff'];
@@ -89,22 +93,41 @@ async function handleSharePost(request, env) {
   try { body = await request.json(); }
   catch { return json({ error: 'Invalid JSON' }, 400, corsHeaders(origin)); }
 
-  const { score, highest_body_tier, snapshot_payload, ui_lang = 'ja', version = 1 } = body;
-  if (typeof score !== 'number' || typeof highest_body_tier !== 'number' || !snapshot_payload) {
+  const { score, highest_body_tier, snapshot_payload, ui_lang = 'ja', version = 1, player_id = null } = body;
+
+  // ── 基本バリデーション ──
+  if (typeof score !== 'number' || !Number.isInteger(score) || score < 0 || score > 999999) {
+    return json({ error: 'invalid score' }, 400, corsHeaders(origin));
+  }
+  if (typeof highest_body_tier !== 'number' || !Number.isInteger(highest_body_tier)
+      || highest_body_tier < 0 || highest_body_tier > 11) {
+    return json({ error: 'invalid tier' }, 400, corsHeaders(origin));
+  }
+  if (!snapshot_payload) {
     return json({ error: 'Missing required fields' }, 400, corsHeaders(origin));
   }
-  if (score < 0 || score > 1_000_000 || highest_body_tier < 0 || highest_body_tier > 11) {
-    return json({ error: 'Invalid values' }, 400, corsHeaders(origin));
+  // スコアと最大天体の粗い整合性チェック（明らかに不可能な値を排除）
+  if (score < MIN_SCORE_FOR_TIER[highest_body_tier]) {
+    return json({ error: 'score/tier mismatch' }, 400, corsHeaders(origin));
   }
+
+  // ── player_id バリデーション ──
+  // フォーマット: {provider}_{8〜28文字英数字} 例: guest_a3f8kz9mxqbt
+  // 将来プロバイダー (google_, discord_, novora_) が増えても同形式で通る
+  const pid = (typeof player_id === 'string' && /^[a-z]+_[a-z0-9]{8,28}$/.test(player_id))
+    ? player_id : null;
 
   const id         = nanoid();
   const created_at = Math.floor(Date.now() / 1000);
   const payload    = JSON.stringify(snapshot_payload);
 
+  // NOTE: D1 に player_id 列が必要。デプロイ前に以下を実行してください:
+  //   ALTER TABLE shares ADD COLUMN player_id TEXT;
+  //   CREATE INDEX idx_shares_player ON shares (player_id);
   await env.DB.prepare(
-    `INSERT INTO shares (id, game_id, version, score, highest_body_tier, snapshot_payload, ui_lang, created_at, retention_type)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'normal')`
-  ).bind(id, GAME_ID, version, score, highest_body_tier, payload, ui_lang, created_at).run();
+    `INSERT INTO shares (id, game_id, version, score, highest_body_tier, snapshot_payload, ui_lang, created_at, retention_type, player_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'normal', ?)`
+  ).bind(id, GAME_ID, version, score, highest_body_tier, payload, ui_lang, created_at, pid).run();
 
   // ランキング retention 再計算
   const keepRow = await env.DB.prepare(`SELECT value FROM config WHERE key='keep_top_n'`).first();

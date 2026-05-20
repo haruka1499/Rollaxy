@@ -152,6 +152,41 @@ hiEl.textContent = `${T('best')}: ${hiScore}`;
 // 共有 URL（doGameOver で非同期生成し shareToX で使う）
 let _pendingShareId = null;
 
+// replay / anti-cheat 用メタデータ
+let _gameStartTime = 0; // beginGame() でセット
+let _dropCount     = 0; // 天体を落とすたびにカウント
+
+// ============================================================
+// プレイヤー識別（ゲストID）
+// フォーマット: guest_{12文字英数字}
+// 将来の Google/Discord/NOVORA ログイン統合時は novora_player_id を上書きするだけ
+// ============================================================
+const _ID_CHARS_LOWER = 'abcdefghijklmnopqrstuvwxyz0123456789';
+
+function getPlayerId() {
+  let id = localStorage.getItem('novora_player_id');
+  if (!id) {
+    const rand = Array.from(crypto.getRandomValues(new Uint8Array(12)),
+      b => _ID_CHARS_LOWER[b % _ID_CHARS_LOWER.length]).join('');
+    id = `guest_${rand}`;
+    localStorage.setItem('novora_player_id', id);
+  }
+  return id;
+}
+
+// 自分のシェアID一覧を localStorage に追記（最大50件）
+// ベストスコア更新時は best_share_id / best_score も更新
+function addMyShareId(shareId, currentScore) {
+  const ids = JSON.parse(localStorage.getItem('novora_share_ids') || '[]');
+  if (!ids.includes(shareId)) ids.push(shareId);
+  localStorage.setItem('novora_share_ids', JSON.stringify(ids.slice(-50)));
+  const best = Number(localStorage.getItem('novora_best_score') || 0);
+  if (currentScore >= best) {
+    localStorage.setItem('novora_best_score', String(currentScore));
+    localStorage.setItem('novora_best_share_id', shareId);
+  }
+}
+
 // ゲームオーバーアニメーション
 // ・天体をランダム順に消去し、最後の天体が消えた後にオーバーレイを表示する
 // ・消去間隔 = GO_ANIM_MS ÷ 天体数 → 天体数に関わらず合計所要時間がほぼ一定
@@ -213,6 +248,7 @@ function init() {
   score = 0; dangerCnt = 0; dead = false; paused = false; waiting = true;
   _pendingShareId = null;
   _goPopEffects = [];
+  _dropCount = 0;
   chainCount = 0;
   clearTimeout(chainTimer);       chainTimer = null;
   clearTimeout(chainResolveTimer); chainResolveTimer = null;
@@ -310,6 +346,7 @@ function drop() {
   if (skillSelectMode) return;
   if (chainRewardPending) return; // 5連鎖選択パネル表示中は投下不可
   canDrop = false;
+  _dropCount++; // 投下カウント（replay / anti-cheat 用）
 
   if (bombMode) {
     // 爆弾を投下（curBi は変えない）
@@ -1049,35 +1086,47 @@ function _restoreShareButton() {
 // 盤面スナップショットを Worker に POST して共有 URL を取得する（失敗しても UI に影響しない）
 // 成功・失敗どちらでも finally でシェアボタンを復元する。
 async function _createShare() {
-  const controller = new AbortController();
-  const timeoutId  = setTimeout(() => controller.abort(), 10000);
+  const controller  = new AbortController();
+  const timeoutId   = setTimeout(() => controller.abort(), 10000);
+  // await 前に同期収集（_startGameOverAnim() が非同期で bmap を消していく前に取得）
+  const elapsed_ms  = Date.now() - _gameStartTime;
+  const drop_count  = _dropCount;
+  let highestTier = 0;
+  const bodies = [];
+  for (const d of bmap.values()) {
+    if (d.bi > highestTier) highestTier = d.bi;
+    bodies.push({
+      tier:  d.bi,
+      x:     Math.round(d.body.position.x * 10) / 10,
+      y:     Math.round(d.body.position.y * 10) / 10,
+      angle: Math.round(d.body.angle * 100) / 100,
+    });
+  }
+  const shareScore = score; // クロージャ保持（addMyShareId 用）
   try {
-    let highestTier = 0;
-    const bodies = [];
-    for (const d of bmap.values()) {
-      if (d.bi > highestTier) highestTier = d.bi;
-      bodies.push({
-        tier:  d.bi,
-        x:     Math.round(d.body.position.x * 10) / 10,
-        y:     Math.round(d.body.position.y * 10) / 10,
-        angle: Math.round(d.body.angle * 100) / 100,
-      });
-    }
     const res = await fetch('/api/rollaxy/share', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         score,
         highest_body_tier: highestTier,
-        snapshot_payload:  { bodies },
-        ui_lang:           typeof currentLang !== 'undefined' ? currentLang : 'ja',
-        version:           CFG.GAME_VERSION,
+        snapshot_payload:  {
+          bodies,
+          // replay / anti-cheat metadata（将来の server-side validation 用）
+          elapsed_ms,
+          drop_count,
+          body_count: bodies.length,
+        },
+        ui_lang:   typeof currentLang !== 'undefined' ? currentLang : 'ja',
+        version:   CFG.GAME_VERSION,
+        player_id: getPlayerId(), // guest_xxx 形式（将来ログイン統合時は差し替え）
       }),
       signal: controller.signal,
     });
     if (res.ok) {
       const { id } = await res.json();
       _pendingShareId = id;
+      addMyShareId(id, shareScore); // share_ids / best_share_id を localStorage に記録
       // OGP 画像をバックグラウンドで事前生成（KV キャッシュに乗せておく）
       // → X でシェアした際に Twitter が即座に画像取得できるようにする
       fetch(`/games/rollaxy/ogp/${id}`).catch(() => {});
@@ -1512,6 +1561,7 @@ startBtn.addEventListener('touchend', e => { e.preventDefault(); beginGame(); })
 // ============================================================
 function beginGame() {
   waiting = false;
+  _gameStartTime = Date.now(); // ゲーム開始時刻（elapsed_ms 計算用）
   startOverlay.classList.remove('show');
   updateSkillButtons(); // waiting=false になったのでボタンの disabled を解除
   _unlockAudio();       // ユーザー操作のタイミングで音声を起動し autoplay 制限を解除

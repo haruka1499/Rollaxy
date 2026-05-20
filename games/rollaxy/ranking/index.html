@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-FFF4H3EVV8"></script>
+  <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-FFF4H3EVV8');</script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rollaxy ランキング | NOVORA GAME</title>
+  <meta name="description" content="Rollaxy のスコアランキング。全期間・今週・今日のトップスコアを確認できます。">
+  <link rel="canonical" href="https://novoragame.com/games/rollaxy/ranking/">
+  <link rel="icon" href="/favicon.ico">
+  <!-- OGP（将来動的化しやすいよう基本タグのみ配置） -->
+  <meta property="og:type"        content="website">
+  <meta property="og:url"         content="https://novoragame.com/games/rollaxy/ranking/">
+  <meta property="og:title"       content="Rollaxy ランキング | NOVORA GAME">
+  <meta property="og:description" content="Rollaxy のトップスコアランキング。全期間・今週・今日で絞り込み可能。">
+  <meta property="og:image"       content="https://novoragame.com/ogp.png">
+  <meta name="twitter:card"       content="summary_large_image">
+  <link rel="stylesheet" href="/style.css">
+  <style>
+    /* ── ランキングページ固有スタイル ── */
+    .ranking-wrap {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 32px 16px 64px;
+    }
+    .ranking-title {
+      font-size: clamp(1.6rem, 5vw, 2.4rem);
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-align: center;
+      margin-bottom: 28px;
+      background: linear-gradient(135deg, #fff 30%, var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    /* ── タブ ── */
+    .rank-tabs {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      margin-bottom: 24px;
+    }
+    .rank-tab {
+      padding: 8px 20px;
+      border: 1px solid rgba(124,92,252,0.35);
+      border-radius: 999px;
+      background: transparent;
+      color: var(--muted);
+      font-size: 0.88rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+    .rank-tab:hover {
+      background: rgba(124,92,252,0.1);
+      color: var(--text);
+    }
+    .rank-tab.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+
+    /* ── あなたのベスト ── */
+    .my-best {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: rgba(124,92,252,0.12);
+      border: 1px solid rgba(124,92,252,0.4);
+      border-radius: 10px;
+      padding: 12px 16px;
+      margin-bottom: 20px;
+      font-size: 0.9rem;
+    }
+    .my-best-label {
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .my-best-rank {
+      font-weight: 700;
+      color: var(--accent2);
+      font-size: 1.1rem;
+    }
+    .my-best-score {
+      font-weight: 700;
+      color: #fff;
+    }
+    .my-best-link {
+      margin-left: auto;
+      color: var(--accent2);
+      text-decoration: none;
+      font-size: 1.1rem;
+      opacity: 0.8;
+      transition: opacity 0.15s;
+    }
+    .my-best-link:hover { opacity: 1; }
+
+    /* ── テーブル ── */
+    .rank-table-wrap {
+      overflow-x: auto;
+      border-radius: 12px;
+      border: 1px solid rgba(124,92,252,0.2);
+    }
+    .rank-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+    }
+    .rank-table th {
+      padding: 10px 12px;
+      text-align: left;
+      color: var(--muted);
+      font-weight: 600;
+      font-size: 0.75rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      background: rgba(8,12,20,0.6);
+      white-space: nowrap;
+    }
+    .rank-table td {
+      padding: 10px 12px;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+      vertical-align: middle;
+      white-space: nowrap;
+    }
+    .rank-table tr:last-child td { border-bottom: none; }
+    .rank-table tr:hover td { background: rgba(255,255,255,0.02); }
+
+    /* 自分のエントリー */
+    .rank-table tr.is-mine td {
+      background: rgba(124,92,252,0.12);
+    }
+    .rank-table tr.is-mine td:first-child {
+      border-left: 3px solid var(--accent);
+    }
+
+    /* 順位列 */
+    .td-rank {
+      font-weight: 700;
+      color: var(--muted);
+      width: 3em;
+      text-align: right;
+    }
+    .td-rank.top1 { color: #ffd700; }
+    .td-rank.top2 { color: #c0c0c0; }
+    .td-rank.top3 { color: #cd7f32; }
+
+    /* スコア列 */
+    .td-score {
+      font-weight: 700;
+      color: #fff;
+      font-size: 1rem;
+    }
+
+    /* 称号列 */
+    .td-title { color: #aa88ff; font-size: 0.82rem; }
+
+    /* 最大天体 */
+    .td-body { font-size: 1.2rem; text-align: center; }
+
+    /* 自分マーカー */
+    .mine-marker {
+      display: inline-block;
+      margin-left: 6px;
+      font-size: 0.75rem;
+      color: var(--accent2);
+      opacity: 0.85;
+    }
+
+    /* 日時 */
+    .td-date { color: var(--muted); font-size: 0.8rem; }
+
+    /* リンク */
+    .td-link a {
+      color: var(--accent2);
+      text-decoration: none;
+      opacity: 0.7;
+      transition: opacity 0.15s;
+    }
+    .td-link a:hover { opacity: 1; }
+
+    /* ── ローディング / エラー ── */
+    .rank-status {
+      text-align: center;
+      padding: 48px 16px;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+    .rank-status.error { color: #ff6666; }
+
+    /* ── CTA ── */
+    .ranking-cta {
+      text-align: center;
+      margin-top: 32px;
+    }
+    .play-btn {
+      display: inline-block;
+      padding: 14px 40px;
+      background: var(--accent);
+      color: #fff;
+      border-radius: 10px;
+      font-size: 1rem;
+      font-weight: 700;
+      text-decoration: none;
+      transition: background 0.15s, transform 0.1s;
+    }
+    .play-btn:hover { background: #9970ff; transform: translateY(-2px); }
+    .play-btn:active { transform: translateY(0); }
+
+    /* レスポンシブ: 小画面で称号列を非表示 */
+    @media (max-width: 480px) {
+      .col-title { display: none; }
+      .rank-tab { padding: 7px 14px; font-size: 0.82rem; }
+    }
+  </style>
+</head>
+<body>
+
+<nav class="site-nav">
+  <div class="nav-inner">
+    <a href="/" class="nav-logo">NOVORA GAME</a>
+    <ul class="nav-links">
+      <li><a href="/games/">Games</a></li>
+      <li><a href="/games/rollaxy/" class="active">Rollaxy</a></li>
+      <li><a href="/about/">About</a></li>
+    </ul>
+  </div>
+</nav>
+
+<main>
+  <div class="ranking-wrap">
+    <h1 class="ranking-title">🏆 Rollaxy ランキング</h1>
+
+    <!-- タブ（全期間 / 今週 / 今日） -->
+    <div class="rank-tabs">
+      <button class="rank-tab" data-period="all">全期間</button>
+      <button class="rank-tab" data-period="weekly">今週</button>
+      <button class="rank-tab" data-period="daily">今日</button>
+    </div>
+
+    <!-- あなたのベスト（localStorage に share_ids があり、ランキング内に存在する場合のみ表示） -->
+    <div class="my-best" id="my-best" style="display:none">
+      <span class="my-best-label">あなたのベスト</span>
+      <span class="my-best-rank" id="best-rank">#?</span>
+      <span class="my-best-score" id="best-score">0点</span>
+      <a class="my-best-link" id="best-link" href="#" target="_blank" rel="noopener">🔗</a>
+    </div>
+
+    <!-- ランキングテーブル -->
+    <div class="rank-table-wrap">
+      <table class="rank-table" id="rank-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>スコア</th>
+            <th class="col-title">称号</th>
+            <th>最大天体</th>
+            <th>日時</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="rank-body">
+          <tr><td colspan="6" class="rank-status" id="rank-status">読み込み中...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- CTA -->
+    <div class="ranking-cta">
+      <a href="/games/rollaxy/" class="play-btn">▶ Rollaxy をプレイ</a>
+    </div>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="footer-links">
+    <a href="/">Home</a>
+    <a href="/games/">Games</a>
+    <a href="/privacy/">Privacy Policy</a>
+  </div>
+  &copy; 2025 NOVORA GAME
+</footer>
+
+<script>
+'use strict';
+
+// ── 称号テーブル（worker.js の getTitle() と同ロジック） ──
+const BODY_EMOJIS = ['💫','🪨','🌙','🌍','🪐','☀️','🔴','⭐','💠','🌑','🌌','🌐'];
+
+function getTitle(score, highestTier) {
+  if (highestTier >= 11) return '銀河団創造者';
+  if (score >= 2000)     return '宇宙の覇者';
+  if (score >= 1000)     return '銀河の探検家';
+  if (score >=  600)     return '太陽の支配者';
+  if (score >=  300)     return '惑星の開拓者';
+  if (score >=  100)     return '星の冒険者';
+  return '宇宙の旅人';
+}
+
+function fmtScore(n) {
+  return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
+
+function fmtDate(unixSec) {
+  return new Date(unixSec * 1000).toLocaleDateString('ja-JP', {
+    month: 'numeric', day: 'numeric',
+  });
+}
+
+// ── localStorage ──
+function getMyShareIds() {
+  try { return JSON.parse(localStorage.getItem('novora_share_ids') || '[]'); } catch { return []; }
+}
+function getBestShareId() {
+  return localStorage.getItem('novora_best_share_id') || null;
+}
+
+// ── URL state ──
+const VALID_PERIODS = ['all', 'weekly', 'daily'];
+const params = new URLSearchParams(location.search);
+let period = VALID_PERIODS.includes(params.get('period')) ? params.get('period') : 'all';
+
+// ── タブ切り替え ──
+function renderTabs() {
+  document.querySelectorAll('.rank-tab').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.period === period);
+  });
+}
+
+document.querySelectorAll('.rank-tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    if (btn.dataset.period === period) return;
+    period = btn.dataset.period;
+    history.pushState({ period }, '', `?period=${period}`);
+    renderTabs();
+    loadRanking();
+  });
+});
+
+window.addEventListener('popstate', e => {
+  period = e.state?.period || 'all';
+  renderTabs();
+  loadRanking();
+});
+
+// ── ランキング読み込み ──
+async function loadRanking() {
+  const tbody = document.getElementById('rank-body');
+  tbody.innerHTML = '<tr><td colspan="6" class="rank-status">読み込み中...</td></tr>';
+  hideBestBanner();
+
+  let entries;
+  try {
+    const res = await fetch(`/api/rollaxy/ranking?period=${period}&limit=100`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    entries = data.entries || [];
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="6" class="rank-status error">読み込みに失敗しました。しばらくしてから再試行してください。</td></tr>`;
+    return;
+  }
+
+  if (entries.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" class="rank-status">まだエントリーがありません。プレイして記録を作ろう！</td></tr>';
+    return;
+  }
+
+  const myIds     = getMyShareIds();
+  const bestId    = getBestShareId();
+  let   bestEntry = null;
+
+  const rows = entries.map(entry => {
+    const isMine   = myIds.includes(entry.id);
+    const isBest   = (entry.id === bestId);
+    if (isBest) bestEntry = entry;
+
+    const rankClass = entry.rank === 1 ? 'top1' : entry.rank === 2 ? 'top2' : entry.rank === 3 ? 'top3' : '';
+    const emoji     = BODY_EMOJIS[Math.min(11, entry.highest_body_tier)];
+    const title     = getTitle(entry.score, entry.highest_body_tier);
+    const shareHref = `/games/rollaxy/share/${entry.id}`;
+
+    return `<tr class="${isMine ? 'is-mine' : ''}">
+      <td class="td-rank ${rankClass}">${entry.rank}</td>
+      <td class="td-score">${fmtScore(entry.score)}${isMine ? '<span class="mine-marker">👤</span>' : ''}</td>
+      <td class="td-title col-title">${title}</td>
+      <td class="td-body">${emoji}</td>
+      <td class="td-date">${fmtDate(entry.created_at)}</td>
+      <td class="td-link"><a href="${shareHref}" target="_blank" rel="noopener">🔗</a></td>
+    </tr>`;
+  });
+
+  tbody.innerHTML = rows.join('');
+
+  // あなたのベストバナー（best_share_id がランキング内に存在する場合のみ）
+  if (bestEntry) {
+    showBestBanner(bestEntry);
+  }
+}
+
+// ── あなたのベストバナー ──
+function showBestBanner(entry) {
+  const banner   = document.getElementById('my-best');
+  const rankEl   = document.getElementById('best-rank');
+  const scoreEl  = document.getElementById('best-score');
+  const linkEl   = document.getElementById('best-link');
+
+  rankEl.textContent  = `#${entry.rank}`;
+  scoreEl.textContent = `${fmtScore(entry.score)}点`;
+  linkEl.href         = `/games/rollaxy/share/${entry.id}`;
+  banner.style.display = '';
+}
+
+function hideBestBanner() {
+  document.getElementById('my-best').style.display = 'none';
+}
+
+// ── 初期化 ──
+renderTabs();
+loadRanking();
+</script>
+
+</body>
+</html>
