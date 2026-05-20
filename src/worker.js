@@ -127,14 +127,23 @@ async function handleSharePost(request, env) {
   const created_at = Math.floor(Date.now() / 1000);
   const payload    = JSON.stringify(snapshot_payload);
 
-  // NOTE: D1 に以下の列が必要。デプロイ前に実行してください:
+  // player_id / display_name 列が存在しない場合（マイグレーション未実施）のフォールバック
+  // 推奨マイグレーション:
   //   ALTER TABLE shares ADD COLUMN player_id TEXT;
   //   ALTER TABLE shares ADD COLUMN display_name TEXT;
   //   CREATE INDEX idx_shares_player ON shares (player_id);
-  await env.DB.prepare(
-    `INSERT INTO shares (id, game_id, version, score, highest_body_tier, snapshot_payload, ui_lang, created_at, retention_type, player_id, display_name)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'normal', ?, ?)`
-  ).bind(id, GAME_ID, version, score, highest_body_tier, payload, ui_lang, created_at, pid, dname).run();
+  try {
+    await env.DB.prepare(
+      `INSERT INTO shares (id, game_id, version, score, highest_body_tier, snapshot_payload, ui_lang, created_at, retention_type, player_id, display_name)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'normal', ?, ?)`
+    ).bind(id, GAME_ID, version, score, highest_body_tier, payload, ui_lang, created_at, pid, dname).run();
+  } catch (_) {
+    // 列なしでリトライ
+    await env.DB.prepare(
+      `INSERT INTO shares (id, game_id, version, score, highest_body_tier, snapshot_payload, ui_lang, created_at, retention_type)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'normal')`
+    ).bind(id, GAME_ID, version, score, highest_body_tier, payload, ui_lang, created_at).run();
+  }
 
   // ランキング retention 再計算
   const keepRow = await env.DB.prepare(`SELECT value FROM config WHERE key='keep_top_n'`).first();
@@ -183,10 +192,19 @@ async function handleRanking(request, env) {
               : period === 'weekly' ? now - 604800
               : 0;
 
-  const { results } = await env.DB.prepare(
-    `SELECT id, score, highest_body_tier, created_at, display_name
-     FROM shares WHERE game_id=? AND created_at>=? ORDER BY score DESC LIMIT ?`
-  ).bind(GAME_ID, since, limit).all();
+  // display_name 列が存在しない場合（マイグレーション未実施）のフォールバック
+  let results;
+  try {
+    ({ results } = await env.DB.prepare(
+      `SELECT id, score, highest_body_tier, created_at, display_name
+       FROM shares WHERE game_id=? AND created_at>=? ORDER BY score DESC LIMIT ?`
+    ).bind(GAME_ID, since, limit).all());
+  } catch (_) {
+    ({ results } = await env.DB.prepare(
+      `SELECT id, score, highest_body_tier, created_at
+       FROM shares WHERE game_id=? AND created_at>=? ORDER BY score DESC LIMIT ?`
+    ).bind(GAME_ID, since, limit).all());
+  }
 
   const entries = results.map((row, i) => ({
     rank:              i + 1,
