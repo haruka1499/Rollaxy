@@ -66,32 +66,30 @@
       color: #fff;
     }
 
-    /* ── あなたのベスト ── */
-    .my-best {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      flex-wrap: wrap;
-      background: rgba(124,92,252,0.12);
-      border: 1px solid rgba(124,92,252,0.4);
-      border-radius: 12px;
-      padding: 12px 16px;
-      margin-bottom: 16px;
-      font-size: 0.9rem;
+    /* ── 自分のベスト（ヒーローカード） ── */
+    .rank-card.is-me-hero {
+      background: rgba(62,207,255,0.06);
+      border-left: 3px solid var(--accent2);
+      border-bottom: 1px solid rgba(62,207,255,0.22);
     }
-    .my-best-label { color: var(--muted); white-space: nowrap; font-size: 0.82rem; }
-    .my-best-rank  { font-weight: 700; color: var(--accent2); font-size: 1.05rem; }
-    .my-best-score { font-weight: 700; color: #fff; }
-    .my-best-link  {
-      margin-left: auto;
+    .rank-card.is-me-hero:hover { background: rgba(62,207,255,0.11); }
+    /* ヒーローカード内の順位列 */
+    .rc-rank.me      { color: var(--accent2); }
+    .rc-rank.unknown { color: var(--muted); font-size: 0.82rem; }
+    /* "あなたのベスト" ラベル（プレイヤー名の位置に表示） */
+    .rc-me-label {
+      font-size: 0.78rem;
+      font-weight: 700;
       color: var(--accent2);
-      text-decoration: none;
-      font-size: 1.1rem;
-      opacity: 0.8;
-      padding: 4px 8px;
-      transition: opacity 0.15s;
+      letter-spacing: 0.05em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 100%;
+      line-height: 1.3;
     }
-    .my-best-link:hover { opacity: 1; }
+    /* ヒーローカードのスコアは少し明るく */
+    .rank-card.is-me-hero .rc-score { color: #d0e8ff; }
 
     /* ── カードリスト ── */
     .rank-list {
@@ -284,15 +282,7 @@
       <button class="rank-tab" data-period="daily" data-i18n="tabDaily">今日</button>
     </div>
 
-    <!-- あなたのベスト -->
-    <div class="my-best" id="my-best" style="display:none">
-      <span class="my-best-label" data-i18n="myBestLabel">👤 あなたのベスト</span>
-      <span class="my-best-rank" id="best-rank">#?</span>
-      <span class="my-best-score" id="best-score">0</span>
-      <a class="my-best-link" id="best-link" href="#" target="_blank" rel="noopener" aria-label="シェアページを開く">🔗</a>
-    </div>
-
-    <!-- カードリスト -->
+    <!-- カードリスト（自分のベストカードはリスト先頭にJSで挿入） -->
     <div class="rank-list" id="rank-list">
       <div class="rank-status" id="rank-status">読み込み中...</div>
     </div>
@@ -388,10 +378,13 @@ window.addEventListener('popstate', e => {
 // ── ランキング読み込み ──
 async function loadRanking() {
   const list = document.getElementById('rank-list');
-  // TG() は i18n.js が先に読み込まれていれば使える。なければフォールバック
   const tg = (typeof TG === 'function') ? TG : k => k;
   list.innerHTML = `<div class="rank-status">${tg('rankLoading')}</div>`;
-  hideBestBanner();
+
+  const myIds     = getMyShareIds();
+  const bestId    = getBestShareId();
+  const bestScore = Number(localStorage.getItem('novora_best_score') || 0);
+  const scoreUnit = tg('scoreUnit') || '点';
 
   let entries;
   try {
@@ -404,29 +397,50 @@ async function loadRanking() {
     return;
   }
 
-  if (entries.length === 0) {
-    list.innerHTML = `<div class="rank-status">${tg('rankEmpty')}</div>`;
-    return;
+  // 自分のベストエントリーを結果から探す
+  let bestEntry = null;
+  for (const e of entries) {
+    if (e.id === bestId) { bestEntry = e; break; }
   }
 
-  const myIds    = getMyShareIds();
-  const bestId   = getBestShareId();
-  const scoreUnit = tg('scoreUnit') || '点';
-  let bestEntry  = null;
+  const cards = [];
 
-  const cards = entries.map(entry => {
-    const isMine = myIds.includes(entry.id);
-    if (entry.id === bestId) bestEntry = entry;
+  // ── 自分のベスト（ヒーローカード）──
+  if (bestScore > 0) {
+    const rankStr   = bestEntry ? `#${bestEntry.rank}` : '?';
+    const rankClass = bestEntry
+      ? (bestEntry.rank === 1 ? 'top1' : bestEntry.rank === 2 ? 'top2' : bestEntry.rank === 3 ? 'top3' : 'me')
+      : 'unknown';
+    const emoji     = bestEntry ? BODY_EMOJIS[Math.min(11, bestEntry.highest_body_tier)] : '✨';
+    const linkHtml  = bestId
+      ? `<a class="rc-link" href="/games/rollaxy/share/${bestId}" target="_blank" rel="noopener" aria-label="share">🔗</a>`
+      : '';
+    cards.push(`<div class="rank-card is-me-hero">
+  <div class="rc-rank ${rankClass}">${rankStr}</div>
+  <div class="rc-body" aria-hidden="true">${emoji}</div>
+  <div class="rc-main">
+    <div class="rc-player rc-me-label">${tg('myBestLabel')}</div>
+    <div class="rc-score">${fmtScore(bestScore)}${scoreUnit}</div>
+  </div>
+  <div class="rc-meta">${linkHtml}</div>
+</div>`);
+  }
 
-    const rankClass = entry.rank === 1 ? 'top1' : entry.rank === 2 ? 'top2' : entry.rank === 3 ? 'top3' : '';
-    const emoji     = BODY_EMOJIS[Math.min(11, entry.highest_body_tier)];
-    const shareHref = `/games/rollaxy/share/${entry.id}`;
-    const mineMarker  = isMine ? ' <span class="rc-mine-marker">👤</span>' : '';
-    const playerStr   = entry.display_name
-      ? `<div class="rc-player">${escHtml(entry.display_name)}${mineMarker}</div>`
-      : `<div class="rc-player rc-player--anon">—${mineMarker}</div>`;
-
-    return `<div class="rank-card${isMine ? ' is-mine' : ''}">
+  // ── 通常ランキングカード ──
+  if (entries.length === 0) {
+    const pad = bestScore > 0 ? ' style="padding-top:28px;padding-bottom:28px"' : '';
+    cards.push(`<div class="rank-status"${pad}>${tg('rankEmpty')}</div>`);
+  } else {
+    for (const entry of entries) {
+      const isMine    = myIds.includes(entry.id);
+      const rankClass = entry.rank === 1 ? 'top1' : entry.rank === 2 ? 'top2' : entry.rank === 3 ? 'top3' : '';
+      const emoji     = BODY_EMOJIS[Math.min(11, entry.highest_body_tier)];
+      const shareHref = `/games/rollaxy/share/${entry.id}`;
+      const mineMarker  = isMine ? ' <span class="rc-mine-marker">👤</span>' : '';
+      const playerStr   = entry.display_name
+        ? `<div class="rc-player">${escHtml(entry.display_name)}${mineMarker}</div>`
+        : `<div class="rc-player rc-player--anon">—${mineMarker}</div>`;
+      cards.push(`<div class="rank-card${isMine ? ' is-mine' : ''}">
   <div class="rc-rank ${rankClass}">#${entry.rank}</div>
   <div class="rc-body" aria-hidden="true">${emoji}</div>
   <div class="rc-main">
@@ -437,25 +451,15 @@ async function loadRanking() {
     <span class="rc-date">${fmtDate(entry.created_at)}</span>
     <a class="rc-link" href="${shareHref}" target="_blank" rel="noopener" aria-label="share">🔗</a>
   </div>
-</div>`;
-  });
+</div>`);
+    }
+  }
 
-  list.innerHTML = cards.join('');
-
-  if (bestEntry) showBestBanner(bestEntry);
-}
-
-// ── あなたのベストバナー ──
-function showBestBanner(entry) {
-  const tg = (typeof TG === 'function') ? TG : k => k;
-  const scoreUnit = tg('scoreUnit') || '点';
-  document.getElementById('best-rank').textContent  = `#${entry.rank}`;
-  document.getElementById('best-score').textContent = `${fmtScore(entry.score)}${scoreUnit}`;
-  document.getElementById('best-link').href         = `/games/rollaxy/share/${entry.id}`;
-  document.getElementById('my-best').style.display  = '';
-}
-function hideBestBanner() {
-  document.getElementById('my-best').style.display = 'none';
+  if (cards.length === 0) {
+    list.innerHTML = `<div class="rank-status">${tg('rankEmpty')}</div>`;
+  } else {
+    list.innerHTML = cards.join('');
+  }
 }
 
 // ── 言語変更時に再描画 ──
