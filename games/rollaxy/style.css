@@ -554,6 +554,27 @@ canvas { position: absolute; top: 0; left: 0; transform-origin: top left; }
   width: 36px; font-size: 13px; color: #aaa; text-align: right;
 }
 
+/* ランキングリンク（設定メニュー内・スタート画面） */
+#settings-ranking-link,
+#start-ranking-link {
+  display: inline-block;
+  padding: 9px 24px;
+  background: rgba(124,92,252,0.18);
+  border: 1px solid rgba(124,92,252,0.5);
+  border-radius: 24px;
+  color: #cc99ff;
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 600;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s, border-color 0.15s;
+}
+#settings-ranking-link:hover,
+#start-ranking-link:hover {
+  background: rgba(124,92,252,0.32);
+  border-color: rgba(124,92,252,0.8);
+}
+
 /* 「リセット」ボタン（オレンジ、「もう一度」と同スタイル） */
 #reset-btn {
   padding: 13px 36px; font-size: 18px; font-weight: bold;
