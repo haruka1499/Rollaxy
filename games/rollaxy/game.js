@@ -975,8 +975,8 @@ function flushMerges() {
 // 閾値未満なら「振動中」とみなして強制スリープさせる。
 // ゆっくり落下・移動している天体は net 変位が大きいため sleep しない。
 // ============================================================
-const SLEEP_INTERVAL  = 30;  // 判定間隔 (sub-step 数)。4 sub-step/frame × 60fps で約 125ms
-const SLEEP_NET_DISP2 = 1.0; // net 変位の二乗閾値 (px²)。1px 未満の移動なら振動とみなす
+const SLEEP_INTERVAL  = 60;   // 判定間隔 (sub-step 数)。4 sub-step/frame × 60fps で約 250ms
+const SLEEP_NET_DISP2 = 0.25; // net 変位の二乗閾値 (px²)。0.5px 未満かつ高周波振動ならスリープ
 const SLEEP_GRACE_MS  = 800; // スポーン・wake 直後のこの時間は判定しない (ms)
 
 function checkCustomSleep() {
