@@ -508,6 +508,19 @@ canvas { position: absolute; top: 0; left: 0; transform-origin: top left; }
   background: rgba(255,255,255,0.18);
   color: #fff;
 }
+/* スタート画面のプレイヤー名表示 */
+#start-playername {
+  font-size: 13px;
+  color: #b89ee8;
+  background: rgba(124,92,252,0.15);
+  border: 1px solid rgba(124,92,252,0.3);
+  border-radius: 20px;
+  padding: 5px 14px;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 #start-btn {
   padding: 13px 48px; font-size: 20px; font-weight: bold;
   background: linear-gradient(135deg, #ff7722, #ff4400);
