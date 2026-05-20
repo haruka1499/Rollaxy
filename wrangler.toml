@@ -1,23 +1,18 @@
 name = "novora-game"
 compatibility_date = "2024-01-01"
-main = "src/worker.js"
 
-[assets]
-directory = "."
+# ── Cloudflare Pages プロジェクト設定 ──────────────────────────────
+# 動的処理は functions/ ディレクトリの Pages Functions で行う
+# D1 / KV バインディングはここで定義（Pages も wrangler.toml を読む）
 
 [[d1_databases]]
 binding = "DB"
-database_name = "novora_game"
-# wrangler d1 create novora_game を実行後に表示される database_id を入力してください
+database_name = "novora_game_staging"
 database_id = "0bf7131a-ee13-4b51-a05c-691bb44ac0ee"
 
 [[kv_namespaces]]
 binding = "RANKING_CACHE"
-# wrangler kv:namespace create RANKING_CACHE を実行後に表示される id を入力してください
 id = "15af2d0c1ed64b409b10f138f49dd543"
-
-# [triggers] は Cloudflare Pages 非対応（Workers のみ）
-# クリーンアップは /api/admin/cleanup を外部 Cron から呼び出す方式に変更
 
 [vars]
 # 管理用エンドポイントの認証シークレット（デプロイ前にランダムな値に変更してください）
