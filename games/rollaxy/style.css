@@ -606,9 +606,10 @@ canvas { position: absolute; top: 0; left: 0; transform-origin: top left; }
   font-family: monospace; color: #886688; font-size: 11px;
 }
 
-/* ランキングリンク（設定メニュー内・スタート画面） */
+/* ランキングリンク・ゲーム一覧リンク（設定メニュー内・スタート画面） */
 #settings-ranking-link,
-#start-ranking-link {
+#start-ranking-link,
+#start-games-link {
   display: inline-block;
   padding: 9px 24px;
   background: rgba(124,92,252,0.18);
@@ -622,7 +623,8 @@ canvas { position: absolute; top: 0; left: 0; transform-origin: top left; }
   transition: background 0.15s, border-color 0.15s;
 }
 #settings-ranking-link:hover,
-#start-ranking-link:hover {
+#start-ranking-link:hover,
+#start-games-link:hover {
   background: rgba(124,92,252,0.32);
   border-color: rgba(124,92,252,0.8);
 }
