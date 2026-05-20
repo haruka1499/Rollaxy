@@ -1,9 +1,9 @@
 name = "novora-game"
 compatibility_date = "2024-01-01"
+main = "src/worker.js"
 
-# ── Cloudflare Pages プロジェクト設定 ──────────────────────────────
-# 動的処理は functions/ ディレクトリの Pages Functions で行う
-# D1 / KV バインディングはここで定義（Pages も wrangler.toml を読む）
+[assets]
+directory = "."
 
 [[d1_databases]]
 binding = "DB"
