@@ -1654,8 +1654,8 @@ function closeSettings() {
   settingsOverlay.classList.remove('show');
 }
 
-settingsBtn.addEventListener('click',    () => openSettings());
-settingsBtn.addEventListener('touchend', e => { e.preventDefault(); openSettings(); });
+settingsBtn.addEventListener('click',    () => paused ? closeSettings() : openSettings());
+settingsBtn.addEventListener('touchend', e => { e.preventDefault(); paused ? closeSettings() : openSettings(); });
 resumeBtn.addEventListener('click',    () => closeSettings());
 resumeBtn.addEventListener('touchend', e => { e.preventDefault(); closeSettings(); });
 resetBtn.addEventListener('click',    () => { settingsOverlay.classList.remove('show'); init(); });
