@@ -90,6 +90,11 @@
       <input type="range" id="sfx-vol" min="0" max="1" step="0.05" value="0.8">
       <span id="sfx-val">80%</span>
     </div>
+    <!-- 言語選択（buildLangSelector() が生成） -->
+    <div id="settings-lang-wrap">
+      <div id="settings-lang-label">Language</div>
+      <div id="settings-lang-row"></div>
+    </div>
     <!-- 表示名（ランキングに載る名前） -->
     <div id="displayname-wrap">
       <div id="displayname-label-row">
@@ -195,8 +200,6 @@
 
   <div id="start-overlay" class="show">
     <h2 data-i18n="title">ころころ宇宙</h2>
-    <!-- 言語セレクター: LANG_ORDER の順にボタンを生成（lang.js が初期化後に buildLangSelector() で挿入） -->
-    <div id="lang-selector"></div>
     <button id="start-btn" data-i18n="start">スタート</button>
     <a id="start-ranking-link" href="/games/rollaxy/ranking/" data-i18n="rankingBtn">🏆 ランキング</a>
   </div>

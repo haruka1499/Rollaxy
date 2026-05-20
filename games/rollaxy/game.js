@@ -1815,9 +1815,10 @@ function drawBodyBar() {
 // LANG — 言語セレクターの構築と langchange イベントへの対応
 // ============================================================
 
-// スタート画面に言語ボタンを生成（LANG_ORDER の順）
+// 設定オーバーレイ内に言語ボタンを生成（LANG_ORDER の順）
 function buildLangSelector() {
-  const selector = document.getElementById('lang-selector');
+  const selector = document.getElementById('settings-lang-row');
+  if (!selector) return;
   selector.innerHTML = '';
   for (const code of LANG_ORDER) {
     const btn = document.createElement('button');
