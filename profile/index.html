@@ -14,7 +14,8 @@
     .profile-wrap {
       max-width: 560px;
       margin: 0 auto;
-      padding: 32px 16px 64px;
+      /* bottom: 固定バーの高さ(約62px)＋余裕分 */
+      padding: 32px 16px 80px;
     }
     .profile-title {
       font-size: clamp(1.4rem, 5vw, 2rem);
@@ -196,6 +197,38 @@
       transition: background 0.15s;
     }
     .cta-secondary:hover { background: rgba(62,207,255,0.22); }
+
+    /* ── 固定下部バー（ゲームに戻る） ── */
+    #back-bar {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      padding: 10px 16px;
+      background: rgba(8, 12, 20, 0.94);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border-top: 1px solid rgba(124,92,252,0.22);
+      display: flex;
+      justify-content: center;
+      z-index: 200;
+    }
+    .back-btn {
+      display: block;
+      width: 100%;
+      max-width: 400px;
+      padding: 13px 24px;
+      background: var(--accent);
+      color: #fff;
+      border-radius: 10px;
+      font-size: 0.97rem;
+      font-weight: 700;
+      text-decoration: none;
+      text-align: center;
+      transition: background 0.15s;
+    }
+    .back-btn:hover  { background: #9970ff; }
+    .back-btn:active { background: #6644dd; }
   </style>
 </head>
 <body>
@@ -271,6 +304,26 @@
   </div>
   &copy; 2025 NOVORA GAME
 </footer>
+
+<!-- 固定下部：ゲームに戻るボタン -->
+<div id="back-bar">
+  <a href="/games/rollaxy/" class="back-btn" id="back-btn">▶ ゲームに戻る</a>
+</div>
+
+<script>
+// ゲームに戻るボタン：直前がゲームなら history.back()
+(function() {
+  const btn = document.getElementById('back-btn');
+  btn.addEventListener('click', function(e) {
+    try {
+      if (document.referrer && new URL(document.referrer).pathname.startsWith('/games/rollaxy/')) {
+        e.preventDefault();
+        history.back();
+      }
+    } catch (_) {}
+  });
+})();
+</script>
 
 <script>
 'use strict';
