@@ -368,10 +368,19 @@ const gcCopy   = document.getElementById('gc-copy');
 dnInput.value = ensureDisplayName();
 dnSave.addEventListener('click', () => {
   if (saveDisplayName(dnInput.value)) {
-    dnInput.value     = localStorage.getItem('novora_display_name');
+    dnInput.value        = localStorage.getItem('novora_display_name');
     dnStatus.textContent = '✓ 保存しました';
     dnStatus.className   = 'dn-status ok';
     setTimeout(() => { dnStatus.textContent = ''; dnStatus.className = 'dn-status'; }, 2500);
+    // players テーブルへ即時同期（ゲームプレイなしでも名前変更を反映）
+    fetch('/api/rollaxy/player', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        player_id:    ensurePlayerId(),
+        display_name: localStorage.getItem('novora_display_name'),
+      }),
+    }).catch(() => {});
   } else {
     dnStatus.textContent = '1文字以上入力してください';
     dnStatus.className   = 'dn-status err';

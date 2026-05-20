@@ -202,6 +202,19 @@ function saveDisplayName(rawName) {
   return true;
 }
 
+// 表示名をサーバーの players テーブルに即時同期
+// ゲームプレイ時は share POST で自動 upsert されるが、
+// 設定・プロフィールページでの変更はこちらで明示的に送信する
+async function syncDisplayNameToServer() {
+  try {
+    await fetch('/api/rollaxy/player', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ player_id: getPlayerId(), display_name: getDisplayName() }),
+    });
+  } catch (_) {}
+}
+
 // ゲストコード（player_id のサフィックス部分を表示用に取り出す）
 function getGuestCode() {
   const pid = getPlayerId();
@@ -1657,6 +1670,7 @@ if (displayNameSaveBtn) {
     if (saveDisplayName(input.value)) {
       input.value          = getDisplayName(); // trim 後の値を反映
       updateStartPlayername();                 // スタート画面の名前表示も更新
+      syncDisplayNameToServer();               // players テーブルへ即時同期
       status.textContent   = T('displayNameSaved');
       status.dataset.ok    = '1';
       setTimeout(() => { if (status) status.textContent = ''; }, 2000);

@@ -127,22 +127,30 @@ async function handleSharePost(request, env) {
   const created_at = Math.floor(Date.now() / 1000);
   const payload    = JSON.stringify(snapshot_payload);
 
-  // player_id / display_name 列が存在しない場合（マイグレーション未実施）のフォールバック
-  // 推奨マイグレーション:
-  //   ALTER TABLE shares ADD COLUMN player_id TEXT;
-  //   ALTER TABLE shares ADD COLUMN display_name TEXT;
-  //   CREATE INDEX idx_shares_player ON shares (player_id);
+  // shares への INSERT（player_id / display_name 列が未追加の場合はフォールバック）
   try {
     await env.DB.prepare(
       `INSERT INTO shares (id, game_id, version, score, highest_body_tier, snapshot_payload, ui_lang, created_at, retention_type, player_id, display_name)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'normal', ?, ?)`
     ).bind(id, GAME_ID, version, score, highest_body_tier, payload, ui_lang, created_at, pid, dname).run();
   } catch (_) {
-    // 列なしでリトライ
     await env.DB.prepare(
       `INSERT INTO shares (id, game_id, version, score, highest_body_tier, snapshot_payload, ui_lang, created_at, retention_type)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'normal')`
     ).bind(id, GAME_ID, version, score, highest_body_tier, payload, ui_lang, created_at).run();
+  }
+
+  // players テーブルへ upsert（最新の表示名を常に最新に保つ）
+  if (pid) {
+    const pname = dname ?? ('ゲスト_' + pid.split('_').slice(1).join('').slice(0, 6));
+    try {
+      await env.DB.prepare(
+        `INSERT INTO players (player_id, display_name, updated_at) VALUES (?, ?, ?)
+         ON CONFLICT(player_id) DO UPDATE SET
+           display_name = excluded.display_name,
+           updated_at   = excluded.updated_at`
+      ).bind(pid, pname, created_at).run();
+    } catch (_) {} // players テーブル未作成の場合は無視
   }
 
   // ランキング retention 再計算
@@ -192,18 +200,30 @@ async function handleRanking(request, env) {
               : period === 'weekly' ? now - 604800
               : 0;
 
-  // display_name 列が存在しない場合（マイグレーション未実施）のフォールバック
+  // players テーブルを LEFT JOIN して最新の表示名を取得
+  // フォールバック: players テーブルなし → shares.display_name → 列なし の順で試みる
   let results;
   try {
     ({ results } = await env.DB.prepare(
-      `SELECT id, score, highest_body_tier, created_at, display_name
-       FROM shares WHERE game_id=? AND created_at>=? ORDER BY score DESC LIMIT ?`
+      `SELECT s.id, s.score, s.highest_body_tier, s.created_at,
+              COALESCE(p.display_name, s.display_name) AS display_name
+       FROM shares s
+       LEFT JOIN players p ON s.player_id = p.player_id
+       WHERE s.game_id=? AND s.created_at>=?
+       ORDER BY s.score DESC LIMIT ?`
     ).bind(GAME_ID, since, limit).all());
   } catch (_) {
-    ({ results } = await env.DB.prepare(
-      `SELECT id, score, highest_body_tier, created_at
-       FROM shares WHERE game_id=? AND created_at>=? ORDER BY score DESC LIMIT ?`
-    ).bind(GAME_ID, since, limit).all());
+    try {
+      ({ results } = await env.DB.prepare(
+        `SELECT id, score, highest_body_tier, created_at, display_name
+         FROM shares WHERE game_id=? AND created_at>=? ORDER BY score DESC LIMIT ?`
+      ).bind(GAME_ID, since, limit).all());
+    } catch (_) {
+      ({ results } = await env.DB.prepare(
+        `SELECT id, score, highest_body_tier, created_at
+         FROM shares WHERE game_id=? AND created_at>=? ORDER BY score DESC LIMIT ?`
+      ).bind(GAME_ID, since, limit).all());
+    }
   }
 
   const entries = results.map((row, i) => ({
@@ -534,6 +554,51 @@ async function handleOgp(id, env) {
 }
 
 // ============================================================
+// POST /api/rollaxy/player — プレイヤー表示名の即時更新
+// ゲームプレイなし（設定・プロフィールページ）での名前変更に対応
+// ============================================================
+async function handlePlayerUpdate(request, env) {
+  const origin = request.headers.get('Origin') ?? '';
+
+  let body;
+  try { body = await request.json(); }
+  catch { return json({ error: 'Invalid JSON' }, 400, corsHeaders(origin)); }
+
+  const { player_id, display_name } = body;
+
+  const pid = (typeof player_id === 'string' && /^[a-z]+_[a-z0-9]{8,28}$/.test(player_id))
+    ? player_id : null;
+  if (!pid) return json({ error: 'invalid player_id' }, 400, corsHeaders(origin));
+
+  const dname = (typeof display_name === 'string' && display_name.trim().length >= 1)
+    ? display_name.trim().replace(/[<>"&]/g, '').slice(0, 15) || null : null;
+  if (!dname) return json({ error: 'invalid display_name' }, 400, corsHeaders(origin));
+
+  const now = Math.floor(Date.now() / 1000);
+  try {
+    await env.DB.prepare(
+      `INSERT INTO players (player_id, display_name, updated_at) VALUES (?, ?, ?)
+       ON CONFLICT(player_id) DO UPDATE SET
+         display_name = excluded.display_name,
+         updated_at   = excluded.updated_at`
+    ).bind(pid, dname, now).run();
+  } catch (_) {
+    return json({ error: 'players table not ready' }, 503, corsHeaders(origin));
+  }
+
+  // ランキングキャッシュを無効化（次回取得で最新名が反映される）
+  try {
+    for (const p of ['all', 'daily', 'weekly']) {
+      for (const l of [20, 50, 100]) {
+        await env.RANKING_CACHE.delete(`${GAME_ID}:ranking:${p}:${l}`);
+      }
+    }
+  } catch (_) {}
+
+  return json({ ok: true }, 200, corsHeaders(origin));
+}
+
+// ============================================================
 // メインルーター
 // ============================================================
 const ID_RE = /^[a-zA-Z0-9]{8,12}$/;
@@ -557,6 +622,11 @@ export default {
     // GET /api/rollaxy/ranking
     if (method === 'GET' && path === '/api/rollaxy/ranking') {
       return handleRanking(request, env);
+    }
+
+    // POST /api/rollaxy/player — 表示名の即時更新
+    if (method === 'POST' && path === '/api/rollaxy/player') {
+      return handlePlayerUpdate(request, env);
     }
 
     // POST /api/admin/cleanup
