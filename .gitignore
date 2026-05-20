@@ -11,3 +11,10 @@ games/rollaxy/debug.html
 games/rollaxy/debug.css
 games/rollaxy/debug.js
 games/rollaxy/image-adjuster.html
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
+.env*
+!.env.example
