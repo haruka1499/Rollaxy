@@ -747,6 +747,7 @@ function closeChoicePanel() {
 
 // ルーレットをキューに積む。表示中でなければ即開始
 function enqueueRoulette() {
+  if (dead) return; // ゲームオーバー後は報酬を与えない
   rouletteQueue.push(true);
   if (!rouletteActive) processNextRoulette();
 }
@@ -759,6 +760,7 @@ function processNextRoulette() {
 
 // 5連鎖報酬をカウントアップして、状況に応じてパネルを表示
 function enqueueChoice() {
+  if (dead) return; // ゲームオーバー後は報酬を与えない
   pendingChoiceRewards++;
   updateRewardQueueInfo();
   updateSkillBarRewardState();
@@ -973,6 +975,10 @@ function checkDanger() {
 function doGameOver() {
   dead = true;
   if (dropTimer) clearTimeout(dropTimer);
+  // 連鎖演出タイマーをすべて止める（ゲームオーバー後に報酬が発生しないよう）
+  clearTimeout(chainTimer);       chainTimer = null;
+  clearTimeout(chainResolveTimer); chainResolveTimer = null;
+  rouletteQueue.length = 0; // キュー済みルーレットも破棄
   rltReset(); // ルーレット表示中でもゲームオーバーで強制終了
   closeChoicePanel();
   resetSkillState(); // スキル状態をクリア
