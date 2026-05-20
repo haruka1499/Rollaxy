@@ -15,7 +15,7 @@
 // 称号バッジ: games/rollaxy/images/badges/title_0.png 〜 title_6.png を配置すると
 //   OGP 画像内に合成される。なければ英語 ASCII フォールバックテキストを使用。
 
-import { Resvg } from '@cf-wasm/resvg';
+import { Resvg } from '@cf-wasm/resvg/workerd';
 
 const SITE_URL = 'https://novoragame.com';
 const OGP_W   = 1200;
@@ -238,11 +238,9 @@ export async function onRequestGet({ params, env }) {
 
   let png;
   try {
-    const resvg  = new Resvg(svg, resvgOpts);
+    const resvg  = await Resvg.async(svg, resvgOpts);
     const result = resvg.render();
     png = result.asPng();
-    result.free();
-    resvg.free();
   } catch (err) {
     console.error('resvg render failed:', err);
     return new Response('Image generation failed', { status: 500 });
