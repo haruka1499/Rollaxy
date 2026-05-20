@@ -101,6 +101,10 @@ const CFG = {
                      // これより上（9〜: ブラックホール・銀河・銀河団）は爆発の影響を受けない
   },
 
+  // スナップショット・ランキング用バージョン番号
+  // 天体定義や盤面フォーマットが変わったときに増やす
+  GAME_VERSION: 1,
+
   // X（Twitter）シェア設定
   SHARE: {
     URL: 'https://novoragame.com/games/rollaxy/', // シェアに含めるゲームの URL（空文字の場合は URL なし）

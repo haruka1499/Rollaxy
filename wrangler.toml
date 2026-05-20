@@ -1,0 +1,21 @@
+name = "novora-game"
+compatibility_date = "2024-01-01"
+pages_build_output_dir = "."
+
+[[d1_databases]]
+binding = "DB"
+database_name = "novora_game"
+# wrangler d1 create novora_game を実行後に表示される database_id を入力してください
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+
+[[kv_namespaces]]
+binding = "RANKING_CACHE"
+# wrangler kv:namespace create RANKING_CACHE を実行後に表示される id を入力してください
+id = "REPLACE_WITH_KV_NAMESPACE_ID"
+
+# [triggers] は Cloudflare Pages 非対応（Workers のみ）
+# クリーンアップは /api/admin/cleanup を外部 Cron から呼び出す方式に変更
+
+[vars]
+# 管理用エンドポイントの認証シークレット（デプロイ前にランダムな値に変更してください）
+ADMIN_SECRET = "REPLACE_WITH_RANDOM_SECRET"

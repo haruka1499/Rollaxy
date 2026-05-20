@@ -149,6 +149,9 @@ let debugDragging = false; // 左ボタン押しっぱなし中
 let hiScore = +(localStorage.getItem('korokoro_hi') || 0);
 hiEl.textContent = `${T('best')}: ${hiScore}`;
 
+// 共有 URL（doGameOver で非同期生成し shareToX で使う）
+let _pendingShareId = null;
+
 // ============================================================
 // SOUND — 合成効果音（HTMLAudioElement プール + busy フラグ方式）
 // paused は play() 直後でも true になる瞬間があるため信頼できない。
@@ -201,6 +204,7 @@ function init() {
   resize();
 
   score = 0; dangerCnt = 0; dead = false; paused = false; waiting = true;
+  _pendingShareId = null;
   chainCount = 0;
   clearTimeout(chainTimer);       chainTimer = null;
   clearTimeout(chainResolveTimer); chainResolveTimer = null;
@@ -225,6 +229,7 @@ function init() {
   // ゲームオーバー・設定オーバーレイを閉じ、スタート画面を表示
   overlay.classList.remove('show');         // 「ゲームオーバー時のオーバーレイ」
   document.getElementById('share-note')?.classList.remove('show');
+  _restoreShareButton();
   settingsOverlay.classList.remove('show'); // 「設定を開いたとき」の画面
   startOverlay.classList.add('show');       // 「スタート画面」
   dropX = CFG.W / 2; canDrop = true;
@@ -972,6 +977,58 @@ function doGameOver() {
     hiEl.textContent = `${T('best')}: ${hiScore}`;
   }
   overlay.classList.add('show'); // 「ゲームオーバー時のオーバーレイ」を表示
+  _pendingShareId = null;
+  shareBtn.disabled = true;
+  shareBtn.textContent = T('sharePreparing');
+  shareBtn.classList.add('loading');
+  _createShare();
+}
+
+function _restoreShareButton() {
+  shareBtn.disabled = false;
+  shareBtn.textContent = T('shareBtn');
+  shareBtn.classList.remove('loading');
+}
+
+// 盤面スナップショットを Worker に POST して共有 URL を取得する（失敗しても UI に影響しない）
+// 成功・失敗どちらでも finally でシェアボタンを復元する。
+async function _createShare() {
+  const controller = new AbortController();
+  const timeoutId  = setTimeout(() => controller.abort(), 10000);
+  try {
+    let highestTier = 0;
+    const bodies = [];
+    for (const d of bmap.values()) {
+      if (d.bi > highestTier) highestTier = d.bi;
+      bodies.push({
+        tier:  d.bi,
+        x:     Math.round(d.body.position.x * 10) / 10,
+        y:     Math.round(d.body.position.y * 10) / 10,
+        angle: Math.round(d.body.angle * 100) / 100,
+      });
+    }
+    const res = await fetch('/api/rollaxy/share', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        score,
+        highest_body_tier: highestTier,
+        snapshot_payload:  { bodies },
+        ui_lang:           typeof currentLang !== 'undefined' ? currentLang : 'ja',
+        version:           CFG.GAME_VERSION,
+      }),
+      signal: controller.signal,
+    });
+    if (res.ok) {
+      const { id } = await res.json();
+      _pendingShareId = id;
+    }
+  } catch (_) {
+    // タイムアウト・ネットワークエラー等 → フォールバックURLでシェア可能
+  } finally {
+    clearTimeout(timeoutId);
+    _restoreShareButton();
+  }
 }
 
 // ============================================================
@@ -1335,24 +1392,27 @@ function _dataURLtoBlob(dataUrl) {
 
 function shareToX() {
   const text    = T('tweetText')(score);
-  const gameUrl = CFG.SHARE.URL;
+  // 共有 URL: 個別シェアページ（生成済み）> ゲームトップページ > なし
+  const shareId = _pendingShareId;
+  const shareUrl = shareId
+    ? `${CFG.SHARE.URL.replace(/\/$/, '')}/share/${shareId}`
+    : (CFG.SHARE.URL || '');
 
   // ── Web Share API（iOS / HTTPS 環境のスマホ向け）──────────────────
-  // toDataURL は失敗することがあるので try-catch で囲む
   if (typeof navigator.canShare === 'function') {
     let dataUrl;
     try { dataUrl = canvas.toDataURL('image/png'); } catch (_) {}
     if (dataUrl) {
       const blob = _dataURLtoBlob(dataUrl);
-      const file = new File([blob], 'korokoro-result.png', { type: 'image/png' });
+      const file = new File([blob], 'rollaxy-result.png', { type: 'image/png' });
       if (navigator.canShare({ files: [file] })) {
         navigator.share({
           files: [file],
-          text: text + (gameUrl ? ' ' + gameUrl : ''),
+          text: text + (shareUrl ? ' ' + shareUrl : ''),
         }).catch(e => {
           if (e.name !== 'AbortError') console.warn('Web Share failed', e);
         });
-        return; // OS のシェアシートに任せるのでここで終了
+        return;
       }
     }
   }
@@ -1360,7 +1420,7 @@ function shareToX() {
   // ── フォールバック: Twitter Intent + 画像ダウンロード ────────────
   // window.open を必ず先に呼ぶ（ポップアップブロッカー対策）
   const tweetUrl = 'https://twitter.com/intent/tweet?text=' + encodeURIComponent(text)
-    + (gameUrl ? '&url=' + encodeURIComponent(gameUrl) : '');
+    + (shareUrl ? '&url=' + encodeURIComponent(shareUrl) : '');
   window.open(tweetUrl, '_blank');
 
   // 画像ダウンロード（toDataURL が失敗しても Twitter Intent には影響させない）
@@ -1368,7 +1428,7 @@ function shareToX() {
     const dataUrl = canvas.toDataURL('image/png');
     const a = document.createElement('a');
     a.href = dataUrl;
-    a.download = 'korokoro-result.png';
+    a.download = 'rollaxy-result.png';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
