@@ -979,8 +979,9 @@ function doGameOver() {
   clearTimeout(chainTimer);       chainTimer = null;
   clearTimeout(chainResolveTimer); chainResolveTimer = null;
   rouletteQueue.length = 0; // キュー済みルーレットも破棄
+  pendingChoiceRewards = 0; // 未受け取り報酬を破棄（スキルバーの「受け取る」ボタンを消す）
   rltReset(); // ルーレット表示中でもゲームオーバーで強制終了
-  closeChoicePanel();
+  closeChoicePanel(); // updateSkillBarRewardState を内部で呼ぶ（pendingChoiceRewards=0 が先に必要）
   resetSkillState(); // スキル状態をクリア
   finalEl.textContent = score;
   const isHi = score > hiScore;
@@ -1584,6 +1585,7 @@ document.querySelectorAll('.chain-reward-btn').forEach(btn => {
 // スキルバーのクレームボタン（報酬待機中に表示）
 const skillClaimBtn = document.getElementById('skill-claim');
 const claimOpen = () => {
+  if (dead) return;
   if (pendingChoiceRewards > 0 && !chainRewardPending) showChainRewardPanel();
 };
 skillClaimBtn.addEventListener('click',    claimOpen);
