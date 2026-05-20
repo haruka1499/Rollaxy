@@ -152,6 +152,13 @@ hiEl.textContent = `${T('best')}: ${hiScore}`;
 // 共有 URL（doGameOver で非同期生成し shareToX で使う）
 let _pendingShareId = null;
 
+// ゲームオーバーアニメーション
+// ・天体をランダム順に消去し、最後の天体が消えた後にオーバーレイを表示する
+// ・消去間隔 = GO_ANIM_MS ÷ 天体数 → 天体数に関わらず合計所要時間がほぼ一定
+const GO_ANIM_MS = 2500; // 全天体消去にかける合計時間 (ms)
+const POP_DUR_MS = 320;  // 1個あたりのポップアニメーション時間 (ms)
+let _goPopEffects = [];   // { x, y, bi, startTime }
+
 // ============================================================
 // SOUND — 合成効果音（HTMLAudioElement プール + busy フラグ方式）
 // paused は play() 直後でも true になる瞬間があるため信頼できない。
@@ -205,6 +212,7 @@ function init() {
 
   score = 0; dangerCnt = 0; dead = false; paused = false; waiting = true;
   _pendingShareId = null;
+  _goPopEffects = [];
   chainCount = 0;
   clearTimeout(chainTimer);       chainTimer = null;
   clearTimeout(chainResolveTimer); chainResolveTimer = null;
@@ -976,12 +984,53 @@ function doGameOver() {
     localStorage.setItem('korokoro_hi', score);
     hiEl.textContent = `${T('best')}: ${hiScore}`;
   }
-  overlay.classList.add('show'); // 「ゲームオーバー時のオーバーレイ」を表示
+  // share API を即座に非同期呼び出し（アニメーション中に裏で通信）
   _pendingShareId = null;
   shareBtn.disabled = true;
   shareBtn.textContent = T('sharePreparing');
   shareBtn.classList.add('loading');
   _createShare();
+  // 天体を順番にポップ消去 → 全消去後にオーバーレイ表示
+  _startGameOverAnim();
+}
+
+// 天体をランダム順にポップ消去し、終わったらゲームオーバーオーバーレイを表示する
+function _startGameOverAnim() {
+  const ids = [...bmap.keys()];
+  if (ids.length === 0) {
+    overlay.classList.add('show');
+    return;
+  }
+  // Fisher-Yates シャッフル
+  for (let i = ids.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [ids[i], ids[j]] = [ids[j], ids[i]];
+  }
+  const interval = GO_ANIM_MS / ids.length;
+  ids.forEach((id, idx) => {
+    setTimeout(() => {
+      _popBody(id);
+      if (idx === ids.length - 1) {
+        // 最後の天体のポップアニメが終わる頃にオーバーレイを表示
+        setTimeout(() => overlay.classList.add('show'), POP_DUR_MS + 80);
+      }
+    }, Math.round(idx * interval));
+  });
+}
+
+// 天体を物理世界から除去してポップエフェクトを登録する
+function _popBody(id) {
+  const d = bmap.get(id);
+  if (!d) return;
+  _goPopEffects.push({
+    x: d.body.position.x,
+    y: d.body.position.y,
+    bi: d.bi,
+    startTime: performance.now(),
+  });
+  bmap.delete(id);
+  glowMap.delete(id);
+  Matter.Composite.remove(world, d.body, true);
 }
 
 function _restoreShareButton() {
@@ -1022,6 +1071,9 @@ async function _createShare() {
     if (res.ok) {
       const { id } = await res.json();
       _pendingShareId = id;
+      // OGP 画像をバックグラウンドで事前生成（KV キャッシュに乗せておく）
+      // → X でシェアした際に Twitter が即座に画像取得できるようにする
+      fetch(`/games/rollaxy/ogp/${id}`).catch(() => {});
     }
   } catch (_) {
     // タイムアウト・ネットワークエラー等 → フォールバックURLでシェア可能
@@ -1152,6 +1204,43 @@ function draw() {
       ctx.shadowColor = `rgba(255,150,0,${a.toFixed(3)})`;
       ctx.shadowBlur = 20 * a;
       ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  // ゲームオーバー時の天体ポップエフェクト（スケールアップ＋フェードアウト）
+  if (_goPopEffects.length > 0) {
+    const nowPop = performance.now();
+    for (let i = _goPopEffects.length - 1; i >= 0; i--) {
+      const p = _goPopEffects[i];
+      const raw = (nowPop - p.startTime) / POP_DUR_MS;
+      if (raw >= 1) { _goPopEffects.splice(i, 1); continue; }
+      // ease-out: 最初に素早く大きくなり、最後はゆっくりフェード
+      const t    = 1 - Math.pow(1 - raw, 2); // ease-out quadratic
+      const sc   = 1 + t * 1.6;              // 1x → 2.6x に拡大
+      const al   = 1 - raw;                  // リニアにフェードアウト
+      const def  = CFG.BODIES[p.bi];
+      ctx.save();
+      ctx.globalAlpha = al;
+      ctx.translate(p.x, p.y);
+      ctx.scale(sc, sc);
+      // 本体円
+      ctx.beginPath();
+      ctx.arc(0, 0, def.r, 0, Math.PI * 2);
+      ctx.fillStyle = def.c;
+      ctx.fill();
+      // カスタム画像（あれば）
+      const _bimg = bodyImages[p.bi];
+      if (_bimg && _bimg.complete && _bimg.naturalWidth > 0) {
+        const _adj = IMG_ADJUST[p.bi] || { scale: 1, ox: 0, oy: 0 };
+        const _s   = Math.max(
+          (def.r * 2) / _bimg.naturalWidth,
+          (def.r * 2) / _bimg.naturalHeight
+        ) * _adj.scale;
+        const _dw = _bimg.naturalWidth  * _s;
+        const _dh = _bimg.naturalHeight * _s;
+        ctx.drawImage(_bimg, _adj.ox - _dw / 2, _adj.oy - _dh / 2, _dw, _dh);
+      }
       ctx.restore();
     }
   }
