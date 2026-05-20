@@ -1614,8 +1614,8 @@ function _unlockAudio() {
 }
 
 function openSettings() {
-  if (dead || waiting) return; // ゲームオーバー中・スタート待ち中は設定を開かない
-  paused = true;    // 物理を停止（描画は継続 → ゲーム画面が背後に透けて見える）
+  if (dead) return; // ゲームオーバー中は設定を開かない（スタート待ち中は開いてよい）
+  paused = true;    // 物理を停止（待機中はすでに止まっているが、フラグとして立てる）
   // 表示名フィールドを現在値で初期化
   const dnInput  = document.getElementById('displayname-input');
   const dnStatus = document.getElementById('displayname-status');

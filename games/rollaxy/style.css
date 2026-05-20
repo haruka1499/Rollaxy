@@ -512,12 +512,14 @@ canvas { position: absolute; top: 0; left: 0; transform-origin: top left; }
 }
 
 /* 設定オーバーレイ（#overlay と同じ半透明+blur デザイン） */
+/* z-index: 12 → #start-overlay（z-index なし＝DOM順で後）より上に表示されるよう明示 */
 #settings-overlay {
   display: none; position: absolute; inset: 0;
   background: rgba(0,0,0,0.78);
   backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
   flex-direction: column; align-items: center; justify-content: center;
   color: #fff; gap: 18px; text-align: center;
+  z-index: 12;
 }
 #settings-overlay.show { display: flex; }
 #settings-overlay h2 { font-size: 32px; font-weight: bold; }
