@@ -1,0 +1,13 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+*.swp
+
+# Debug / dev tools (本番不要)
+games/rollaxy/debug.html
+games/rollaxy/debug.css
+games/rollaxy/debug.js
+games/rollaxy/image-adjuster.html

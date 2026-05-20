@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-FFF4H3EVV8"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-FFF4H3EVV8');
+  </script>
+  <meta charset="UTF-8">
+  <!--
+    スマホ向け: user-scalable=no でピンチズーム無効、maximum-scale=1.0 で拡大防止。
+    ゲーム中に画面が拡大・縮小するとタッチ座標がずれるため必須。
+  -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Rollaxy | NOVORA GAME</title>
+  <meta name="description" content="A space-themed falling merge browser game. Combine celestial bodies, chain merges with strategic skills, and aim for the galaxy cluster. Free to play.">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://novoragame.com/games/rollaxy/">
+  <link rel="icon" href="../../favicon.ico">
+
+  <!-- OGP / Twitter Card -->
+  <meta property="og:type"        content="website">
+  <meta property="og:url"         content="https://novoragame.com/games/rollaxy/">
+  <meta property="og:title"       content="Rollaxy | NOVORA GAME">
+  <meta property="og:description" content="A space-themed falling merge browser game. Combine celestial bodies and use strategic skills to reach the galaxy cluster. Free to play.">
+  <meta property="og:image"       content="https://novoragame.com/ogp.png">
+  <meta name="twitter:card"       content="summary_large_image">
+
+  <!-- hreflang: 多言語対応時にここへ追加
+  <link rel="alternate" hreflang="ja"       href="https://novoragame.com/games/rollaxy/">
+  <link rel="alternate" hreflang="x-default" href="https://novoragame.com/games/rollaxy/">
+  -->
+
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!--
+  ヘッダー（#header）
+  ┌─────────────────────────────────────┐
+  │ スコア / 最高スコア  │  次の天体  ⚙ │
+  └─────────────────────────────────────┘
+  「次の天体が表示されているところ」= #next-wrap（次にドロップされる天体の絵文字プレビュー）
+  「設定ボタン」= #settings-btn（⚙ アイコンの四角ボタン）
+  #header-right で next-wrap と settings-btn をまとめて右寄せ
+-->
+<div id="header">
+  <div>
+    <div id="score-el">スコア: 0</div>
+    <div id="hi-el">最高: 0</div>
+  </div>
+  <div id="header-right">
+    <div id="next-wrap"><span data-i18n="next">次の天体</span><span id="next-emoji">💫</span></div>
+    <button id="settings-btn" aria-label="Menu"><span></span><span></span><span></span></button>
+  </div>
+</div>
+
+<!--
+  ゲームエリア（#canvas-outer）
+  - <canvas> が物理演算・描画を担う。論理サイズ 400×700px を CSS transform で画面にフィット。
+  - オーバーレイ 2種（どちらも canvas の上に absolute で重なる）:
+
+  「ゲームオーバー時のオーバーレイ」= #overlay
+    → dead=true になったときに .show クラスで表示。背景がぼやけてゲーム画面が透けて見える。
+
+  「設定を開いたとき（の画面）」= #settings-overlay
+    → 設定ボタン押下で .show クラスで表示。同じ半透明+blur デザイン。
+      「ゲームに戻る」ボタン (#resume-btn) と「リセット」ボタン (#reset-btn) を含む。
+-->
+<div id="canvas-outer">
+  <canvas id="game"></canvas>
+  <div id="overlay">
+    <h2 data-i18n="gameOver">ゲームオーバー</h2>
+    <p class="result"><span data-i18n="scoreResult">スコア</span>: <strong id="final-score">0</strong></p>
+    <p id="new-hi" style="display:none" data-i18n="newRecord">🏆 新記録！</p>
+    <button id="retry-btn" data-i18n="retry">もう一度</button>
+    <button id="share-btn" data-i18n="shareBtn">X でシェア</button>
+    <p id="share-note"></p>
+  </div>
+  <div id="settings-overlay">
+    <h2 data-i18n="settings">設定</h2>
+    <button id="resume-btn" data-i18n="resume">ゲームに戻る</button>
+    <button id="autoshow-btn">報酬自動表示: ON</button>
+    <div id="sfx-row">
+      <span data-i18n="sfxVolume">効果音</span>
+      <input type="range" id="sfx-vol" min="0" max="1" step="0.05" value="0.8">
+      <span id="sfx-val">80%</span>
+    </div>
+    <button id="reset-btn" data-i18n="reset">リセット</button>
+  </div>
+  <!--
+    「スタート画面」= #start-overlay
+    ページ読み込み直後に表示。スタートボタンを押すまでゲームは始まらない。
+    「もう一度」「リセット」後も init() 経由でここに戻る。
+  -->
+  <!-- 連鎖表示（「N連鎖！」のポップアップ。2連鎖以上で表示） -->
+  <div id="chain-display"></div>
+
+  <!--
+    デバッグパネル（` キーでトグル）
+    ゲーム進行中に任意の天体をキャンバス上に直接配置できる。
+    左クリック: 配置 / 右クリック: 削除
+  -->
+  <div id="debug-panel">
+    <div id="debug-header">🛠 DEBUG</div>
+    <div id="debug-palette"></div>
+    <div id="debug-hint">
+      <div>左クリック: 配置</div>
+      <div>右クリック: 削除</div>
+      <div>1–= : 選択</div>
+      <div>Shift+R: 全消去</div>
+      <div>` : 終了</div>
+    </div>
+    <div id="debug-count">0 bodies</div>
+  </div>
+
+  <!--
+    スキル確認パネル（指定アップグレード・指定削除で天体選択後に表示）
+    全画面ではなく下部カードとして表示。ゲーム画面は背後に見える。
+  -->
+  <div id="skill-confirm">
+    <div id="confirm-preview"></div>
+    <div class="confirm-btns">
+      <button id="confirm-ok">✓</button>
+      <button id="confirm-cancel">✕</button>
+    </div>
+  </div>
+
+  <!--
+    4連鎖ルーレット（スキルをランダムに決定するスロット演出）
+    停止ボタン or Space キーで減速停止。当選スキルは開始時に決定済み。
+  -->
+  <div id="roulette-overlay">
+    <div id="roulette-title" data-i18n="rouletteTitle">4連鎖！ スキル獲得</div>
+    <div id="roulette-cards">
+      <div class="rlt-card" data-skill="bomb">
+        <span class="rlt-icon">💣</span>
+        <div class="rlt-info">
+          <span class="rlt-name" data-i18n="skillBomb">爆弾</span>
+          <span class="rlt-desc" data-i18n="bombDesc">範囲内の天体を消去</span>
+        </div>
+      </div>
+      <div class="rlt-card" data-skill="upgrade">
+        <span class="rlt-icon">⬆</span>
+        <div class="rlt-info">
+          <span class="rlt-name" data-i18n="skillUpgrade">強化</span>
+          <span class="rlt-desc" data-i18n="upgradeDesc">天体を1段階強化</span>
+        </div>
+      </div>
+      <div class="rlt-card" data-skill="delete">
+        <span class="rlt-icon">✕</span>
+        <div class="rlt-info">
+          <span class="rlt-name" data-i18n="skillDelete">削除</span>
+          <span class="rlt-desc" data-i18n="deleteDesc">天体を削除</span>
+        </div>
+      </div>
+    </div>
+    <button id="roulette-stop" data-i18n="rouletteStop">停止</button>
+    <div class="reward-queue-info" id="roulette-queue-info"></div>
+  </div>
+
+  <!--
+    連鎖報酬スキル選択パネル（5連鎖以上で表示）
+    3つのスキルボタンから1つを選ぶ。選択後に自動で閉じる。
+  -->
+  <div id="chain-reward">
+    <div id="chain-reward-title" data-i18n="chooseSkill">スキルを選択</div>
+    <div class="reward-queue-info" id="choice-queue-info"></div>
+    <div id="chain-reward-btns">
+      <button class="chain-reward-btn" data-skill="bomb"><span class="cr-icon">💣</span><span class="cr-label" data-i18n="skillBomb">爆弾</span></button>
+      <button class="chain-reward-btn" data-skill="upgrade"><span class="cr-icon">⬆</span><span class="cr-label" data-i18n="skillUpgrade">強化</span></button>
+      <button class="chain-reward-btn" data-skill="delete"><span class="cr-icon">✕</span><span class="cr-label" data-i18n="skillDelete">削除</span></button>
+    </div>
+  </div>
+
+  <div id="start-overlay" class="show">
+    <h2 data-i18n="title">ころころ宇宙</h2>
+    <!-- 言語セレクター: LANG_ORDER の順にボタンを生成（lang.js が初期化後に buildLangSelector() で挿入） -->
+    <div id="lang-selector"></div>
+    <button id="start-btn" data-i18n="start">スタート</button>
+  </div>
+</div>
+
+<!--
+  スキルバー（ゲーム下部）
+  「爆弾」「指定アップグレード（強化）」「指定削除」の3スキル
+  active クラスで選択中を強調表示
+-->
+<div id="skill-bar">
+  <button class="skill-btn" id="skill-bomb">
+    <span class="skill-icon">💣</span>
+    <span class="skill-label" data-i18n="skillBomb">爆弾</span>
+    <span class="skill-count" id="skill-bomb-count">0</span>
+  </button>
+  <button class="skill-btn" id="skill-upgrade">
+    <span class="skill-icon">⬆</span>
+    <span class="skill-label" data-i18n="skillUpgrade">強化</span>
+    <span class="skill-count" id="skill-upgrade-count">0</span>
+  </button>
+  <button class="skill-btn" id="skill-delete">
+    <span class="skill-icon">✕</span>
+    <span class="skill-label" data-i18n="skillDelete">削除</span>
+    <span class="skill-count" id="skill-delete-count">0</span>
+  </button>
+  <button class="skill-btn" id="skill-claim" style="display:none">
+    <span class="skill-icon">🎁</span>
+    <span class="skill-label" data-i18n="reward">報酬</span>
+    <span class="skill-count" id="skill-claim-count">0</span>
+  </button>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+<script src="config.js"></script>
+<script src="lang.js"></script>
+<script src="game.js"></script>
+</body>
+</html>
