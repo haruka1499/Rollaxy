@@ -174,6 +174,34 @@ function getPlayerId() {
   return id;
 }
 
+// ── 表示名（ランキングに載る名前・日本語可・最大15文字） ──
+const DISPLAY_NAME_MAX = 15;
+
+function getDisplayName() {
+  let name = localStorage.getItem('novora_display_name');
+  if (!name) {
+    // 初回: player_id のサフィックス先頭6文字でデフォルト名を生成
+    const pid    = getPlayerId();
+    const suffix = pid.includes('_') ? pid.split('_').slice(1).join('').slice(0, 6) : pid.slice(0, 6);
+    name = 'ゲスト_' + suffix;
+    localStorage.setItem('novora_display_name', name);
+  }
+  return name;
+}
+
+function saveDisplayName(rawName) {
+  const name = rawName.replace(/[<>"&]/g, '').trim().slice(0, DISPLAY_NAME_MAX);
+  if (name.length === 0) return false;
+  localStorage.setItem('novora_display_name', name);
+  return true;
+}
+
+// ゲストコード（player_id のサフィックス部分を表示用に取り出す）
+function getGuestCode() {
+  const pid = getPlayerId();
+  return pid.includes('_') ? pid.split('_').slice(1).join('') : pid;
+}
+
 // 自分のシェアID一覧を localStorage に追記（最大50件）
 // ベストスコア更新時は best_share_id / best_score も更新
 function addMyShareId(shareId, currentScore) {
@@ -1117,9 +1145,10 @@ async function _createShare() {
           drop_count,
           body_count: bodies.length,
         },
-        ui_lang:   typeof currentLang !== 'undefined' ? currentLang : 'ja',
-        version:   CFG.GAME_VERSION,
-        player_id: getPlayerId(), // guest_xxx 形式（将来ログイン統合時は差し替え）
+        ui_lang:      typeof currentLang !== 'undefined' ? currentLang : 'ja',
+        version:      CFG.GAME_VERSION,
+        player_id:    getPlayerId(),    // guest_xxx 形式（将来ログイン統合時は差し替え）
+        display_name: getDisplayName(), // ランキングに表示する表示名
       }),
       signal: controller.signal,
     });
@@ -1587,6 +1616,17 @@ function _unlockAudio() {
 function openSettings() {
   if (dead || waiting) return; // ゲームオーバー中・スタート待ち中は設定を開かない
   paused = true;    // 物理を停止（描画は継続 → ゲーム画面が背後に透けて見える）
+  // 表示名フィールドを現在値で初期化
+  const dnInput  = document.getElementById('displayname-input');
+  const dnStatus = document.getElementById('displayname-status');
+  if (dnInput) {
+    dnInput.value          = getDisplayName();
+    dnInput.placeholder    = T('displayNamePlaceholder');
+  }
+  if (dnStatus) dnStatus.textContent = '';
+  // ゲストコード表示
+  const gcEl = document.getElementById('guest-code-val');
+  if (gcEl) gcEl.textContent = getGuestCode();
   settingsOverlay.classList.add('show');
 }
 function closeSettings() {
@@ -1600,6 +1640,28 @@ resumeBtn.addEventListener('click',    () => closeSettings());
 resumeBtn.addEventListener('touchend', e => { e.preventDefault(); closeSettings(); });
 resetBtn.addEventListener('click',    () => { settingsOverlay.classList.remove('show'); init(); });
 resetBtn.addEventListener('touchend', e => { e.preventDefault(); settingsOverlay.classList.remove('show'); init(); });
+
+// 表示名保存ボタン
+const displayNameSaveBtn = document.getElementById('displayname-save');
+if (displayNameSaveBtn) {
+  const doSaveName = () => {
+    const input  = document.getElementById('displayname-input');
+    const status = document.getElementById('displayname-status');
+    if (saveDisplayName(input.value)) {
+      input.value          = getDisplayName(); // trim 後の値を反映
+      status.textContent   = T('displayNameSaved');
+      status.dataset.ok    = '1';
+      setTimeout(() => { if (status) status.textContent = ''; }, 2000);
+    } else {
+      status.textContent   = T('displayNameEmpty');
+      status.dataset.ok    = '';
+    }
+  };
+  displayNameSaveBtn.addEventListener('click',    doSaveName);
+  displayNameSaveBtn.addEventListener('touchend', e => { e.preventDefault(); doSaveName(); });
+  document.getElementById('displayname-input')
+    ?.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); doSaveName(); } });
+}
 
 // スキルボタン（click + touchend 両方登録）
 skillBombBtn.addEventListener('click',    () => setActiveSkill('bomb'));
@@ -1775,6 +1837,9 @@ document.addEventListener('langchange', () => {
   hiEl.textContent    = `${T('best')}: ${hiScore}`;
   updateRewardQueueInfo();
   updateAutoshowBtn();
+  // 表示名フィールドの placeholder を言語に合わせて更新
+  const dnInput = document.getElementById('displayname-input');
+  if (dnInput) dnInput.placeholder = T('displayNamePlaceholder');
 });
 
 // ============================================================

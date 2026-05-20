@@ -554,6 +554,51 @@ canvas { position: absolute; top: 0; left: 0; transform-origin: top left; }
   width: 36px; font-size: 13px; color: #aaa; text-align: right;
 }
 
+/* ── 表示名エディタ（設定オーバーレイ内） ── */
+#displayname-wrap {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  width: 100%; max-width: 260px;
+}
+#displayname-label-row {
+  font-size: 12px; color: #aaa; letter-spacing: 0.05em;
+}
+#displayname-edit-row {
+  display: flex; gap: 6px; width: 100%;
+}
+#displayname-input {
+  flex: 1; padding: 8px 10px;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(124,92,252,0.4);
+  border-radius: 8px;
+  color: #fff; font-size: 14px;
+  outline: none; min-width: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+#displayname-input:focus {
+  border-color: rgba(124,92,252,0.85);
+  background: rgba(255,255,255,0.12);
+}
+#displayname-save {
+  padding: 8px 14px;
+  background: rgba(124,92,252,0.55);
+  border: none; border-radius: 8px;
+  color: #fff; font-size: 13px; font-weight: 600;
+  cursor: pointer; white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s;
+}
+#displayname-save:hover { background: rgba(124,92,252,0.8); }
+#displayname-status {
+  font-size: 11px; color: #88ff88; min-height: 16px;
+}
+#displayname-status:not([data-ok="1"]) { color: #ff8888; }
+#guest-code-row {
+  font-size: 11px; color: #666; letter-spacing: 0.03em;
+}
+#guest-code-val {
+  font-family: monospace; color: #886688; font-size: 11px;
+}
+
 /* ランキングリンク（設定メニュー内・スタート画面） */
 #settings-ranking-link,
 #start-ranking-link {
@@ -573,6 +618,24 @@ canvas { position: absolute; top: 0; left: 0; transform-origin: top left; }
 #start-ranking-link:hover {
   background: rgba(124,92,252,0.32);
   border-color: rgba(124,92,252,0.8);
+}
+/* プロフィールリンク（設定メニュー内） */
+#settings-profile-link {
+  display: inline-block;
+  padding: 9px 24px;
+  background: rgba(62,207,255,0.12);
+  border: 1px solid rgba(62,207,255,0.35);
+  border-radius: 24px;
+  color: #7de8ff;
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 600;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s, border-color 0.15s;
+}
+#settings-profile-link:hover {
+  background: rgba(62,207,255,0.24);
+  border-color: rgba(62,207,255,0.65);
 }
 
 /* 「リセット」ボタン（オレンジ、「もう一度」と同スタイル） */

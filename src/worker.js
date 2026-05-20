@@ -93,7 +93,7 @@ async function handleSharePost(request, env) {
   try { body = await request.json(); }
   catch { return json({ error: 'Invalid JSON' }, 400, corsHeaders(origin)); }
 
-  const { score, highest_body_tier, snapshot_payload, ui_lang = 'ja', version = 1, player_id = null } = body;
+  const { score, highest_body_tier, snapshot_payload, ui_lang = 'ja', version = 1, player_id = null, display_name = null } = body;
 
   // ── 基本バリデーション ──
   if (typeof score !== 'number' || !Number.isInteger(score) || score < 0 || score > 999999) {
@@ -117,17 +117,24 @@ async function handleSharePost(request, env) {
   const pid = (typeof player_id === 'string' && /^[a-z]+_[a-z0-9]{8,28}$/.test(player_id))
     ? player_id : null;
 
+  // ── display_name バリデーション ──
+  // 日本語・英数字など Unicode 文字を許可、<>"& は除去、最大15文字
+  const dname = (typeof display_name === 'string' && display_name.trim().length >= 1)
+    ? display_name.trim().replace(/[<>"&]/g, '').slice(0, 15) || null
+    : null;
+
   const id         = nanoid();
   const created_at = Math.floor(Date.now() / 1000);
   const payload    = JSON.stringify(snapshot_payload);
 
-  // NOTE: D1 に player_id 列が必要。デプロイ前に以下を実行してください:
+  // NOTE: D1 に以下の列が必要。デプロイ前に実行してください:
   //   ALTER TABLE shares ADD COLUMN player_id TEXT;
+  //   ALTER TABLE shares ADD COLUMN display_name TEXT;
   //   CREATE INDEX idx_shares_player ON shares (player_id);
   await env.DB.prepare(
-    `INSERT INTO shares (id, game_id, version, score, highest_body_tier, snapshot_payload, ui_lang, created_at, retention_type, player_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'normal', ?)`
-  ).bind(id, GAME_ID, version, score, highest_body_tier, payload, ui_lang, created_at, pid).run();
+    `INSERT INTO shares (id, game_id, version, score, highest_body_tier, snapshot_payload, ui_lang, created_at, retention_type, player_id, display_name)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'normal', ?, ?)`
+  ).bind(id, GAME_ID, version, score, highest_body_tier, payload, ui_lang, created_at, pid, dname).run();
 
   // ランキング retention 再計算
   const keepRow = await env.DB.prepare(`SELECT value FROM config WHERE key='keep_top_n'`).first();
@@ -177,14 +184,17 @@ async function handleRanking(request, env) {
               : 0;
 
   const { results } = await env.DB.prepare(
-    `SELECT id, score, highest_body_tier, created_at
+    `SELECT id, score, highest_body_tier, created_at, display_name
      FROM shares WHERE game_id=? AND created_at>=? ORDER BY score DESC LIMIT ?`
   ).bind(GAME_ID, since, limit).all();
 
   const entries = results.map((row, i) => ({
-    rank: i + 1, score: row.score,
+    rank:              i + 1,
+    score:             row.score,
     highest_body_tier: row.highest_body_tier,
-    id: row.id, created_at: row.created_at,
+    id:                row.id,
+    created_at:        row.created_at,
+    display_name:      row.display_name || null,
   }));
 
   const payload = { period, updated_at: now, entries };

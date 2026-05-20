@@ -90,7 +90,22 @@
       <input type="range" id="sfx-vol" min="0" max="1" step="0.05" value="0.8">
       <span id="sfx-val">80%</span>
     </div>
+    <!-- 表示名（ランキングに載る名前） -->
+    <div id="displayname-wrap">
+      <div id="displayname-label-row">
+        <span data-i18n="displayNameLabel">表示名</span>
+      </div>
+      <div id="displayname-edit-row">
+        <input id="displayname-input" type="text" maxlength="15" placeholder="15文字以内（日本語OK）">
+        <button id="displayname-save" data-i18n="displayNameSave">保存</button>
+      </div>
+      <div id="displayname-status"></div>
+      <div id="guest-code-row">
+        <span data-i18n="guestCodeLabel">ゲストコード</span>:&nbsp;<span id="guest-code-val">—</span>
+      </div>
+    </div>
     <a id="settings-ranking-link" href="/games/rollaxy/ranking/" data-i18n="rankingBtn">🏆 ランキング</a>
+    <a id="settings-profile-link" href="/profile/" data-i18n="profileLink">👤 プロフィール</a>
     <button id="reset-btn" data-i18n="reset">リセット</button>
   </div>
   <!--

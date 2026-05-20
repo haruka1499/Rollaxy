@@ -213,6 +213,17 @@
     .play-btn:hover { background: #9970ff; transform: translateY(-2px); }
     .play-btn:active { transform: translateY(0); }
 
+    /* スコアセル内のプレイヤー名サブテキスト */
+    .td-player {
+      font-size: 0.75rem;
+      font-weight: 400;
+      color: #9977cc;
+      margin-top: 2px;
+      max-width: 120px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
     /* レスポンシブ: 小画面で称号列を非表示 */
     @media (max-width: 480px) {
       .col-title { display: none; }
@@ -307,6 +318,10 @@ function fmtScore(n) {
   return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
 
+function escHtml(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
 function fmtDate(unixSec) {
   return new Date(unixSec * 1000).toLocaleDateString('ja-JP', {
     month: 'numeric', day: 'numeric',
@@ -387,7 +402,10 @@ async function loadRanking() {
 
     return `<tr class="${isMine ? 'is-mine' : ''}">
       <td class="td-rank ${rankClass}">${entry.rank}</td>
-      <td class="td-score">${fmtScore(entry.score)}${isMine ? '<span class="mine-marker">👤</span>' : ''}</td>
+      <td class="td-score">
+        ${fmtScore(entry.score)}${isMine ? '<span class="mine-marker">👤</span>' : ''}
+        ${entry.display_name ? `<div class="td-player">${escHtml(entry.display_name)}</div>` : ''}
+      </td>
       <td class="td-title col-title">${title}</td>
       <td class="td-body">${emoji}</td>
       <td class="td-date">${fmtDate(entry.created_at)}</td>
