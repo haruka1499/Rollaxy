@@ -1187,9 +1187,19 @@ async function _createShare() {
       const { id } = await res.json();
       _pendingShareId = id;
       addMyShareId(id, shareScore); // share_ids / best_share_id を localStorage に記録
-      // OGP 画像をバックグラウンドで事前生成（KV キャッシュに乗せておく）
-      // → X でシェアした際に Twitter が即座に画像取得できるようにする
-      fetch(`/games/rollaxy/ogp/${id}`).catch(() => {});
+      // OGP 画像生成を完了まで待つ（最大 8 秒）
+      // fire-and-forget ではなく await することで、_restoreShareButton() が呼ばれる時点で
+      // 必ず KV キャッシュに乗っている状態を保証する。
+      // → Twitter クローラーがシェア URL にアクセスした時に画像が確実に存在する。
+      // タイムアウトしても finally でボタンは有効化されるので UI はブロックしない。
+      try {
+        const ogpCtrl    = new AbortController();
+        const ogpTimeout = setTimeout(() => ogpCtrl.abort(), 8000);
+        await fetch(`/games/rollaxy/ogp/${id}`, { signal: ogpCtrl.signal });
+        clearTimeout(ogpTimeout);
+      } catch (_) {
+        // タイムアウト or ネットワークエラー → OGP なしでシェア可能（URL は有効）
+      }
     }
   } catch (_) {
     // タイムアウト・ネットワークエラー等 → フォールバックURLでシェア可能
