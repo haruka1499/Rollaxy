@@ -50,6 +50,9 @@ const BODY_EMOJIS = ['💫','🪨','🌙','🌍','🪐','☀️','🔴','⭐','�
 const BODY_COLORS = ['#b0a090','#807060','#d0c8b0','#3388cc','#d4a870','#ffcc00',
                      '#cc2200','#c8d8ff','#2244cc','#110022','#7744cc','#aa44ff'];
 const BODY_RADII  = [12,18,25,33,42,51,61,70,79,88,97,106];
+// config.js の BODIES[].key と同順（tier インデックス対応）
+const BODY_KEYS   = ['dust','asteroid','moon','earth','jupiter','sun',
+                     'red_giant','white_dwarf','neutron_star','black_hole','galaxy','galaxy_cluster'];
 
 // score + highestTier → 称号文字列
 function getTitle(score, highestTier) {
@@ -454,7 +457,28 @@ async function loadBadge(env, level) {
   } catch (_) { return null; }
 }
 
-function buildOgpBoardCircles(bodies) {
+// bodies 配列中で使用されている tier の PNG だけを並列ロードして
+// { tier: dataUrl } の Map を返す。失敗した tier は Map に含まれない。
+async function loadBodyImages(env, bodies) {
+  const usedTiers = [...new Set(bodies.map(b => Math.max(0, Math.min(11, b.tier))))];
+  const pairs = await Promise.all(
+    usedTiers.map(async tier => {
+      try {
+        const res = await env.ASSETS.fetch(
+          new Request(`${SITE_URL}/games/rollaxy/images/${BODY_KEYS[tier]}.png`)
+        );
+        if (!res.ok) return null;
+        return [tier, `data:image/png;base64,${toBase64(await res.arrayBuffer())}`];
+      } catch (_) { return null; }
+    })
+  );
+  return Object.fromEntries(pairs.filter(Boolean));
+}
+
+// bodies を SVG に描画する。
+// bodyImages が渡されていれば PNG を円形クリップして表示し、
+// 画像がない tier は塗り色の円にフォールバックする。
+function buildOgpBoardCircles(bodies, bodyImages) {
   const scale = Math.min(460 / 400, 590 / 700);
   const offX  = (460 - 400 * scale) / 2 + 10;
   const offY  = (630 - 700 * scale) / 2;
@@ -462,20 +486,39 @@ function buildOgpBoardCircles(bodies) {
   const by = (offY + 168 * scale).toFixed(1);
   const bw = ((382 - 18) * scale).toFixed(1);
   const bh = ((688 - 168) * scale).toFixed(1);
-  let out = `<rect x="${bx}" y="${by}" width="${bw}" height="${bh}" fill="#0c0720" stroke="#7744bb" stroke-width="1.5"/>`;
-  for (const b of bodies) {
+
+  let defs   = '<defs>';
+  let shapes = `<rect x="${bx}" y="${by}" width="${bw}" height="${bh}" fill="#0c0720" stroke="#7744bb" stroke-width="1.5"/>`;
+
+  for (let i = 0; i < bodies.length; i++) {
+    const b    = bodies[i];
     const tier = Math.max(0, Math.min(11, b.tier));
-    out += `<circle cx="${(offX + b.x * scale).toFixed(1)}" cy="${(offY + b.y * scale).toFixed(1)}" r="${(BODY_RADII[tier] * scale).toFixed(1)}" fill="${BODY_COLORS[tier]}" opacity="0.9"/>`;
+    const cx   = (offX + b.x * scale).toFixed(1);
+    const cy   = (offY + b.y * scale).toFixed(1);
+    const r    = (BODY_RADII[tier] * scale).toFixed(1);
+    const d    = (BODY_RADII[tier] * scale * 2).toFixed(1);
+    const lx   = (offX + b.x * scale - BODY_RADII[tier] * scale).toFixed(1);
+    const ly   = (offY + b.y * scale - BODY_RADII[tier] * scale).toFixed(1);
+    const dataUrl = bodyImages?.[tier];
+
+    if (dataUrl) {
+      // PNG を円形クリップして描画
+      defs   += `<clipPath id="bc${i}"><circle cx="${cx}" cy="${cy}" r="${r}"/></clipPath>`;
+      shapes += `<image href="${dataUrl}" x="${lx}" y="${ly}" width="${d}" height="${d}" clip-path="url(#bc${i})" preserveAspectRatio="xMidYMid slice"/>`;
+    } else {
+      // 画像が取得できなかった場合は塗り色の円で代替
+      shapes += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${BODY_COLORS[tier]}" opacity="0.9"/>`;
+    }
   }
-  return out;
+
+  defs += '</defs>';
+  return defs + shapes;
 }
 
-function buildOgpSVG(share, rank, fontBuffer, badgeDataUrl) {
-  const { score, highest_body_tier, snapshot_payload } = share;
+function buildOgpSVG(share, rank, fontBuffer, badgeDataUrl, bodyImages, bodies) {
+  const { score, highest_body_tier } = share;
   const titleLevel = getTitleLevel(score, highest_body_tier);
-  let bodies = [];
-  try { bodies = JSON.parse(snapshot_payload).bodies ?? []; } catch (_) {}
-  const board      = buildOgpBoardCircles(bodies);
+  const board      = buildOgpBoardCircles(bodies, bodyImages);
   const scoreStr   = scoreWithComma(score);
   const fontFamily = fontBuffer ? 'SpaceMono' : 'monospace';
   const badgeEl    = badgeDataUrl
@@ -523,13 +566,18 @@ async function handleOgp(id, env) {
   ).bind(row.score).first();
   const rank = (rankRow?.cnt ?? 0) + 1;
 
+  // bodies を早期パース → loadBodyImages の並列実行に使う
+  let bodies = [];
+  try { bodies = JSON.parse(row.snapshot_payload).bodies ?? []; } catch (_) {}
+
   const titleLevel = getTitleLevel(row.score, row.highest_body_tier);
-  const [fontBuffer, badgeDataUrl] = await Promise.all([
+  const [fontBuffer, badgeDataUrl, bodyImages] = await Promise.all([
     loadFont(env),
     loadBadge(env, titleLevel),
+    loadBodyImages(env, bodies),
   ]);
 
-  const svg = buildOgpSVG(row, rank, fontBuffer, badgeDataUrl);
+  const svg = buildOgpSVG(row, rank, fontBuffer, badgeDataUrl, bodyImages, bodies);
   const resvgOpts = {
     fitTo: { mode: 'width', value: 1200 },
     ...(fontBuffer ? { font: { fontBuffers: [fontBuffer], loadSystemFonts: false } } : {}),
