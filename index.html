@@ -38,28 +38,29 @@
   <div class="nav-inner">
     <a href="index.html" class="nav-logo">NOVORA GAME</a>
     <ul class="nav-links">
-      <li><a href="games/index.html">Games</a></li>
-      <li><a href="about/index.html">About</a></li>
-      <li><a href="privacy/index.html">Privacy</a></li>
-      <li><a href="/profile/">👤 プロフィール</a></li>
+      <li><a href="games/index.html" data-i18n="navGames">ゲーム</a></li>
+      <li><a href="about/index.html" data-i18n="navAbout">About</a></li>
+      <li><a href="privacy/index.html" data-i18n="navPrivacy">Privacy</a></li>
+      <li><a href="/profile/" data-i18n="navProfile">👤 プロフィール</a></li>
     </ul>
+    <div id="site-lang-selector"></div>
   </div>
 </nav>
 
 <header class="site-header">
   <h1 class="site-title">NOVORA GAME</h1>
-  <p class="site-desc">ブラウザで遊べるゲーム集 &mdash; インストール不要</p>
+  <p class="site-desc" data-i18n="siteDesc">ブラウザで遊べるゲーム集 — インストール不要</p>
 </header>
 
 <main>
-  <p class="section-label">Featured Games</p>
+  <p class="section-label" data-i18n="featured">Featured Games</p>
   <div class="game-grid">
 
     <a href="games/rollaxy/index.html" class="game-card">
       <div class="game-thumb">🌌</div>
       <div class="game-info">
         <h2>Rollaxy</h2>
-        <p>宇宙をテーマにした落ちものパズル。天体を合体させて銀河団を目指せ。</p>
+        <p data-i18n="rollaxyDesc">宇宙をテーマにした落ちものパズル。天体を合体させて銀河団を目指せ。</p>
         <span class="game-badge">Puzzle</span>
       </div>
     </a>
@@ -71,12 +72,13 @@
 
 <footer class="site-footer">
   <div class="footer-links">
-    <a href="games/index.html">Games</a>
-    <a href="about/index.html">About</a>
-    <a href="privacy/index.html">Privacy Policy</a>
+    <a href="games/index.html" data-i18n="navGames">ゲーム</a>
+    <a href="about/index.html" data-i18n="navAbout">About</a>
+    <a href="privacy/index.html" data-i18n="footerPrivacy">プライバシーポリシー</a>
   </div>
   &copy; 2025 NOVORA GAME
 </footer>
 
+<script src="/i18n.js"></script>
 </body>
 </html>

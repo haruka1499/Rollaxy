@@ -96,8 +96,10 @@ const LANGS = {
 // 言語ボタンの表示順
 const LANG_ORDER = ['ja', 'en'];
 
-// 現在の言語（localStorage で永続化）
-let currentLang = localStorage.getItem('rollaxy_lang') || 'ja';
+// 現在の言語（localStorage で永続化）— novora_lang キーに統一（旧 rollaxy_lang からも移行）
+let currentLang = localStorage.getItem('novora_lang')
+              || localStorage.getItem('rollaxy_lang')
+              || 'ja';
 if (!LANGS[currentLang]) currentLang = 'ja';
 
 // キーから現在言語の文字列を取得
@@ -109,7 +111,8 @@ function T(key) {
 function setLang(code) {
   if (!LANGS[code]) return;
   currentLang = code;
-  localStorage.setItem('rollaxy_lang', code);
+  localStorage.setItem('novora_lang', code);
+  localStorage.removeItem('rollaxy_lang'); // 旧キーを削除
   applyLang();
 }
 

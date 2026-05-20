@@ -237,79 +237,81 @@
   <div class="nav-inner">
     <a href="/" class="nav-logo">NOVORA GAME</a>
     <ul class="nav-links">
-      <li><a href="/games/">Games</a></li>
-      <li><a href="/games/rollaxy/">Rollaxy</a></li>
-      <li><a href="/games/rollaxy/ranking/">ランキング</a></li>
+      <li><a href="/games/" data-i18n="navGames">ゲーム</a></li>
+      <li><a href="/games/rollaxy/" data-i18n="navRollaxy">Rollaxy</a></li>
+      <li><a href="/games/rollaxy/ranking/" data-i18n="navRanking">ランキング</a></li>
     </ul>
+    <div id="site-lang-selector"></div>
   </div>
 </nav>
 
 <main>
   <div class="profile-wrap">
-    <h1 class="profile-title">👤 プロフィール設定</h1>
+    <h1 class="profile-title" data-i18n="profileTitle">👤 プロフィール設定</h1>
 
     <!-- 表示名 -->
     <div class="prof-card">
-      <div class="prof-card-title">表示名</div>
+      <div class="prof-card-title" data-i18n="profileNameCard">表示名</div>
       <div class="dn-row">
         <input class="dn-input" id="dn-input" type="text" maxlength="15"
+               data-i18n-ph="profileNamePh"
                placeholder="15文字以内（日本語OK）" autocomplete="off">
-        <button class="dn-save" id="dn-save">保存</button>
+        <button class="dn-save" id="dn-save" data-i18n="profileNameSave">保存</button>
       </div>
       <div class="dn-status" id="dn-status"></div>
-      <div class="dn-hint">ランキングに表示される名前です。日本語・英数字など15文字以内で設定できます。</div>
+      <div class="dn-hint" data-i18n="profileNameHint">ランキングに表示される名前です。日本語・英数字など15文字以内で設定できます。</div>
     </div>
 
     <!-- ゲストコード -->
     <div class="prof-card">
-      <div class="prof-card-title">ゲストコード（識別ID）</div>
+      <div class="prof-card-title" data-i18n="profileCodeCard">ゲストコード（識別ID）</div>
       <div class="gc-box">
-        <span class="gc-code" id="gc-code">読み込み中...</span>
-        <button class="gc-copy" id="gc-copy">コピー</button>
+        <span class="gc-code" id="gc-code">—</span>
+        <button class="gc-copy" id="gc-copy" data-i18n="profileCopyBtn">コピー</button>
       </div>
-      <p class="gc-note">
-        このコードはブラウザに紐付いた識別子です。同じブラウザで遊ぶ限り同じコードが使われます。<br>
-        異なるブラウザ・デバイスでは別のコードが発行されます。
+      <p class="gc-note" data-i18n="profileCodeNote">
+        このコードはブラウザに紐付いた識別子です。同じブラウザで遊ぶ限り同じコードが使われます。異なるブラウザ・デバイスでは別のコードが発行されます。
       </p>
     </div>
 
     <!-- Rollaxy ベストスコア -->
     <div class="prof-card">
-      <div class="prof-card-title">Rollaxy ベストスコア</div>
+      <div class="prof-card-title" data-i18n="profileBestCard">Rollaxy ベストスコア</div>
       <div id="best-section">
         <div class="best-score-val" id="best-score-val">—</div>
-        <a class="best-score-link" id="best-score-link" href="#" style="display:none">🔗 シェアページを見る</a>
+        <a class="best-score-link" id="best-score-link" href="#" style="display:none" data-i18n="profileBestLink">🔗 シェアページを見る</a>
       </div>
     </div>
 
     <!-- 最近のプレイ -->
     <div class="prof-card">
-      <div class="prof-card-title">最近のプレイ記録</div>
+      <div class="prof-card-title" data-i18n="profileRecentCard">最近のプレイ記録</div>
       <div id="recent-wrap" class="recent-list"></div>
     </div>
 
     <!-- CTA -->
     <div class="profile-ctas">
-      <a class="cta-primary" href="/games/rollaxy/">▶ Rollaxy をプレイ</a>
-      <a class="cta-secondary" href="/games/rollaxy/ranking/">🏆 ランキング</a>
+      <a class="cta-primary" href="/games/rollaxy/" data-i18n="profilePlayBtn">▶ Rollaxy をプレイ</a>
+      <a class="cta-secondary" href="/games/rollaxy/ranking/" data-i18n="profileRankBtn">🏆 ランキング</a>
     </div>
   </div>
 </main>
 
 <footer class="site-footer">
   <div class="footer-links">
-    <a href="/">Home</a>
-    <a href="/games/">Games</a>
-    <a href="/privacy/">Privacy Policy</a>
+    <a href="/" data-i18n="footerHome">Home</a>
+    <a href="/games/" data-i18n="navGames">ゲーム</a>
+    <a href="/privacy/" data-i18n="footerPrivacy">プライバシーポリシー</a>
   </div>
   &copy; 2025 NOVORA GAME
 </footer>
 
 <!-- 固定下部：ゲームに戻るボタン -->
 <div id="back-bar">
-  <a href="/games/rollaxy/" class="back-btn" id="back-btn">▶ ゲームに戻る</a>
+  <a href="/games/rollaxy/" class="back-btn" id="back-btn" data-i18n="profileBackBtn">▶ ゲームに戻る</a>
 </div>
 
+<script src="/i18n.js"></script>
 <script>
 // ゲームに戻るボタンは常に /games/rollaxy/ へ直接遷移（history.back は使わない）
 </script>
@@ -364,12 +366,15 @@ const dnStatus = document.getElementById('dn-status');
 const gcCode   = document.getElementById('gc-code');
 const gcCopy   = document.getElementById('gc-copy');
 
+// i18n ヘルパー（i18n.js が先に読まれていれば TG() が使える）
+const _tg = (key, fallback) => (typeof TG === 'function' ? TG(key) : fallback);
+
 // 表示名
 dnInput.value = ensureDisplayName();
 dnSave.addEventListener('click', () => {
   if (saveDisplayName(dnInput.value)) {
     dnInput.value        = localStorage.getItem('novora_display_name');
-    dnStatus.textContent = '✓ 保存しました';
+    dnStatus.textContent = _tg('profileNameSaved', '✓ 保存しました');
     dnStatus.className   = 'dn-status ok';
     setTimeout(() => { dnStatus.textContent = ''; dnStatus.className = 'dn-status'; }, 2500);
     // players テーブルへ即時同期（ゲームプレイなしでも名前変更を反映）
@@ -382,7 +387,7 @@ dnSave.addEventListener('click', () => {
       }),
     }).catch(() => {});
   } else {
-    dnStatus.textContent = '1文字以上入力してください';
+    dnStatus.textContent = _tg('profileNameEmpty', '1文字以上入力してください');
     dnStatus.className   = 'dn-status err';
   }
 });
@@ -393,8 +398,8 @@ const code = getGuestCode();
 gcCode.textContent = code;
 gcCopy.addEventListener('click', () => {
   navigator.clipboard.writeText(code).then(() => {
-    gcCopy.textContent = '✓ コピー済み';
-    setTimeout(() => { gcCopy.textContent = 'コピー'; }, 2000);
+    gcCopy.textContent = _tg('profileCopied', '✓ コピー済み');
+    setTimeout(() => { gcCopy.textContent = _tg('profileCopyBtn', 'コピー'); }, 2000);
   }).catch(() => {
     // clipboard API 非対応時は選択状態にする
     const range = document.createRange();
@@ -405,38 +410,55 @@ gcCopy.addEventListener('click', () => {
 });
 
 // ベストスコア
-const best    = Number(localStorage.getItem('novora_best_score') || 0);
-const bestId  = localStorage.getItem('novora_best_share_id');
-const bestEl  = document.getElementById('best-score-val');
-const bestLink = document.getElementById('best-score-link');
-if (best > 0) {
-  bestEl.textContent = fmtScore(best) + '点';
-  if (bestId) {
-    bestLink.href = `/games/rollaxy/share/${bestId}`;
-    bestLink.style.display = '';
+function renderBestScore() {
+  const best     = Number(localStorage.getItem('novora_best_score') || 0);
+  const bestId   = localStorage.getItem('novora_best_share_id');
+  const bestEl   = document.getElementById('best-score-val');
+  const bestLink = document.getElementById('best-score-link');
+  const scoreUnit = _tg('scoreUnit', '点');
+  if (best > 0) {
+    bestEl.textContent = fmtScore(best) + scoreUnit;
+    bestEl.style.fontSize = '';
+    bestEl.style.color = '';
+    if (bestId) {
+      bestLink.href = `/games/rollaxy/share/${bestId}`;
+      bestLink.style.display = '';
+    }
+  } else {
+    bestEl.textContent = _tg('profileNoData', 'まだ記録がありません');
+    bestEl.style.fontSize = '1rem';
+    bestEl.style.color = 'var(--muted)';
+    bestLink.style.display = 'none';
   }
-} else {
-  bestEl.textContent = 'まだ記録がありません';
-  bestEl.style.fontSize = '1rem';
-  bestEl.style.color = 'var(--muted)';
 }
+renderBestScore();
 
 // 最近のシェア（最新5件）
-const shareIds  = (() => { try { return JSON.parse(localStorage.getItem('novora_share_ids') || '[]'); } catch { return []; } })();
-const recentWrap = document.getElementById('recent-wrap');
-if (shareIds.length > 0) {
-  [...shareIds].reverse().slice(0, 5).forEach(id => {
-    const a   = document.createElement('a');
-    a.href    = `/games/rollaxy/share/${id}`;
-    a.target  = '_blank';
-    a.rel     = 'noopener';
-    a.className = 'recent-share-link';
-    a.textContent = `🔗 ${id}`;
-    recentWrap.appendChild(a);
-  });
-} else {
-  recentWrap.innerHTML = '<span class="no-data">まだシェア記録がありません</span>';
+function renderRecentShares() {
+  const shareIds  = (() => { try { return JSON.parse(localStorage.getItem('novora_share_ids') || '[]'); } catch { return []; } })();
+  const recentWrap = document.getElementById('recent-wrap');
+  recentWrap.innerHTML = '';
+  if (shareIds.length > 0) {
+    [...shareIds].reverse().slice(0, 5).forEach(id => {
+      const a   = document.createElement('a');
+      a.href    = `/games/rollaxy/share/${id}`;
+      a.target  = '_blank';
+      a.rel     = 'noopener';
+      a.className = 'recent-share-link';
+      a.textContent = `🔗 ${id}`;
+      recentWrap.appendChild(a);
+    });
+  } else {
+    recentWrap.innerHTML = `<span class="no-data">${_tg('profileNoRecent', 'まだシェア記録がありません')}</span>`;
+  }
 }
+renderRecentShares();
+
+// 言語変更時に再描画
+document.addEventListener('globalLangChange', () => {
+  renderBestScore();
+  renderRecentShares();
+});
 </script>
 
 </body>

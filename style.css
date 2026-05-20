@@ -264,10 +264,41 @@ main {
 }
 .footer-links a:hover { color: var(--text); }
 
+/* ── Language Selector (site-wide) ── */
+#site-lang-selector {
+  display: flex;
+  gap: 4px;
+  margin-left: 8px;
+  flex-shrink: 0;
+}
+.site-lang-btn {
+  padding: 4px 10px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  border: 1px solid rgba(124,92,252,0.35);
+  border-radius: 5px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+.site-lang-btn:hover {
+  background: rgba(124,92,252,0.1);
+  color: var(--text);
+}
+.site-lang-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
 /* ── Responsive ── */
 @media (max-width: 400px) {
   .game-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 480px) {
   .nav-links a { padding: 6px 8px; font-size: 0.8rem; }
+  .site-lang-btn { padding: 4px 8px; font-size: 0.7rem; }
 }

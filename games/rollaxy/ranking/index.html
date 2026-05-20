@@ -265,29 +265,30 @@
   <div class="nav-inner">
     <a href="/" class="nav-logo">NOVORA GAME</a>
     <ul class="nav-links">
-      <li><a href="/games/">Games</a></li>
-      <li><a href="/games/rollaxy/" class="active">Rollaxy</a></li>
-      <li><a href="/about/">About</a></li>
+      <li><a href="/games/" data-i18n="navGames">ゲーム</a></li>
+      <li><a href="/games/rollaxy/" data-i18n="navRollaxy" class="active">Rollaxy</a></li>
+      <li><a href="/profile/" data-i18n="navProfile">👤 プロフィール</a></li>
     </ul>
+    <div id="site-lang-selector"></div>
   </div>
 </nav>
 
 <main>
   <div class="ranking-wrap">
-    <h1 class="ranking-title">🏆 Rollaxy ランキング</h1>
+    <h1 class="ranking-title" data-i18n="rankingTitle">🏆 Rollaxy ランキング</h1>
 
     <!-- タブ（全期間 / 今週 / 今日） -->
     <div class="rank-tabs">
-      <button class="rank-tab" data-period="all">全期間</button>
-      <button class="rank-tab" data-period="weekly">今週</button>
-      <button class="rank-tab" data-period="daily">今日</button>
+      <button class="rank-tab" data-period="all" data-i18n="tabAll">全期間</button>
+      <button class="rank-tab" data-period="weekly" data-i18n="tabWeekly">今週</button>
+      <button class="rank-tab" data-period="daily" data-i18n="tabDaily">今日</button>
     </div>
 
     <!-- あなたのベスト -->
     <div class="my-best" id="my-best" style="display:none">
-      <span class="my-best-label">👤 あなたのベスト</span>
+      <span class="my-best-label" data-i18n="myBestLabel">👤 あなたのベスト</span>
       <span class="my-best-rank" id="best-rank">#?</span>
-      <span class="my-best-score" id="best-score">0点</span>
+      <span class="my-best-score" id="best-score">0</span>
       <a class="my-best-link" id="best-link" href="#" target="_blank" rel="noopener" aria-label="シェアページを開く">🔗</a>
     </div>
 
@@ -300,18 +301,19 @@
 
 <footer class="site-footer">
   <div class="footer-links">
-    <a href="/">Home</a>
-    <a href="/games/">Games</a>
-    <a href="/privacy/">Privacy Policy</a>
+    <a href="/" data-i18n="footerHome">Home</a>
+    <a href="/games/" data-i18n="navGames">ゲーム</a>
+    <a href="/privacy/" data-i18n="footerPrivacy">プライバシーポリシー</a>
   </div>
   &copy; 2025 NOVORA GAME
 </footer>
 
 <!-- 固定下部：ゲームに戻るボタン -->
 <div id="back-bar">
-  <a href="/games/rollaxy/" class="back-btn" id="back-btn">▶ ゲームに戻る</a>
+  <a href="/games/rollaxy/" class="back-btn" id="back-btn" data-i18n="backToGame">▶ ゲームに戻る</a>
 </div>
 
+<script src="/i18n.js"></script>
 <script>
 'use strict';
 
@@ -386,7 +388,9 @@ window.addEventListener('popstate', e => {
 // ── ランキング読み込み ──
 async function loadRanking() {
   const list = document.getElementById('rank-list');
-  list.innerHTML = '<div class="rank-status">読み込み中...</div>';
+  // TG() は i18n.js が先に読み込まれていれば使える。なければフォールバック
+  const tg = (typeof TG === 'function') ? TG : k => k;
+  list.innerHTML = `<div class="rank-status">${tg('rankLoading')}</div>`;
   hideBestBanner();
 
   let entries;
@@ -396,18 +400,19 @@ async function loadRanking() {
     const data = await res.json();
     entries = data.entries || [];
   } catch {
-    list.innerHTML = '<div class="rank-status error">読み込みに失敗しました。しばらくしてから再試行してください。</div>';
+    list.innerHTML = `<div class="rank-status error">${tg('rankError')}</div>`;
     return;
   }
 
   if (entries.length === 0) {
-    list.innerHTML = '<div class="rank-status">まだエントリーがありません。プレイして記録を作ろう！</div>';
+    list.innerHTML = `<div class="rank-status">${tg('rankEmpty')}</div>`;
     return;
   }
 
-  const myIds  = getMyShareIds();
-  const bestId = getBestShareId();
-  let bestEntry = null;
+  const myIds    = getMyShareIds();
+  const bestId   = getBestShareId();
+  const scoreUnit = tg('scoreUnit') || '点';
+  let bestEntry  = null;
 
   const cards = entries.map(entry => {
     const isMine = myIds.includes(entry.id);
@@ -415,7 +420,6 @@ async function loadRanking() {
 
     const rankClass = entry.rank === 1 ? 'top1' : entry.rank === 2 ? 'top2' : entry.rank === 3 ? 'top3' : '';
     const emoji     = BODY_EMOJIS[Math.min(11, entry.highest_body_tier)];
-    const title     = getTitle(entry.score, entry.highest_body_tier);
     const shareHref = `/games/rollaxy/share/${entry.id}`;
     const mineMarker  = isMine ? ' <span class="rc-mine-marker">👤</span>' : '';
     const playerStr   = entry.display_name
@@ -427,11 +431,11 @@ async function loadRanking() {
   <div class="rc-body" aria-hidden="true">${emoji}</div>
   <div class="rc-main">
     ${playerStr}
-    <div class="rc-score">${fmtScore(entry.score)}点</div>
+    <div class="rc-score">${fmtScore(entry.score)}${scoreUnit}</div>
   </div>
   <div class="rc-meta">
     <span class="rc-date">${fmtDate(entry.created_at)}</span>
-    <a class="rc-link" href="${shareHref}" target="_blank" rel="noopener" aria-label="シェアページを見る">🔗</a>
+    <a class="rc-link" href="${shareHref}" target="_blank" rel="noopener" aria-label="share">🔗</a>
   </div>
 </div>`;
   });
@@ -443,14 +447,21 @@ async function loadRanking() {
 
 // ── あなたのベストバナー ──
 function showBestBanner(entry) {
+  const tg = (typeof TG === 'function') ? TG : k => k;
+  const scoreUnit = tg('scoreUnit') || '点';
   document.getElementById('best-rank').textContent  = `#${entry.rank}`;
-  document.getElementById('best-score').textContent = `${fmtScore(entry.score)}点`;
+  document.getElementById('best-score').textContent = `${fmtScore(entry.score)}${scoreUnit}`;
   document.getElementById('best-link').href         = `/games/rollaxy/share/${entry.id}`;
   document.getElementById('my-best').style.display  = '';
 }
 function hideBestBanner() {
   document.getElementById('my-best').style.display = 'none';
 }
+
+// ── 言語変更時に再描画 ──
+document.addEventListener('globalLangChange', () => {
+  loadRanking();
+});
 
 // ── 初期化 ──
 renderTabs();
