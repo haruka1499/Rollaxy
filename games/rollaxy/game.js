@@ -613,9 +613,20 @@ function confirmSkillAction() {
 
 // bmap 内の全天体を sleep から起こす
 function wakeAllBodies() {
+  const now = Date.now();
   for (const d of bmap.values()) {
     Matter.Sleeping.set(d.body, false);
     d._sc = null; // 振動検出カウンタをリセット（wake 後は改めて計測する）
+    d.at  = now;  // SLEEP_GRACE_MS の猶予をリセット
+    // Matter.js 組み込み sleep が即座に再スリープするのを防ぐため
+    // 静止天体に微小な下方速度を与える。支持されている天体では
+    // 接触拘束が即座に打ち消すため実質的な移動は発生しない。
+    if (d.body.speed < 0.1) {
+      Matter.Body.setVelocity(d.body, {
+        x: d.body.velocity.x,
+        y: d.body.velocity.y + 0.15,
+      });
+    }
   }
 }
 
