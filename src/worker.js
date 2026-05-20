@@ -515,16 +515,25 @@ function buildOgpBoardCircles(bodies, bodyImages) {
   return defs + shapes;
 }
 
-function buildOgpSVG(share, rank, fontBuffer, badgeDataUrl, bodyImages, bodies) {
-  const { score, highest_body_tier } = share;
-  const titleLevel = getTitleLevel(score, highest_body_tier);
-  const board      = buildOgpBoardCircles(bodies, bodyImages);
+// share, rank/total(全期間), todayRank/todayTotal(過去24h), フォント, 天体画像, bodies
+function buildOgpSVG(share, rank, total, todayRank, todayTotal, fontBuffer, bodyImages, bodies) {
+  const { score } = share;
   const scoreStr   = scoreWithComma(score);
   const fontFamily = fontBuffer ? 'SpaceMono' : 'monospace';
-  const badgeEl    = badgeDataUrl
-    ? `<image x="580" y="385" width="360" height="75" href="${badgeDataUrl}" preserveAspectRatio="xMidYMid meet"/>`
-    : `<text x="760" y="450" font-family="${fontFamily}" font-size="28" fill="#cc99ff" text-anchor="middle">${TITLE_EN[titleLevel]}</text>`;
+  const board      = buildOgpBoardCircles(bodies, bodyImages);
 
+  // 上位 X% 計算（rank 1 は常に 1%、上限 99%）
+  const calcPct = (r, t) => r === 1 ? 1 : Math.min(99, Math.ceil(r / Math.max(t, 1) * 100));
+  const allPct   = calcPct(rank, total);
+  const todayPct = todayTotal > 0 ? calcPct(todayRank, todayTotal) : null;
+
+  // 本日セクション（エントリーがある場合のみ表示）
+  const todayEl = todayPct != null
+    ? `  <text x="840" y="452" font-family="${fontFamily}" font-size="13" fill="#2b1a40" text-anchor="middle" letter-spacing="2">TODAY  TOP</text>
+  <text x="840" y="512" font-family="${fontFamily}" font-size="52" font-weight="bold" fill="#8866cc" text-anchor="middle">${todayPct}%</text>`
+    : '';
+
+  // 右パネル中心 x=840（480〜1200 の中央）
   return `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630">
   <rect width="1200" height="630" fill="#060412"/>
   <circle cx="55"  cy="45"  r="1.5" fill="#fff" opacity="0.6"/>
@@ -535,13 +544,21 @@ function buildOgpSVG(share, rank, fontBuffer, badgeDataUrl, bodyImages, bodies) 
   <rect x="0" y="0" width="480" height="630" fill="#0a0818"/>
   ${board}
   <line x1="480" y1="40" x2="480" y2="590" stroke="#7744bb" stroke-width="1" opacity="0.4"/>
-  <text x="760" y="105" font-family="${fontFamily}" font-size="58" font-weight="bold" fill="#7744cc" text-anchor="middle" letter-spacing="10">ROLLAXY</text>
-  <text x="760" y="220" font-family="${fontFamily}" font-size="26" fill="#554477" text-anchor="middle" letter-spacing="3">SCORE</text>
-  <text x="760" y="340" font-family="${fontFamily}" font-size="100" font-weight="bold" fill="#ffffff" text-anchor="middle">${scoreStr}</text>
-  ${badgeEl}
-  <text x="760" y="515" font-family="${fontFamily}" font-size="26" fill="#665588" text-anchor="middle">#${rank} All Time</text>
-  <line x1="560" y1="548" x2="960" y2="548" stroke="#2a1a44" stroke-width="1"/>
-  <text x="760" y="600" font-family="${fontFamily}" font-size="20" fill="#3a2455" text-anchor="middle" letter-spacing="5">NOVORA GAME</text>
+  <!-- ── 右パネル ── -->
+  <!-- タイトル -->
+  <text x="840" y="65" font-family="${fontFamily}" font-size="40" font-weight="bold" fill="#6633bb" text-anchor="middle" letter-spacing="8">ROLLAXY</text>
+  <!-- スコア -->
+  <text x="840" y="155" font-family="${fontFamily}" font-size="78" font-weight="bold" fill="#ffffff" text-anchor="middle">${scoreStr}</text>
+  <text x="840" y="180" font-family="${fontFamily}" font-size="15" fill="#44335a" text-anchor="middle" letter-spacing="2">pts</text>
+  <line x1="540" y1="202" x2="1140" y2="202" stroke="#170e2a" stroke-width="1"/>
+  <!-- 全期間 TOP % ── メインの数字 -->
+  <text x="840" y="245" font-family="${fontFamily}" font-size="18" fill="#443368" text-anchor="middle" letter-spacing="4">TOP</text>
+  <text x="840" y="385" font-family="${fontFamily}" font-size="120" font-weight="bold" fill="#cc88ff" text-anchor="middle">${allPct}%</text>
+  <line x1="540" y1="415" x2="1140" y2="415" stroke="#170e2a" stroke-width="1"/>
+  <!-- 本日 TOP % ── サブ情報 -->
+${todayEl}
+  <!-- フッター -->
+  <text x="840" y="598" font-family="${fontFamily}" font-size="18" fill="#2e1a44" text-anchor="middle" letter-spacing="5">NOVORA GAME</text>
 </svg>`;
 }
 
@@ -561,23 +578,29 @@ async function handleOgp(id, env) {
   ).bind(id).first();
   if (!row) return new Response('Not found', { status: 404 });
 
-  const rankRow = await env.DB.prepare(
-    `SELECT COUNT(*) AS cnt FROM shares WHERE game_id='rollaxy' AND score>?`
-  ).bind(row.score).first();
-  const rank = (rankRow?.cnt ?? 0) + 1;
+  // 全期間ランク・総数、本日（過去24h）ランク・総数を並列取得
+  const todayStart = Math.floor(Date.now() / 1000) - 86400;
+  const [rankRow, totalRow, todayRankRow, todayTotalRow] = await Promise.all([
+    env.DB.prepare(`SELECT COUNT(*) AS cnt FROM shares WHERE game_id='rollaxy' AND score>?`).bind(row.score).first(),
+    env.DB.prepare(`SELECT COUNT(*) AS cnt FROM shares WHERE game_id='rollaxy'`).first(),
+    env.DB.prepare(`SELECT COUNT(*) AS cnt FROM shares WHERE game_id='rollaxy' AND score>? AND created_at>=?`).bind(row.score, todayStart).first(),
+    env.DB.prepare(`SELECT COUNT(*) AS cnt FROM shares WHERE game_id='rollaxy' AND created_at>=?`).bind(todayStart).first(),
+  ]);
+  const rank       = (rankRow?.cnt    ?? 0) + 1;
+  const total      = (totalRow?.cnt   ?? 1);
+  const todayRank  = (todayRankRow?.cnt  ?? 0) + 1;
+  const todayTotal = (todayTotalRow?.cnt ?? 0);
 
   // bodies を早期パース → loadBodyImages の並列実行に使う
   let bodies = [];
   try { bodies = JSON.parse(row.snapshot_payload).bodies ?? []; } catch (_) {}
 
-  const titleLevel = getTitleLevel(row.score, row.highest_body_tier);
-  const [fontBuffer, badgeDataUrl, bodyImages] = await Promise.all([
+  const [fontBuffer, bodyImages] = await Promise.all([
     loadFont(env),
-    loadBadge(env, titleLevel),
     loadBodyImages(env, bodies),
   ]);
 
-  const svg = buildOgpSVG(row, rank, fontBuffer, badgeDataUrl, bodyImages, bodies);
+  const svg = buildOgpSVG(row, rank, total, todayRank, todayTotal, fontBuffer, bodyImages, bodies);
   const resvgOpts = {
     fitTo: { mode: 'width', value: 1200 },
     ...(fontBuffer ? { font: { fontBuffers: [fontBuffer], loadSystemFonts: false } } : {}),
