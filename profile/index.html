@@ -311,18 +311,7 @@
 </div>
 
 <script>
-// ゲームに戻るボタン：直前がゲームなら history.back()
-(function() {
-  const btn = document.getElementById('back-btn');
-  btn.addEventListener('click', function(e) {
-    try {
-      if (document.referrer && new URL(document.referrer).pathname.startsWith('/games/rollaxy/')) {
-        e.preventDefault();
-        history.back();
-      }
-    } catch (_) {}
-  });
-})();
+// ゲームに戻るボタンは常に /games/rollaxy/ へ直接遷移（history.back は使わない）
 </script>
 
 <script>

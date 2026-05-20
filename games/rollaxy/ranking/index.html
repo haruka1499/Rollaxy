@@ -352,15 +352,8 @@ function getBestShareId() {
   return localStorage.getItem('novora_best_share_id') || null;
 }
 
-// ── 「ゲームに戻る」: 直前がゲームページなら history.back() ──
-const backBtn = document.getElementById('back-btn');
-backBtn.addEventListener('click', e => {
-  if (document.referrer && new URL(document.referrer).pathname.startsWith('/games/rollaxy/')) {
-    e.preventDefault();
-    history.back();
-  }
-  // それ以外は href="/games/rollaxy/" にそのまま遷移
-});
+// ゲームに戻るボタンは常に /games/rollaxy/ へ直接遷移（history.back は使わない）
+// 理由: タブ切り替えが pushState で履歴に積まれるため back() が正しく機能しない
 
 // ── URL state ──
 const VALID_PERIODS = ['all', 'weekly', 'daily'];
