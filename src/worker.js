@@ -294,11 +294,25 @@ async function handleCleanup(request, env) {
 
   let deleted = 0;
   if (total > maxShares) {
+    // player_id を持つプレイヤーのベストスコアは削除しない。
+    // 条件: player_id が NULL（匿名）か、そのプレイヤーの最高スコアより低いレコードのみ削除。
+    // → 識別済みプレイヤーが何十回プレイしても、ベストスコアのシェアだけは残る。
     const del = await env.DB.prepare(
-      `DELETE FROM shares WHERE game_id=? AND retention_type='normal'
-       AND id IN (SELECT id FROM shares WHERE game_id=? AND retention_type='normal'
-                  ORDER BY created_at ASC LIMIT ?)`
-    ).bind(GAME_ID, GAME_ID, batchSize).run();
+      `DELETE FROM shares
+       WHERE game_id=? AND retention_type='normal'
+       AND id IN (
+         SELECT id FROM shares
+         WHERE game_id=? AND retention_type='normal'
+         ORDER BY created_at ASC LIMIT ?
+       )
+       AND (
+         player_id IS NULL
+         OR score < (
+           SELECT MAX(s2.score) FROM shares s2
+           WHERE s2.game_id=? AND s2.player_id = shares.player_id
+         )
+       )`
+    ).bind(GAME_ID, GAME_ID, batchSize, GAME_ID).run();
     deleted = del.meta?.changes ?? 0;
   }
 
