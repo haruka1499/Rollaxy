@@ -89,15 +89,16 @@ async function handleSharePost(request, env) {
     return json({ error: 'rate limit exceeded' }, 429, corsHeaders(origin));
   }
 
-  // ── セッショントークン検証（JWT_SECRET 設定後に有効）──
-  // JWT_SECRET 未設定中はスキップ（移行期間の後方互換）
-  if (env.JWT_SECRET) {
-    const tok     = typeof body.session_token === 'string' ? body.session_token : null;
-    const payload = tok ? await verifyJwt(tok, env.JWT_SECRET) : null;
-    if (!payload || payload.gid !== GAME_ID) {
-      return json({ error: 'invalid session' }, 401, corsHeaders(origin));
-    }
-  }
+  // ── セッショントークン検証 ──
+  // 現在は未強制。アカウントシステム追加時に有効化する。
+  // インフラ（auth.js・/api/session・クライアント側送信）は維持済み。
+  // if (env.JWT_SECRET) {
+  //   const tok     = typeof body.session_token === 'string' ? body.session_token : null;
+  //   const payload = tok ? await verifyJwt(tok, env.JWT_SECRET) : null;
+  //   if (!payload || payload.gid !== GAME_ID) {
+  //     return json({ error: 'invalid session' }, 401, corsHeaders(origin));
+  //   }
+  // }
 
   // ── スコア整合チェック ──
   // elapsed_ms / drop_count で明らかに異常なスコアを弾く。
