@@ -234,6 +234,8 @@
       width: 100%;
       max-width: 400px;
       padding: 13px 24px;
+      border: none;
+      cursor: pointer;
       background: var(--accent);
       color: #fff;
       border-radius: 10px;
@@ -300,7 +302,7 @@
 
 <!-- 固定下部：ゲームに戻るボタン -->
 <div id="back-bar">
-  <a href="/games/rollaxy/" class="back-btn" id="back-btn" data-i18n="backToGame">▶ ゲームに戻る</a>
+  <button class="back-btn" id="back-btn" data-i18n="backToGame">▶ ゲームに戻る</button>
 </div>
 
 <script src="/i18n.js"></script>
@@ -330,8 +332,13 @@ function getBestShareId() {
   return localStorage.getItem('novora_best_share_id') || null;
 }
 
-// ゲームに戻るボタンは常に /games/rollaxy/ へ直接遷移（history.back は使わない）
-// 理由: タブ切り替えが pushState で履歴に積まれるため back() が正しく機能しない
+// ゲームに戻るボタン
+// window.open / target="_blank" で開かれたタブなら window.close() でタブを閉じる。
+// 直接URLアクセスの場合 window.close() が無視されるため、200ms 後に /games/rollaxy/ へ遷移する。
+document.getElementById('back-btn').addEventListener('click', () => {
+  window.close();
+  setTimeout(() => { location.href = '/games/rollaxy/'; }, 200);
+});
 
 // ── URL state ──
 const VALID_PERIODS = ['all', 'weekly', 'daily'];
