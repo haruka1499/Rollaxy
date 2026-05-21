@@ -194,7 +194,7 @@ let skillSelectMode; // true = upgrade/delete の天体選択モード中
 let skillSelectedId; // 選択済み bodyId（確認パネル表示中）
 let skillCharges;    // {bomb, upgrade, delete} — 現在の所持数
 
-let chainRewardPending; // true = 5連鎖報酬パネル表示中（ドロップをブロック）
+let chainRewardPending; // true = 5連鎖報酬パネル表示中
 let rouletteActive;    // true = ルーレット表示中
 const rouletteQueue = [];   // ルーレット待機キュー（rouletteActive 中でも積める）
 let pendingChoiceRewards = 0; // 未受け取り5連鎖報酬数
@@ -341,7 +341,7 @@ function spawn(x, y, bi) {
 function drop() {
   if (!canDrop || dead || waiting || chainTimer !== null || chainResolveTimer !== null) return;
   if (skillSelectMode) return;
-  if (chainRewardPending) return; // 5連鎖選択パネル表示中は投下不可
+  // chainRewardPending 中（5連鎖報酬パネル表示中）もドロップ可能にする
   canDrop = false;
   _dropCount++; // 投下カウント（replay / anti-cheat 用）
 
