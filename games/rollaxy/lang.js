@@ -14,6 +14,8 @@ const LANGS = {
     scoreResult: 'スコア',
     newRecord:   '🏆 新記録！',
     retry:       'もう一度',
+    menuTitle:   'メニュー',
+    settingsBack: '← 戻る',
     settings:    '設定',
     resume:      'ゲームに戻る',
     reset:       'リセット',
@@ -38,13 +40,15 @@ const LANGS = {
     shareBtn:      'X でシェア',
     sharePreparing: '準備中...',
     rankingBtn:    '🏆 ランキング',
+    gamesLink:     '🎮 ゲーム一覧',
     displayNameLabel: '表示名',
     displayNamePlaceholder: '15文字以内（日本語OK）',
     displayNameSave: '保存',
     displayNameSaved: '✓ 保存しました',
     displayNameEmpty: '1文字以上入力してください',
-    guestCodeLabel: 'ゲストコード',
     profileLink: '👤 プロフィール',
+    startNameHint:   'ここで名前を変えられます ✎',
+    startNameHintOk: 'わかった',
     tweetText:     n => `ころころ宇宙で ${n} 点獲得！ #ころころ宇宙`,
     shareNote:     '📥 盤面画像をダウンロードしました。ツイートに添付してください。',
   },
@@ -57,6 +61,8 @@ const LANGS = {
     scoreResult: 'Score',
     newRecord:   '🏆 New Record!',
     retry:       'Play Again',
+    menuTitle:   'Menu',
+    settingsBack: '← Back',
     settings:    'Settings',
     resume:      'Resume',
     reset:       'Reset',
@@ -81,26 +87,84 @@ const LANGS = {
     shareBtn:      'Share on X',
     sharePreparing: 'Preparing...',
     rankingBtn:    '🏆 Ranking',
+    gamesLink:     '🎮 Games',
     displayNameLabel: 'Display Name',
     displayNamePlaceholder: 'Up to 15 chars',
     displayNameSave: 'Save',
     displayNameSaved: '✓ Saved',
     displayNameEmpty: 'Please enter at least 1 character',
-    guestCodeLabel: 'Guest Code',
     profileLink: '👤 Profile',
+    startNameHint:   'You can change your name here ✎',
+    startNameHintOk: 'Got it',
     tweetText:     n => `I scored ${n} in Rollaxy! #Rollaxy`,
     shareNote:     '📥 Image downloaded. Please attach it to your tweet.',
+  },
+  zh: {
+    name:        '中文',
+    score:       '分数',
+    best:        '最高',
+    next:        '下一个',
+    gameOver:    '游戏结束',
+    scoreResult: '分数',
+    newRecord:   '🏆 新纪录！',
+    retry:       '再来一次',
+    menuTitle:   '菜单',
+    settingsBack: '← 返回',
+    settings:    '设置',
+    resume:      '返回游戏',
+    reset:       '重置',
+    title:       'Rollaxy',
+    start:       '开始',
+    skillBomb:    '炸弹',
+    skillUpgrade: '强化',
+    skillDelete:  '删除',
+    chain: n => `${n}连锁！`,
+    rouletteTitle: '4连锁！ 获得技能',
+    rouletteStop: '停止',
+    bombDesc:    '消除范围内的天体',
+    upgradeDesc: '天体升级1阶',
+    deleteDesc:  '删除天体',
+    chooseSkill:   '选择技能',
+    confirmDelete: ' 删除',
+    queueWaiting:  n => `还有 ${n} 个等待`,
+    queueMore:     n => `还有 ${n} 个`,
+    reward:        '奖励',
+    autoshow:      on => `自动显示奖励: ${on ? '开' : '关'}`,
+    sfxVolume:     '音效',
+    shareBtn:      '分享到 X',
+    sharePreparing: '准备中...',
+    rankingBtn:    '🏆 排行榜',
+    gamesLink:     '🎮 游戏列表',
+    displayNameLabel: '显示名称',
+    displayNamePlaceholder: '最多15个字符',
+    displayNameSave: '保存',
+    displayNameSaved: '✓ 已保存',
+    displayNameEmpty: '请至少输入1个字符',
+    profileLink: '👤 个人资料',
+    startNameHint:   '点击 ✎ 可以修改名字',
+    startNameHintOk: '知道了',
+    tweetText:     n => `我在 Rollaxy 获得了 ${n} 分！ #Rollaxy`,
+    shareNote:     '📥 已下载盘面图片，请将其附加到推文中。',
   },
 };
 
 // 言語ボタンの表示順
-const LANG_ORDER = ['ja', 'en'];
+const LANG_ORDER = ['ja', 'en', 'zh'];
 
 // 現在の言語（localStorage で永続化）— novora_lang キーに統一（旧 rollaxy_lang からも移行）
-let currentLang = localStorage.getItem('novora_lang')
-              || localStorage.getItem('rollaxy_lang')
-              || 'ja';
-if (!LANGS[currentLang]) currentLang = 'ja';
+// 明示的な保存がない初回アクセス時は navigator.language から自動検出する。
+// 自動検出結果は localStorage に書かない（設定画面での明示操作と区別するため）。
+function _detectLang() {
+  const stored = localStorage.getItem('novora_lang') || localStorage.getItem('rollaxy_lang');
+  if (stored && LANGS[stored]) return stored;
+  const nav = (navigator.language || navigator.userLanguage || '').toLowerCase();
+  for (const code of LANG_ORDER) {
+    if (nav === code || nav.startsWith(code + '-')) return code;
+  }
+  return LANG_ORDER[LANG_ORDER.length - 1]; // 対応言語なし → 最後の言語（英語）
+}
+let currentLang = _detectLang();
+document.documentElement.lang = currentLang;
 
 // キーから現在言語の文字列を取得
 function T(key) {
@@ -113,6 +177,7 @@ function setLang(code) {
   currentLang = code;
   localStorage.setItem('novora_lang', code);
   localStorage.removeItem('rollaxy_lang'); // 旧キーを削除
+  document.documentElement.lang = code;
   applyLang();
 }
 

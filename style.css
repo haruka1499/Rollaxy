@@ -22,6 +22,9 @@ body {
   display: flex;
   flex-direction: column;
 }
+:lang(zh), :lang(zh) * {
+  font-family: 'PingFang SC', 'Noto Sans SC', 'Microsoft YaHei UI', 'Microsoft YaHei', sans-serif;
+}
 
 /* ── Header ── */
 .site-header {

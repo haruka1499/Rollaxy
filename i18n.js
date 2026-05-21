@@ -102,16 +102,73 @@ const _I18N = {
     profileRankBtn:     '🏆 Ranking',
     profileBackBtn:     '▶ Back to Game',
   },
+  zh: {
+    // ── 导航 ──
+    navGames:    '游戏',
+    navAbout:    'About',
+    navPrivacy:  'Privacy',
+    navRanking:  '排行榜',
+    navProfile:  '👤 个人资料',
+    scoreUnit:   '分',
+    navRollaxy:  'Rollaxy',
+    // ── 页脚 ──
+    footerHome:    'Home',
+    footerGames:   '游戏',
+    footerPrivacy: '隐私政策',
+    // ── 首页 ──
+    siteDesc:    '免费网页游戏 — 无需安装',
+    featured:    '推荐游戏',
+    rollaxyDesc: '以宇宙为主题的下落合并益智游戏。合并天体，挑战星系团。',
+    // ── 排行榜页面 ──
+    rankingTitle: '🏆 Rollaxy 排行榜',
+    tabAll:       '全部时间',
+    tabWeekly:    '本周',
+    tabDaily:     '今日',
+    myBestLabel:  '👤 我的最高分',
+    rankLoading:  '加载中...',
+    rankError:    '加载失败，请稍后重试。',
+    rankEmpty:    '暂无记录，快去游戏创造记录吧！',
+    backToGame:   '▶ 返回游戏',
+    // ── 个人资料页面 ──
+    profileTitle:       '👤 个人资料设置',
+    profileNameCard:    '显示名称',
+    profileNamePh:      '最多15个字符',
+    profileNameSave:    '保存',
+    profileNameSaved:   '✓ 已保存',
+    profileNameEmpty:   '请至少输入1个字符',
+    profileNameHint:    '此名称将显示在排行榜中，最多15个字符。',
+    profileCodeCard:    '访客代码（识别ID）',
+    profileCodeNote:    '此代码与您的浏览器绑定。在同一浏览器中游戏时使用相同代码，不同浏览器或设备会生成新代码。',
+    profileCopyBtn:     '复制',
+    profileCopied:      '✓ 已复制',
+    profileBestCard:    'Rollaxy 最高分',
+    profileBestLink:    '🔗 查看分享页面',
+    profileNoData:      '暂无记录',
+    profileRecentCard:  '最近的游戏记录',
+    profileNoRecent:    '暂无分享记录',
+    profilePlayBtn:     '▶ 开始游戏',
+    profileRankBtn:     '🏆 排行榜',
+    profileBackBtn:     '▶ 返回游戏',
+  },
 };
 
-const _LANG_ORDER = ['ja', 'en'];
+const _LANG_ORDER  = ['ja', 'en', 'zh'];
+const _LANG_LABELS = { ja: 'JP', en: 'EN', zh: 'ZH' };
 const _LANG_KEY   = 'novora_lang';
 
-// rollaxy_lang（旧キー）から移行
-let _curLang = localStorage.getItem(_LANG_KEY)
-            || localStorage.getItem('rollaxy_lang')
-            || 'ja';
-if (!_I18N[_curLang]) _curLang = 'ja';
+// rollaxy_lang（旧キー）からの移行を含む言語検出
+// 明示的な保存がない初回は navigator.language から自動検出し、localStorage には書かない
+function _detectGlobalLang() {
+  const stored = localStorage.getItem(_LANG_KEY) || localStorage.getItem('rollaxy_lang');
+  if (stored && _I18N[stored]) return stored;
+  const nav = (navigator.language || navigator.userLanguage || '').toLowerCase();
+  for (const code of _LANG_ORDER) {
+    if (nav === code || nav.startsWith(code + '-')) return code;
+  }
+  return _LANG_ORDER[_LANG_ORDER.length - 1]; // 対応言語なし → 最後の言語（英語）
+}
+let _curLang = _detectGlobalLang();
+document.documentElement.lang = _curLang;
 
 // キーから現在言語の文字列を取得
 function TG(key) {
@@ -124,6 +181,7 @@ function setGlobalLang(code) {
   _curLang = code;
   localStorage.setItem(_LANG_KEY, code);
   localStorage.removeItem('rollaxy_lang'); // 旧キー削除
+  document.documentElement.lang = code;
   applyGlobalLang();
 }
 
@@ -152,7 +210,7 @@ function buildSiteLangSelector() {
     const btn = document.createElement('button');
     btn.className    = 'site-lang-btn';
     btn.dataset.lang = code;
-    btn.textContent  = code === 'ja' ? 'JP' : 'EN';
+    btn.textContent  = _LANG_LABELS[code] || code.toUpperCase();
     btn.classList.toggle('active', code === _curLang);
     btn.addEventListener('click', () => setGlobalLang(code));
     el.appendChild(btn);

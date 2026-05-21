@@ -2,8 +2,12 @@
 // NOVORA GAME — Cloudflare Worker
 // 静的アセット配信 (env.ASSETS) + 動的 API ルートをここで処理する
 // ============================================================
-
-import { Resvg } from '@cf-wasm/resvg/workerd';
+import {
+  GAME_ID, SITE_URL, MIN_SCORE_FOR_TIER,
+  BODY_EMOJIS, BODY_COLORS, BODY_RADII,
+  getTitle, scoreWithComma,
+} from './constants.js';
+import { handleOgp } from './ogp.js';
 
 // ============================================================
 // CORS ヘルパー
@@ -37,56 +41,6 @@ function nanoid() {
 }
 
 // ============================================================
-// 共通定数（フロントエンド config.js と同期すること）
-// ============================================================
-const GAME_ID      = 'rollaxy';
-const SITE_URL     = 'https://novoragame.com';
-
-// tier n を達成するには最低限これだけのスコアが必要（粗い整合性チェック用）
-// 計算根拠: tier n を作るには tier 0 が 2^n 個必要 → スコアの合計下限
-const MIN_SCORE_FOR_TIER = [0, 1, 3, 6, 11, 20, 35, 60, 100, 160, 250, 380];
-
-const BODY_EMOJIS = ['💫','🪨','🌙','🌍','🪐','☀️','🔴','⭐','💠','🌑','🌌','🌐'];
-const BODY_COLORS = ['#b0a090','#807060','#d0c8b0','#3388cc','#d4a870','#ffcc00',
-                     '#cc2200','#c8d8ff','#2244cc','#110022','#7744cc','#aa44ff'];
-const BODY_RADII  = [12,18,25,33,42,51,61,70,79,88,97,106];
-// config.js の BODIES[].key と同順（tier インデックス対応）
-const BODY_KEYS   = ['dust','asteroid','moon','earth','jupiter','sun',
-                     'red_giant','white_dwarf','neutron_star','black_hole','galaxy','galaxy_cluster'];
-
-// score + highestTier → 称号文字列
-function getTitle(score, highestTier) {
-  if (highestTier >= 11) return '銀河団創造者';
-  if (score >= 2000)     return '宇宙の覇者';
-  if (score >= 1000)     return '銀河の探検家';
-  if (score >=  600)     return '太陽の支配者';
-  if (score >=  300)     return '惑星の開拓者';
-  if (score >=  100)     return '星の冒険者';
-  return '宇宙の旅人';
-}
-
-// 称号レベル (0〜6)
-function getTitleLevel(score, highestTier) {
-  if (highestTier >= 11) return 6;
-  if (score >= 2000)     return 5;
-  if (score >= 1000)     return 4;
-  if (score >=  600)     return 3;
-  if (score >=  300)     return 2;
-  if (score >=  100)     return 1;
-  return 0;
-}
-
-// 英語フォールバック称号
-const TITLE_EN = [
-  'Space Wanderer','Star Explorer','Planet Pioneer',
-  'Solar Sovereign','Galaxy Explorer','Cosmic Ruler','Cluster Creator',
-];
-
-function scoreWithComma(n) {
-  return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-}
-
-// ============================================================
 // POST /api/rollaxy/share — 盤面保存
 // ============================================================
 async function handleSharePost(request, env) {
@@ -109,19 +63,16 @@ async function handleSharePost(request, env) {
   if (!snapshot_payload) {
     return json({ error: 'Missing required fields' }, 400, corsHeaders(origin));
   }
-  // スコアと最大天体の粗い整合性チェック（明らかに不可能な値を排除）
   if (score < MIN_SCORE_FOR_TIER[highest_body_tier]) {
     return json({ error: 'score/tier mismatch' }, 400, corsHeaders(origin));
   }
 
   // ── player_id バリデーション ──
   // フォーマット: {provider}_{8〜28文字英数字} 例: guest_a3f8kz9mxqbt
-  // 将来プロバイダー (google_, discord_, novora_) が増えても同形式で通る
   const pid = (typeof player_id === 'string' && /^[a-z]+_[a-z0-9]{8,28}$/.test(player_id))
     ? player_id : null;
 
   // ── display_name バリデーション ──
-  // 日本語・英数字など Unicode 文字を許可、<>"& は除去、最大15文字
   const dname = (typeof display_name === 'string' && display_name.trim().length >= 1)
     ? display_name.trim().replace(/[<>"&]/g, '').slice(0, 15) || null
     : null;
@@ -426,207 +377,7 @@ function sharePage404() {
 }
 
 // ============================================================
-// GET /games/rollaxy/ogp/:id — OGP PNG 画像生成
-// ============================================================
-function toBase64(buffer) {
-  const bytes = new Uint8Array(buffer);
-  let binary = '';
-  const chunk = 8192;
-  for (let i = 0; i < bytes.length; i += chunk)
-    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
-  return btoa(binary);
-}
-
-async function loadFont(env) {
-  try {
-    const res = await env.ASSETS.fetch(
-      new Request(`${SITE_URL}/games/rollaxy/fonts/SpaceMono-Regular.ttf`)
-    );
-    if (res.ok) return await res.arrayBuffer();
-  } catch (_) {}
-  return null;
-}
-
-async function loadBadge(env, level) {
-  try {
-    const res = await env.ASSETS.fetch(
-      new Request(`${SITE_URL}/games/rollaxy/images/badges/title_${level}.png`)
-    );
-    if (!res.ok) return null;
-    return `data:image/png;base64,${toBase64(await res.arrayBuffer())}`;
-  } catch (_) { return null; }
-}
-
-// bodies 配列中で使用されている tier の PNG だけを並列ロードして
-// { tier: dataUrl } の Map を返す。失敗した tier は Map に含まれない。
-async function loadBodyImages(env, bodies) {
-  const usedTiers = [...new Set(bodies.map(b => Math.max(0, Math.min(11, b.tier))))];
-  const pairs = await Promise.all(
-    usedTiers.map(async tier => {
-      try {
-        const res = await env.ASSETS.fetch(
-          new Request(`${SITE_URL}/games/rollaxy/images/${BODY_KEYS[tier]}.png`)
-        );
-        if (!res.ok) return null;
-        return [tier, `data:image/png;base64,${toBase64(await res.arrayBuffer())}`];
-      } catch (_) { return null; }
-    })
-  );
-  return Object.fromEntries(pairs.filter(Boolean));
-}
-
-// bodies を SVG に描画する。
-// bodyImages が渡されていれば PNG を円形クリップして表示し、
-// 画像がない tier は塗り色の円にフォールバックする。
-function buildOgpBoardCircles(bodies, bodyImages) {
-  const scale = Math.min(460 / 400, 590 / 700);
-  const offX  = (460 - 400 * scale) / 2 + 10;
-  const offY  = (630 - 700 * scale) / 2;
-  const bx = (offX + 18 * scale).toFixed(1);
-  const by = (offY + 168 * scale).toFixed(1);
-  const bw = ((382 - 18) * scale).toFixed(1);
-  const bh = ((688 - 168) * scale).toFixed(1);
-
-  let defs   = '<defs>';
-  let shapes = `<rect x="${bx}" y="${by}" width="${bw}" height="${bh}" fill="#0c0720" stroke="#7744bb" stroke-width="1.5"/>`;
-
-  for (let i = 0; i < bodies.length; i++) {
-    const b    = bodies[i];
-    const tier = Math.max(0, Math.min(11, b.tier));
-    const cx   = (offX + b.x * scale).toFixed(1);
-    const cy   = (offY + b.y * scale).toFixed(1);
-    const r    = (BODY_RADII[tier] * scale).toFixed(1);
-    const d    = (BODY_RADII[tier] * scale * 2).toFixed(1);
-    const lx   = (offX + b.x * scale - BODY_RADII[tier] * scale).toFixed(1);
-    const ly   = (offY + b.y * scale - BODY_RADII[tier] * scale).toFixed(1);
-    const dataUrl = bodyImages?.[tier];
-
-    if (dataUrl) {
-      // PNG を円形クリップして描画
-      defs   += `<clipPath id="bc${i}"><circle cx="${cx}" cy="${cy}" r="${r}"/></clipPath>`;
-      shapes += `<image href="${dataUrl}" x="${lx}" y="${ly}" width="${d}" height="${d}" clip-path="url(#bc${i})" preserveAspectRatio="xMidYMid slice"/>`;
-    } else {
-      // 画像が取得できなかった場合は塗り色の円で代替
-      shapes += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${BODY_COLORS[tier]}" opacity="0.9"/>`;
-    }
-  }
-
-  defs += '</defs>';
-  return defs + shapes;
-}
-
-// share, rank/total(全期間), todayRank/todayTotal(過去24h), フォント, 天体画像, bodies
-function buildOgpSVG(share, rank, total, todayRank, todayTotal, fontBuffer, bodyImages, bodies) {
-  const { score } = share;
-  const scoreStr   = scoreWithComma(score);
-  const fontFamily = fontBuffer ? 'SpaceMono' : 'monospace';
-  const board      = buildOgpBoardCircles(bodies, bodyImages);
-
-  // 上位 X% 計算（rank 1 は常に 1%、上限 99%）
-  const calcPct = (r, t) => r === 1 ? 1 : Math.min(99, Math.ceil(r / Math.max(t, 1) * 100));
-  const allPct   = calcPct(rank, total);
-  const todayPct = todayTotal > 0 ? calcPct(todayRank, todayTotal) : null;
-
-  // 本日セクション（エントリーがある場合のみ表示）
-  const todayEl = todayPct != null
-    ? `  <text x="840" y="452" font-family="${fontFamily}" font-size="13" fill="#2b1a40" text-anchor="middle" letter-spacing="2">TODAY  TOP</text>
-  <text x="840" y="512" font-family="${fontFamily}" font-size="52" font-weight="bold" fill="#8866cc" text-anchor="middle">${todayPct}%</text>`
-    : '';
-
-  // 右パネル中心 x=840（480〜1200 の中央）
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630">
-  <rect width="1200" height="630" fill="#060412"/>
-  <circle cx="55"  cy="45"  r="1.5" fill="#fff" opacity="0.6"/>
-  <circle cx="330" cy="28"  r="2"   fill="#fff" opacity="0.5"/>
-  <circle cx="820" cy="75"  r="1.5" fill="#fff" opacity="0.5"/>
-  <circle cx="1100" cy="38" r="1"   fill="#fff" opacity="0.4"/>
-  <circle cx="930" cy="555" r="1.5" fill="#fff" opacity="0.6"/>
-  <rect x="0" y="0" width="480" height="630" fill="#0a0818"/>
-  ${board}
-  <line x1="480" y1="40" x2="480" y2="590" stroke="#7744bb" stroke-width="1" opacity="0.4"/>
-  <!-- ── 右パネル ── -->
-  <!-- タイトル -->
-  <text x="840" y="65" font-family="${fontFamily}" font-size="40" font-weight="bold" fill="#6633bb" text-anchor="middle" letter-spacing="8">ROLLAXY</text>
-  <!-- スコア -->
-  <text x="840" y="155" font-family="${fontFamily}" font-size="78" font-weight="bold" fill="#ffffff" text-anchor="middle">${scoreStr}</text>
-  <text x="840" y="180" font-family="${fontFamily}" font-size="15" fill="#44335a" text-anchor="middle" letter-spacing="2">pts</text>
-  <line x1="540" y1="202" x2="1140" y2="202" stroke="#170e2a" stroke-width="1"/>
-  <!-- 全期間 TOP % ── メインの数字 -->
-  <text x="840" y="245" font-family="${fontFamily}" font-size="18" fill="#443368" text-anchor="middle" letter-spacing="4">TOP</text>
-  <text x="840" y="385" font-family="${fontFamily}" font-size="120" font-weight="bold" fill="#cc88ff" text-anchor="middle">${allPct}%</text>
-  <line x1="540" y1="415" x2="1140" y2="415" stroke="#170e2a" stroke-width="1"/>
-  <!-- 本日 TOP % ── サブ情報 -->
-${todayEl}
-  <!-- フッター -->
-  <text x="840" y="598" font-family="${fontFamily}" font-size="18" fill="#2e1a44" text-anchor="middle" letter-spacing="5">NOVORA GAME</text>
-</svg>`;
-}
-
-async function handleOgp(id, env) {
-  const cacheKey = `ogp:${id}`;
-  try {
-    const cached = await env.RANKING_CACHE.get(cacheKey, 'arrayBuffer');
-    if (cached) {
-      return new Response(cached, {
-        headers: { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=86400' },
-      });
-    }
-  } catch (_) {}
-
-  const row = await env.DB.prepare(
-    `SELECT score, highest_body_tier, snapshot_payload FROM shares WHERE id=?`
-  ).bind(id).first();
-  if (!row) return new Response('Not found', { status: 404 });
-
-  // 全期間ランク・総数、本日（過去24h）ランク・総数を並列取得
-  const todayStart = Math.floor(Date.now() / 1000) - 86400;
-  const [rankRow, totalRow, todayRankRow, todayTotalRow] = await Promise.all([
-    env.DB.prepare(`SELECT COUNT(*) AS cnt FROM shares WHERE game_id='rollaxy' AND score>?`).bind(row.score).first(),
-    env.DB.prepare(`SELECT COUNT(*) AS cnt FROM shares WHERE game_id='rollaxy'`).first(),
-    env.DB.prepare(`SELECT COUNT(*) AS cnt FROM shares WHERE game_id='rollaxy' AND score>? AND created_at>=?`).bind(row.score, todayStart).first(),
-    env.DB.prepare(`SELECT COUNT(*) AS cnt FROM shares WHERE game_id='rollaxy' AND created_at>=?`).bind(todayStart).first(),
-  ]);
-  const rank       = (rankRow?.cnt    ?? 0) + 1;
-  const total      = (totalRow?.cnt   ?? 1);
-  const todayRank  = (todayRankRow?.cnt  ?? 0) + 1;
-  const todayTotal = (todayTotalRow?.cnt ?? 0);
-
-  // bodies を早期パース → loadBodyImages の並列実行に使う
-  let bodies = [];
-  try { bodies = JSON.parse(row.snapshot_payload).bodies ?? []; } catch (_) {}
-
-  const [fontBuffer, bodyImages] = await Promise.all([
-    loadFont(env),
-    loadBodyImages(env, bodies),
-  ]);
-
-  const svg = buildOgpSVG(row, rank, total, todayRank, todayTotal, fontBuffer, bodyImages, bodies);
-  const resvgOpts = {
-    fitTo: { mode: 'width', value: 1200 },
-    ...(fontBuffer ? { font: { fontBuffers: [fontBuffer], loadSystemFonts: false } } : {}),
-  };
-
-  let png;
-  try {
-    const resvg = await Resvg.async(svg, resvgOpts);
-    png = resvg.render().asPng();
-  } catch (err) {
-    console.error('resvg render failed:', err);
-    return new Response('Image generation failed', { status: 500 });
-  }
-
-  try {
-    await env.RANKING_CACHE.put(cacheKey, png, { expirationTtl: 86400 });
-  } catch (_) {}
-
-  return new Response(png, {
-    headers: { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=86400' },
-  });
-}
-
-// ============================================================
 // POST /api/rollaxy/player — プレイヤー表示名の即時更新
-// ゲームプレイなし（設定・プロフィールページ）での名前変更に対応
 // ============================================================
 async function handlePlayerUpdate(request, env) {
   const origin = request.headers.get('Origin') ?? '';
@@ -657,7 +408,6 @@ async function handlePlayerUpdate(request, env) {
     return json({ error: 'players table not ready' }, 503, corsHeaders(origin));
   }
 
-  // ランキングキャッシュを無効化（次回取得で最新名が反映される）
   try {
     for (const p of ['all', 'daily', 'weekly']) {
       for (const l of [20, 50, 100]) {
@@ -680,39 +430,32 @@ export default {
     const path   = url.pathname;
     const method = request.method;
 
-    // CORS preflight
     if (method === 'OPTIONS') {
       return new Response(null, { status: 204, headers: corsHeaders(request.headers.get('Origin') ?? '') });
     }
 
-    // POST /api/rollaxy/share
     if (method === 'POST' && path === '/api/rollaxy/share') {
       return handleSharePost(request, env);
     }
 
-    // GET /api/rollaxy/ranking
     if (method === 'GET' && path === '/api/rollaxy/ranking') {
       return handleRanking(request, env);
     }
 
-    // POST /api/rollaxy/player — 表示名の即時更新
     if (method === 'POST' && path === '/api/rollaxy/player') {
       return handlePlayerUpdate(request, env);
     }
 
-    // POST /api/admin/cleanup
     if (method === 'POST' && path === '/api/admin/cleanup') {
       return handleCleanup(request, env);
     }
 
-    // GET /games/rollaxy/share/:id
     const shareMatch = path.match(/^\/games\/rollaxy\/share\/([^/]+)$/);
     if (shareMatch && method === 'GET') {
       const id = shareMatch[1];
       return ID_RE.test(id) ? handleSharePage(id, env) : sharePage404();
     }
 
-    // GET /games/rollaxy/ogp/:id
     const ogpMatch = path.match(/^\/games\/rollaxy\/ogp\/([^/]+)$/);
     if (ogpMatch && method === 'GET') {
       const id = ogpMatch[1];
@@ -720,7 +463,6 @@ export default {
       return handleOgp(id, env);
     }
 
-    // 静的ファイルを ASSETS から配信
     return env.ASSETS.fetch(request);
   },
 };

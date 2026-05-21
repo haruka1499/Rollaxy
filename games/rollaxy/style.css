@@ -13,6 +13,10 @@ html, body {
   -webkit-user-select: none; user-select: none;
   font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
 }
+/* 中国語表示時: 日本語フォントを使わず中国語最適化フォントにフォールバック */
+:lang(zh), :lang(zh) * {
+  font-family: 'PingFang SC', 'Noto Sans SC', 'Microsoft YaHei UI', 'Microsoft YaHei', sans-serif;
+}
 body { display: flex; flex-direction: column; align-items: center; }
 
 /* ============================================================
@@ -508,19 +512,72 @@ canvas { position: absolute; top: 0; left: 0; transform-origin: top left; }
   background: rgba(255,255,255,0.18);
   color: #fff;
 }
-/* スタート画面のプレイヤー名表示 */
+/* スタート画面のプレイヤー名エリア */
 #start-playername {
-  font-size: 13px;
-  color: #b89ee8;
   background: rgba(124,92,252,0.15);
   border: 1px solid rgba(124,92,252,0.3);
-  border-radius: 20px;
-  padding: 5px 14px;
-  max-width: 200px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  border-radius: 16px;
+  padding: 8px 14px;
+  width: 100%; max-width: 230px;
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
 }
+#start-name-view {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 13px; color: #b89ee8;
+  max-width: 100%;
+}
+#start-name-view span:nth-child(2) {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+#start-name-edit-btn {
+  background: transparent; border: none;
+  color: #b89ee8; font-size: 14px; line-height: 1;
+  cursor: pointer; padding: 0 2px; flex-shrink: 0;
+  opacity: 0.6; transition: opacity 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+#start-name-edit-btn:hover { opacity: 1; }
+#start-name-editor {
+  display: none; gap: 5px; width: 100%;
+}
+#start-name-input {
+  flex: 1; padding: 5px 8px; min-width: 0;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(124,92,252,0.5);
+  border-radius: 8px;
+  color: #fff; font-size: 13px; outline: none;
+  -webkit-tap-highlight-color: transparent;
+}
+#start-name-input:focus { border-color: rgba(124,92,252,0.85); }
+#start-name-save-btn,
+#start-name-cancel-btn {
+  padding: 5px 10px; border: none; border-radius: 8px;
+  font-size: 13px; font-weight: 600; cursor: pointer; flex-shrink: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+#start-name-save-btn   { background: rgba(124,92,252,0.65); color: #fff; }
+#start-name-cancel-btn { background: rgba(255,255,255,0.1); color: #aaa; }
+#start-name-hint {
+  display: flex; align-items: center; gap: 8px;
+  width: 100%;
+  background: rgba(255,216,110,0.1);
+  border: 1px solid rgba(255,216,110,0.35);
+  border-radius: 10px;
+  padding: 6px 10px;
+  font-size: 11px; color: #ffd86e;
+}
+#start-name-hint-msg { flex: 1; text-align: left; }
+#start-name-hint-ok {
+  flex-shrink: 0;
+  padding: 3px 9px; font-size: 11px; font-weight: 600;
+  background: rgba(255,216,110,0.2);
+  border: 1px solid rgba(255,216,110,0.45);
+  border-radius: 8px; color: #ffd86e;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s;
+}
+#start-name-hint-ok:hover { background: rgba(255,216,110,0.35); }
 #start-btn {
   padding: 13px 48px; font-size: 20px; font-weight: bold;
   background: linear-gradient(135deg, #ff7722, #ff4400);
@@ -536,11 +593,44 @@ canvas { position: absolute; top: 0; left: 0; transform-origin: top left; }
   background: rgba(0,0,0,0.78);
   backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
   flex-direction: column; align-items: center; justify-content: center;
-  color: #fff; gap: 18px; text-align: center;
-  z-index: 12;
+  color: #fff; text-align: center;
+  z-index: 12; overflow-y: auto;
 }
 #settings-overlay.show { display: flex; }
 #settings-overlay h2 { font-size: 32px; font-weight: bold; }
+
+/* メニューパネル / 設定サブパネル — 共通レイアウト */
+#menu-panel,
+#settings-panel {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 18px; width: 100%; padding: 32px 20px;
+}
+#settings-panel { display: none; }
+
+/* 「← 戻る」ボタン（設定サブパネル上部） */
+#settings-back-btn {
+  margin-top: auto;
+  padding: 10px 22px; font-size: 15px;
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 16px; color: #aaa;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s;
+}
+#settings-back-btn:hover { background: rgba(255,255,255,0.1); }
+
+/* メニュー内「設定」ボタン */
+#menu-settings-btn {
+  padding: 9px 28px; font-size: 15px; font-weight: 600;
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.22);
+  border-radius: 24px; color: #ccc;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s, border-color 0.15s;
+}
+#menu-settings-btn:hover { background: rgba(255,255,255,0.14); border-color: rgba(255,255,255,0.4); }
 
 /* 「ゲームに戻る」ボタン（紫グラデーション） */
 #resume-btn {
@@ -612,12 +702,6 @@ canvas { position: absolute; top: 0; left: 0; transform-origin: top left; }
   font-size: 11px; color: #88ff88; min-height: 16px;
 }
 #displayname-status:not([data-ok="1"]) { color: #ff8888; }
-#guest-code-row {
-  font-size: 11px; color: #666; letter-spacing: 0.03em;
-}
-#guest-code-val {
-  font-family: monospace; color: #886688; font-size: 11px;
-}
 
 /* ランキングリンク・ゲーム一覧リンク（設定メニュー内・スタート画面） */
 #settings-ranking-link,

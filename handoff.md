@@ -18,10 +18,10 @@
 |---|---|
 | フロントエンド | バニラ HTML + バニラ JS（フレームワーク・ビルドツール一切なし） |
 | 物理エンジン | Matter.js（game.js に直接ロード） |
-| バックエンド | Cloudflare Pages（静的配信） + Pages Functions（`src/worker.js` 単一ファイル） |
+| バックエンド | Cloudflare Pages（静的配信） + Pages Functions（`src/` 以下の ES モジュール群） |
 | DB | Cloudflare D1（SQLite）— バインド名 `DB` |
 | KV | Cloudflare KV — バインド名 `RANKING_CACHE` |
-| OGP画像生成 | `@cf-wasm/resvg` (SVG→PNG、Worker 内で実行) |
+| OGP画像生成 | `@cf-wasm/resvg` (SVG→PNG、`src/ogp.js` 内で実行) |
 | 言語管理 | `i18n.js`（サイト共通）/ `lang.js`（ゲーム内）|
 | アナリティクス | Google Analytics 4（gtag.js 直埋め込み、GTM不使用） |
 
@@ -30,19 +30,36 @@
 静的ファイル（Pages 配信）
   ├─ index.html, style.css, i18n.js          ← サイト共通
   ├─ games/rollaxy/                           ← ゲーム本体
-  │    ├─ index.html / game.js / config.js / lang.js
+  │    ├─ index.html / config.js / lang.js
+  │    ├─ game-player.js   ← GA4・player_id・display_name
+  │    ├─ game-sfx.js      ← 効果音プール
+  │    ├─ game-skills.js   ← スキル・ルーレット・連鎖報酬
+  │    ├─ game-renderer.js ← canvas 描画
+  │    ├─ game-share.js    ← シェア投稿・X シェア
+  │    ├─ game.js          ← ゲームコア（物理・合体・ゲームオーバー）
   │    ├─ ranking/index.html                  ← ランキングページ
   │    └─ images/*.png                        ← 天体画像（12種）
   └─ profile/index.html                       ← プロフィール設定
 
-src/worker.js（単一ファイルに全 API を実装）
-  ├─ POST /api/rollaxy/share      ← スコア保存
-  ├─ GET  /api/rollaxy/ranking    ← ランキング取得（KVキャッシュ）
-  ├─ POST /api/rollaxy/player     ← 表示名更新
-  ├─ POST /api/admin/cleanup      ← 手動クリーンアップ（ADMIN_SECRET認証）
-  ├─ GET  /games/rollaxy/share/:id  ← シェアページ（HTML動的生成）
-  └─ GET  /games/rollaxy/ogp/:id    ← OGP PNG生成（KVキャッシュ24h）
+src/（Cloudflare Worker — ES モジュール方式）
+  ├─ constants.js  ← 共通定数（BODY_EMOJIS / 称号 / scoreWithComma など）
+  ├─ ogp.js        ← OGP PNG 生成（handleOgp をエクスポート）
+  └─ worker.js     ← API ハンドラー + ルーター（constants.js / ogp.js をインポート）
+       ├─ POST /api/rollaxy/share
+       ├─ GET  /api/rollaxy/ranking
+       ├─ POST /api/rollaxy/player
+       ├─ POST /api/admin/cleanup
+       ├─ GET  /games/rollaxy/share/:id
+       └─ GET  /games/rollaxy/ogp/:id
 ```
+
+### フロントエンド script ロード順
+```html
+config.js → lang.js → game-player.js → game-sfx.js
+  → game-skills.js → game-renderer.js → game-share.js → game.js
+```
+すべてグローバルスコープ共有（ES モジュールなし）。`game.js` の STATE 変数（`bmap`, `world`, `score` 等）は
+ロード後に初めて参照されるため、先行してロードされるモジュールから関数定義だけ置いても問題ない。
 
 ---
 
@@ -58,6 +75,8 @@ src/worker.js（単一ファイルに全 API を実装）
 - [x] OGP盤面描画を塗り色円から実際のPNG（円形クリップ）に変更
 - [x] OGP右パネルを「スコア + 全期間TOP X% + 本日TOP Y%」にリデザイン
 - [x] GA4カスタムイベント5種を追加（`game_start` / `game_over` / `retry_click` / `share_click` / `ranking_open`）
+- [x] ファイル構成リファクタリング: game.js（2000行超）を 6 ファイルに分割
+- [x] worker.js を constants.js / ogp.js / worker.js の 3 ファイルに分割
 
 ### 未完了・既知の残課題
 - [ ] `wrangler.toml` の `database_name` が **staging** のまま（本番切り替え未実施）
@@ -75,22 +94,28 @@ src/worker.js（単一ファイルに全 API を実装）
 
 ## Important Constraints
 
-### 絶対に守るルール
-- **ビルドツール・フレームワーク導入禁止**。バニラHTMLのままで機能を追加する
-- `src/worker.js` は **単一ファイル**で全APIを管理する（ファイル分割しない）
-- `novora_lang` が言語設定のキー。`rollaxy_lang`（旧）に絶対に戻さない
-- `game.js` 内の `logEvent()` を通じてのみ GA4 イベントを送信する（直接 `gtag()` 呼び出しを増やさない）
+### 絶対に守るルール（変更すると確実にバグが再発する）
+1. **`wakeAllBodies()` から `d.at = now` と速度ナッジを削除しない**  
+   削除するとスキル使用後に天体が浮く（実証済みバグ）
+2. **`_createShare()` の bmap 収集ループを `await` より後に移動しない**  
+   `_startGameOverAnim()` が非同期で bmap を消すため、移動すると bmap が空になる
+3. **`retryBtn` のイベントハンドラー内 `logEvent` を `init()` 内に移動しない**  
+   初回ロード時も `init()` が呼ばれるため `retry_click` が誤送信される
+4. **OGP の `<defs>` を shapes より後に出力しない**  
+   SVG 仕様上、`clipPath` は参照より前に定義が必要（`src/ogp.js` の `buildOgpBoardCircles` 参照）
 
-### 禁止事項
-- `SLEEP_INTERVAL` / `SLEEP_NET_DISP2` / `SLEEP_GRACE_MS` の数値変更（振動防止と押しのけ動作のバランスが崩れる）
-- `wakeAllBodies()` から `d.at = now` と速度ナッジ（`+0.15`）を削除しない（削除スキル後に天体が浮く）
-- `_createShare()` で bmap を読む処理を `await` より後ろに移動しない（`_startGameOverAnim()` が bmap を消し始めるため）
-- `retryBtn` のイベントを `init()` 内部に移動しない（初回ロード時も `init()` が呼ばれるため `retry_click` が誤送信される）
-- OGP の `<defs>` を shapes より後に出力しない（SVG の `clipPath` は参照前に定義が必要）
+### 変更は判断次第（経緯を理解した上で）
+- **`SLEEP_INTERVAL` / `SLEEP_NET_DISP2` / `SLEEP_GRACE_MS` の数値変更**: チューニング済み。変更は再チューニングを意味する
+- **`novora_lang` キー名**: 別のキーへの移行は設計次第でありうる。`rollaxy_lang`（旧）に戻すのは論外
+
+### ビルドルール
+- **フロントエンド**: ビルドツール・フレームワーク導入禁止。バニラHTMLのまま
+- **Worker**: ES モジュール（`import`/`export`）を使用。wrangler がバンドルするので複数ファイル分割可能
+- `logEvent()` を通じてのみ GA4 イベントを送信（直接 `gtag()` 呼び出しを増やさない）
 
 ### 技術的制約
 - Cloudflare Pages Functions は **Cron Trigger 非対応**。クリーンアップは手動HTTP呼び出し
-- `@cf-wasm/resvg` は Latin フォントのみ内蔵。日本語テキストは直接 SVG 内に書けないため PNG バッジ画像で対応（現在バッジ画像は未作成 → 英語フォールバック中）
+- `@cf-wasm/resvg` は Latin フォントのみ内蔵。日本語テキストは SVG 内に直接書けないため PNG バッジ画像で対応（現在バッジ画像は未作成 → 英語フォールバック中）
 - D1 は Cloudflare Workers Runtime で動く。通常の SQLite ドライバは使用不可
 
 ### パフォーマンス・セキュリティ方針
@@ -121,7 +146,7 @@ src/worker.js（単一ファイルに全 API を実装）
 
 ### JS 関数・変数
 - プライベートヘルパーはアンダースコアプレフィックス: `_createShare()`, `_pendingShareId`, `_highestTier`
-- GA4 送信は必ず `logEvent(name, params)` 経由（`game.js` 内で定義）
+- GA4 送信は必ず `logEvent(name, params)` 経由（`game-player.js` で定義）
 
 ### API 命名
 - ゲーム固有: `/api/rollaxy/*`
@@ -157,8 +182,15 @@ src/worker.js（単一ファイルに全 API を実装）
 
 | ファイル | 役割 |
 |---|---|
-| `src/worker.js` | 全 API・OGP生成・シェアページHTML生成を1ファイルで担う |
-| `games/rollaxy/game.js` | ゲームロジック全体（物理・描画・スキル・シェア・GA4） |
+| `src/constants.js` | 共通定数（`BODY_EMOJIS`, `BODY_RADII`, 称号関数, `scoreWithComma` など）。`ogp.js` / `worker.js` 双方からインポート |
+| `src/ogp.js` | OGP PNG 生成。`handleOgp` をエクスポート。`@cf-wasm/resvg` と `constants.js` に依存 |
+| `src/worker.js` | API ハンドラー + ルーター。`constants.js` / `ogp.js` をインポート |
+| `games/rollaxy/game.js` | ゲームコア（物理・合体・ゲームオーバー・ループ・設定UI） |
+| `games/rollaxy/game-player.js` | `logEvent` / `getPlayerId` / `getDisplayName` / `addMyShareId` |
+| `games/rollaxy/game-sfx.js` | 効果音プール・`playMergeSound` |
+| `games/rollaxy/game-skills.js` | スキル（爆弾・強化・削除）・ルーレット・連鎖報酬 |
+| `games/rollaxy/game-renderer.js` | `draw` / `paintBody` / `paintBomb` / `drawBodyBar` |
+| `games/rollaxy/game-share.js` | `_createShare` / `shareToX`（シェア投稿 + X シェア） |
 | `games/rollaxy/config.js` | BODIES定義・物理パラメータ・`GAME_VERSION`（現在 `1`） |
 | `games/rollaxy/lang.js` | ゲーム内テキストの ja/en 管理（`novora_lang` キーを使用） |
 | `i18n.js` | サイト共通 i18n。`TG(key)` / `setGlobalLang()` / `applyGlobalLang()` |
@@ -197,13 +229,11 @@ src/worker.js（単一ファイルに全 API を実装）
 3. 本番反映作業は必ず Cloudflare Dashboard で Production バインディングが正しいか確認してから
 
 ### 禁止アクション（AIが誤りやすいポイント）
-- **`SLEEP_INTERVAL` / `SLEEP_NET_DISP2` を変更しない**。チューニング済みの数値
-- **`wakeAllBodies()` から `d.at = now` を削除しない**。削除するとスキル後に天体が浮く
-- **`_createShare()` の bmap 収集ループを `await` の後ろに移動しない**
-- **`retryBtn` ハンドラー内の `logEvent` を `init()` 内に移動しない**
+- **`wakeAllBodies()` から `d.at = now` を削除しない**（スキル後に天体が浮く）
+- **`_createShare()` の bmap 収集を `await` の後に移動しない**（bmap が空になる）
+- **`retryBtn` ハンドラー内の `logEvent` を `init()` 内に移動しない**（初回誤送信）
+- **OGP の `<defs>` を shapes より後に出力しない**（SVG clipPath の参照順序制約）
 - **`novora_lang` を `rollaxy_lang` に戻さない**（旧キーは削除済み）
-- **OGP の `buildOgpBoardCircles()` で `<defs>` を shapes より後に出力しない**（SVG clipPath の参照順序制約）
-- **`src/worker.js` を複数ファイルに分割しない**
 
 ### 開発フロー
 ```
@@ -233,6 +263,5 @@ wrangler.toml は staging DB（novora_game_staging）を向いています。
 作業前に以下を確認してください:
 - SLEEP_INTERVAL / SLEEP_NET_DISP2 を変更しない
 - novora_lang キーを変更しない
-- src/worker.js は単一ファイルのまま維持する
 - retryBtn の logEvent は init() 内に移動しない
 ```
