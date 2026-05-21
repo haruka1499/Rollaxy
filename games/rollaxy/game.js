@@ -163,6 +163,20 @@ let _gameStartTime = 0; // beginGame() でセット
 let _dropCount     = 0; // 天体を落とすたびにカウント
 
 // ============================================================
+// GA4 カスタムイベント
+// gtag は <head> のインラインスクリプトで同期定義されているため
+// 常に呼び出し可能（ライブラリのロード前でも dataLayer に積まれ後から送信される）。
+// すべての gtag('event', ...) はこの関数を経由することで
+// ・呼び出し漏れチェック（typeof gtag）
+// ・パラメータ共通化（game_id 等）
+// ・将来のイベント名変更をここ1か所で吸収できる。
+// ============================================================
+function logEvent(eventName, params = {}) {
+  if (typeof gtag !== 'function') return;
+  gtag('event', eventName, params);
+}
+
+// ============================================================
 // プレイヤー識別（ゲストID）
 // フォーマット: guest_{12文字英数字}
 // 将来の Google/Discord/NOVORA ログイン統合時は novora_player_id を上書きするだけ
@@ -1087,6 +1101,18 @@ function doGameOver() {
     localStorage.setItem('korokoro_hi', score);
     hiEl.textContent = `${T('best')}: ${hiScore}`;
   }
+  // GA4 game_over イベント
+  // _startGameOverAnim() が bmap を順次削除する前にここで計算する
+  let _highestTier = 0;
+  for (const d of bmap.values()) { if (d.bi > _highestTier) _highestTier = d.bi; }
+  logEvent('game_over', {
+    game_id:      'rollaxy',
+    score,
+    highest_tier: _highestTier,
+    drop_count:   _dropCount,
+    elapsed_sec:  Math.round((Date.now() - _gameStartTime) / 1000),
+    is_new_best:  isHi ? 1 : 0,
+  });
   // share API を即座に非同期呼び出し（アニメーション中に裏で通信）
   _pendingShareId = null;
   shareBtn.disabled = true;
@@ -1584,8 +1610,17 @@ canvas.addEventListener('touchend', e => {
 }, { passive: false });
 
 // 各ボタンに click と touchend を両方登録（スマホの 300ms 遅延対策）
-retryBtn.addEventListener('click',    () => init());
-retryBtn.addEventListener('touchend', e => { e.preventDefault(); init(); });
+// retry_click はここで発火（init() 内部ではなく）
+// → ページ初回ロード時の init() と区別するため
+retryBtn.addEventListener('click', () => {
+  logEvent('retry_click', { game_id: 'rollaxy', previous_score: score });
+  init();
+});
+retryBtn.addEventListener('touchend', e => {
+  e.preventDefault(); // touchend の後に click が重複発火しないよう preventDefault
+  logEvent('retry_click', { game_id: 'rollaxy', previous_score: score });
+  init();
+});
 
 // ============================================================
 // X（Twitter）シェア
@@ -1606,6 +1641,11 @@ function _dataURLtoBlob(dataUrl) {
 }
 
 function shareToX() {
+  logEvent('share_click', {
+    game_id:       'rollaxy',
+    score,
+    has_share_url: _pendingShareId ? 1 : 0, // OGP付きURLが発行済みか
+  });
   const text    = T('tweetText')(score);
   // 共有 URL: 個別シェアページ（生成済み）> ゲームトップページ > なし
   // サーバー側で OGP 画像を生成するので canvas スクショは不要
@@ -1635,6 +1675,7 @@ function beginGame() {
   startOverlay.classList.remove('show');
   updateSkillButtons(); // waiting=false になったのでボタンの disabled を解除
   _unlockAudio();       // ユーザー操作のタイミングで音声を起動し autoplay 制限を解除
+  logEvent('game_start', { game_id: 'rollaxy' });
 }
 
 // スタートボタン押下（ユーザー操作）のタイミングで pool[0] を無音で一瞬再生する。

@@ -470,6 +470,13 @@ document.addEventListener('globalLangChange', () => {
 // ── 初期化 ──
 renderTabs();
 loadRanking();
+
+// ranking_open イベント（ページ読み込み時に一度だけ送信）
+// タブ切り替えや言語変更による loadRanking() 再呼び出しでは送信しない
+gtag('event', 'ranking_open', {
+  game_id: 'rollaxy',
+  period,  // URL パラメータから取得した初期タブ
+});
 </script>
 
 </body>
