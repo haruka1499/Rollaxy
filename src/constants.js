@@ -42,11 +42,21 @@ export function getTitleLevel(score, highestTier) {
   return 0;
 }
 
-// 英語フォールバック称号
-export const TITLE_EN = [
-  'Space Wanderer','Star Explorer','Planet Pioneer',
-  'Solar Sovereign','Galaxy Explorer','Cosmic Ruler','Cluster Creator',
-];
+// 各言語の称号リスト（getTitleLevel のインデックスと対応）
+const _TITLES = {
+  ja: ['宇宙の旅人','星の冒険者','惑星の開拓者','太陽の支配者','銀河の探検家','宇宙の覇者','銀河団創造者'],
+  en: ['Space Wanderer','Star Explorer','Planet Pioneer','Solar Sovereign','Galaxy Explorer','Cosmic Ruler','Cluster Creator'],
+  zh: ['宇宙旅者','星际探险者','行星开拓者','太阳主宰者','银河探险家','宇宙霸主','星系团创造者'],
+};
+// 後方互換用
+export const TITLE_EN = _TITLES.en;
+
+// 多言語対応 getTitle
+export function getTitleI18n(score, highestTier, lang = 'ja') {
+  const level  = getTitleLevel(score, highestTier);
+  const titles = _TITLES[lang] ?? _TITLES.ja;
+  return titles[level];
+}
 
 export function scoreWithComma(n) {
   return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',');

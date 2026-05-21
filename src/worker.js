@@ -5,7 +5,7 @@
 import {
   GAME_ID, SITE_URL, MIN_SCORE_FOR_TIER,
   BODY_EMOJIS, BODY_COLORS, BODY_RADII,
-  getTitle, scoreWithComma,
+  getTitle, getTitleI18n, scoreWithComma,
 } from './constants.js';
 import { handleOgp } from './ogp.js';
 import { signJwt, verifyJwt } from './auth.js';
@@ -296,6 +296,42 @@ async function handleCleanup(request, env) {
 }
 
 // ============================================================
+// シェアページ多言語テキスト
+// ============================================================
+const _SL = {
+  ja: {
+    rankText:  rank => `全体 ${rank.toLocaleString('en-US')} 位`,
+    playBtn:   'Rollaxy をプレイ',
+    tweetBtn:  'X でシェア',
+    gamesLink: 'ゲーム一覧',
+    tweetText: (score, title) => `スコア ${score} — ${title}！`,
+    desc:      (score, title, emoji) => `${title} — スコア ${score}、最大天体 ${emoji}。あなたも挑戦！`,
+    navGames: 'ゲーム', navAbout: 'About', navPrivacy: 'Privacy',
+    footerHome: 'Home', footerGames: 'ゲーム', footerPrivacy: 'プライバシーポリシー',
+  },
+  en: {
+    rankText:  rank => `Overall Rank #${rank.toLocaleString('en-US')}`,
+    playBtn:   'Play Rollaxy',
+    tweetBtn:  'Share on X',
+    gamesLink: 'Game List',
+    tweetText: (score, title) => `Score ${score} — ${title}!`,
+    desc:      (score, title, emoji) => `${title} — Score ${score}, top body ${emoji}. Try it!`,
+    navGames: 'Games', navAbout: 'About', navPrivacy: 'Privacy',
+    footerHome: 'Home', footerGames: 'Games', footerPrivacy: 'Privacy Policy',
+  },
+  zh: {
+    rankText:  rank => `全球排名第 ${rank.toLocaleString('en-US')} 名`,
+    playBtn:   '开始游戏',
+    tweetBtn:  '分享到 X',
+    gamesLink: '游戏列表',
+    tweetText: (score, title) => `得分 ${score} — ${title}！`,
+    desc:      (score, title, emoji) => `${title} — 得分 ${score}，最大天体 ${emoji}。快来挑战！`,
+    navGames: '游戏', navAbout: 'About', navPrivacy: 'Privacy',
+    footerHome: 'Home', footerGames: '游戏', footerPrivacy: '隐私政策',
+  },
+};
+
+// ============================================================
 // GET /games/rollaxy/share/:id — シェアページ HTML
 // ============================================================
 function buildBoardSVG(bodies) {
@@ -326,26 +362,30 @@ async function handleSharePage(id, env) {
   ).bind(id).first();
   if (!row) return sharePage404();
 
+  const lang = (_SL[row.ui_lang] ? row.ui_lang : 'ja');
+  const L    = _SL[lang];
+
   const rankRow = await env.DB.prepare(
     `SELECT COUNT(*) AS cnt FROM shares WHERE game_id='rollaxy' AND score>?`
   ).bind(row.score).first();
   const rank     = (rankRow?.cnt ?? 0) + 1;
-  const rankText = `全体 ${rank.toLocaleString('en-US')} 位`;
+  const rankText = L.rankText(rank);
 
   let bodies = [];
   try { bodies = JSON.parse(row.snapshot_payload).bodies ?? []; } catch (_) {}
 
-  const titleStr  = getTitle(row.score, row.highest_body_tier);
+  const titleStr  = getTitleI18n(row.score, row.highest_body_tier, lang);
   const maxEmoji  = BODY_EMOJIS[Math.min(11, row.highest_body_tier)];
   const svg       = buildBoardSVG(bodies);
   const scoreStr  = scoreWithComma(row.score);
   const shareUrl  = `${SITE_URL}/games/rollaxy/share/${id}`;
   const ogImage   = `${SITE_URL}/games/rollaxy/ogp/${id}`;
   const pageTitle = `Score ${scoreStr} | Rollaxy | NOVORA GAME`;
-  const desc      = `${titleStr} — スコア ${scoreStr}、最大天体 ${maxEmoji}。あなたも挑戦！`;
+  const desc      = L.desc(scoreStr, titleStr, maxEmoji);
+  const htmlLang  = lang === 'zh' ? 'zh' : lang === 'en' ? 'en' : 'ja';
 
   const html = `<!DOCTYPE html>
-<html lang="${row.ui_lang === 'en' ? 'en' : 'ja'}">
+<html lang="${htmlLang}">
 <head>
   <!-- Google tag (gtag.js) -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-FFF4H3EVV8"></script>
@@ -383,9 +423,9 @@ async function handleSharePage(id, env) {
 <nav class="site-nav"><div class="nav-inner">
   <a href="/" class="nav-logo">NOVORA GAME</a>
   <ul class="nav-links">
-    <li><a href="/games/">Games</a></li>
-    <li><a href="/about/">About</a></li>
-    <li><a href="/privacy/">Privacy</a></li>
+    <li><a href="/games/">${L.navGames}</a></li>
+    <li><a href="/about/">${L.navAbout}</a></li>
+    <li><a href="/privacy/">${L.navPrivacy}</a></li>
   </ul>
 </div></nav>
 <main><div class="share-page">
@@ -394,14 +434,14 @@ async function handleSharePage(id, env) {
   <div class="share-title">${titleStr} ${maxEmoji}</div>
   <div class="share-rank">${rankText}</div>
   <div>
-    <a class="share-play" href="/games/rollaxy/">▶ Rollaxy をプレイ</a>
-    <a class="share-tweet" href="https://twitter.com/intent/tweet?text=${encodeURIComponent(`スコア ${scoreStr} — ${titleStr}！`)}&url=${encodeURIComponent(shareUrl)}" target="_blank" rel="noopener">X でシェア</a>
+    <a class="share-play" href="/games/rollaxy/">▶ ${L.playBtn}</a>
+    <a class="share-tweet" href="https://twitter.com/intent/tweet?text=${encodeURIComponent(L.tweetText(scoreStr, titleStr))}&url=${encodeURIComponent(shareUrl)}" target="_blank" rel="noopener">${L.tweetBtn}</a>
   </div>
-  <div class="share-links"><a href="/games/">ゲーム一覧</a></div>
+  <div class="share-links"><a href="/games/">${L.gamesLink}</a></div>
 </div></main>
 <footer class="site-footer">
   <div class="footer-links">
-    <a href="/">Home</a><a href="/games/">Games</a><a href="/privacy/">Privacy Policy</a>
+    <a href="/">${L.footerHome}</a><a href="/games/">${L.footerGames}</a><a href="/privacy/">${L.footerPrivacy}</a>
   </div>
   &copy; 2025 NOVORA GAME
 </footer>
