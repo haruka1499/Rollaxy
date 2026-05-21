@@ -304,25 +304,11 @@
 </div>
 
 <script src="/i18n.js"></script>
+<script src="/games/rollaxy/game-consts.js"></script>
 <script>
 'use strict';
 
-// ── 定数 ──
-const BODY_EMOJIS = ['💫','🪨','🌙','🌍','🪐','☀️','🔴','⭐','💠','🌑','🌌','🌐'];
-
-function getTitle(score, highestTier) {
-  if (highestTier >= 11) return '銀河団創造者';
-  if (score >= 2000)     return '宇宙の覇者';
-  if (score >= 1000)     return '銀河の探検家';
-  if (score >=  600)     return '太陽の支配者';
-  if (score >=  300)     return '惑星の開拓者';
-  if (score >=  100)     return '星の冒険者';
-  return '宇宙の旅人';
-}
-
-function fmtScore(n) {
-  return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-}
+// BODY_EMOJIS / getTitle / fmtScore は game-consts.js で定義
 
 function escHtml(str) {
   return str

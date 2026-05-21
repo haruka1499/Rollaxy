@@ -14,6 +14,7 @@ database_id = "0bf7131a-ee13-4b51-a05c-691bb44ac0ee"
 binding = "RANKING_CACHE"
 id = "15af2d0c1ed64b409b10f138f49dd543"
 
-[vars]
-# 管理用エンドポイントの認証シークレット（デプロイ前にランダムな値に変更してください）
-ADMIN_SECRET = "REPLACE_WITH_RANDOM_SECRET"
+# ADMIN_SECRET は Cloudflare ダッシュボードの Secrets で管理する
+# Workers & Pages → novora-game → Settings → Variables → Add variable（Type: Secret）
+# キー名: ADMIN_SECRET　値: ランダムな長い文字列（例: openssl rand -hex 32 で生成）
+# [vars] に平文で書かない。

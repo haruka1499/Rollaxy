@@ -207,7 +207,8 @@ let debugMode    = false; // ` キーでトグル
 let debugBi      = 0;     // パレットで選択中の天体インデックス
 let debugDragging = false; // 左ボタン押しっぱなし中
 
-let hiScore = +(localStorage.getItem('korokoro_hi') || 0);
+// korokoro_hi は旧キー名。rollaxy_hi に移行済みなら旧キーは無視される。
+let hiScore = +(localStorage.getItem('rollaxy_hi') || localStorage.getItem('korokoro_hi') || 0);
 hiEl.textContent = `${T('best')}: ${hiScore}`;
 
 // 共有 URL（doGameOver で非同期生成し shareToX で使う）
@@ -625,7 +626,8 @@ function doGameOver() {
   newHiEl.style.display = isHi ? 'block' : 'none';
   if (isHi) {
     hiScore = score;
-    localStorage.setItem('korokoro_hi', score);
+    localStorage.setItem('rollaxy_hi', score);
+    localStorage.removeItem('korokoro_hi'); // 旧キーを削除（移行完了）
     hiEl.textContent = `${T('best')}: ${hiScore}`;
   }
   // GA4 game_over イベント
