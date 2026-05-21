@@ -214,6 +214,9 @@ hiEl.textContent = `${T('best')}: ${hiScore}`;
 // 共有 URL（doGameOver で非同期生成し shareToX で使う）
 let _pendingShareId = null;
 
+// セッショントークン（beginGame() で取得し _createShare() で使う）
+let _sessionToken = null;
+
 // replay / anti-cheat 用メタデータ
 let _gameStartTime = 0; // beginGame() でセット
 let _dropCount     = 0; // 天体を落とすたびにカウント
@@ -818,6 +821,21 @@ function beginGame() {
   updateSkillButtons(); // waiting=false になったのでボタンの disabled を解除
   _unlockAudio();       // ユーザー操作のタイミングで音声を起動し autoplay 制限を解除
   logEvent('game_start', { game_id: 'rollaxy' });
+  _fetchSessionToken(); // セッショントークンをバックグラウンドで取得（ゲーム開始はブロックしない）
+}
+
+// ゲーム開始時にサーバーからセッショントークンを非同期取得。
+// 取得できなくてもゲームは続行（JWT_SECRET 未設定時は token: null が返る）。
+async function _fetchSessionToken() {
+  try {
+    const res = await fetch('/api/session');
+    if (res.ok) {
+      const { token } = await res.json();
+      _sessionToken = token ?? null;
+    }
+  } catch (_) {
+    // ネットワークエラー時はトークンなしのまま続行
+  }
 }
 
 function _showMenuPanel() {

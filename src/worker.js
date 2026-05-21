@@ -8,6 +8,7 @@ import {
   getTitle, scoreWithComma,
 } from './constants.js';
 import { handleOgp } from './ogp.js';
+import { signJwt, verifyJwt } from './auth.js';
 
 // ============================================================
 // CORS ヘルパー
@@ -29,6 +30,21 @@ function json(data, status = 200, extraHeaders = {}) {
     status,
     headers: { 'Content-Type': 'application/json', ...extraHeaders },
   });
+}
+
+// ============================================================
+// レートリミット（KV を使った IP ベース制限）
+// share API に対して 10 回/分/IP を超えたらブロック。
+// KV エラー時は通す（可用性優先）。
+// ============================================================
+async function _rateLimit(env, ip) {
+  const key = `rl:share:${ip}`;
+  try {
+    const cur = parseInt(await env.RANKING_CACHE.get(key) || '0', 10);
+    if (cur >= 10) return false;
+    await env.RANKING_CACHE.put(key, String(cur + 1), { expirationTtl: 60 });
+    return true;
+  } catch { return true; }
 }
 
 // ============================================================
@@ -65,6 +81,35 @@ async function handleSharePost(request, env) {
   }
   if (score < MIN_SCORE_FOR_TIER[highest_body_tier]) {
     return json({ error: 'score/tier mismatch' }, 400, corsHeaders(origin));
+  }
+
+  // ── レートリミット（IP 単位 10回/分）──
+  const ip = request.headers.get('CF-Connecting-IP') ?? 'unknown';
+  if (!(await _rateLimit(env, ip))) {
+    return json({ error: 'rate limit exceeded' }, 429, corsHeaders(origin));
+  }
+
+  // ── セッショントークン検証（JWT_SECRET 設定後に有効）──
+  // JWT_SECRET 未設定中はスキップ（移行期間の後方互換）
+  if (env.JWT_SECRET) {
+    const tok     = typeof body.session_token === 'string' ? body.session_token : null;
+    const payload = tok ? await verifyJwt(tok, env.JWT_SECRET) : null;
+    if (!payload || payload.gid !== GAME_ID) {
+      return json({ error: 'invalid session' }, 401, corsHeaders(origin));
+    }
+  }
+
+  // ── スコア整合チェック ──
+  // elapsed_ms / drop_count で明らかに異常なスコアを弾く。
+  // 正常プレイなら 1 ドロップあたり最低 200ms・最大 1000 点程度が上限。
+  const { drop_count, elapsed_ms } = snapshot_payload;
+  if (typeof drop_count === 'number' && typeof elapsed_ms === 'number' && drop_count > 0) {
+    if (elapsed_ms < drop_count * 200) {
+      return json({ error: 'invalid play data' }, 400, corsHeaders(origin));
+    }
+    if (score / drop_count > 1000) {
+      return json({ error: 'invalid play data' }, 400, corsHeaders(origin));
+    }
   }
 
   // ── player_id バリデーション ──
@@ -377,6 +422,21 @@ function sharePage404() {
 }
 
 // ============================================================
+// GET /api/session — セッショントークン発行
+// ゲーム開始時に呼ばれ、スコア投稿時の検証に使う JWT を返す。
+// JWT_SECRET 未設定時は { token: null } を返し、後方互換を保つ。
+// ============================================================
+async function handleSession(request, env) {
+  const origin = request.headers.get('Origin') ?? '';
+  if (!env.JWT_SECRET) {
+    return json({ token: null }, 200, corsHeaders(origin));
+  }
+  const now   = Math.floor(Date.now() / 1000);
+  const token = await signJwt({ iat: now, exp: now + 14400, gid: GAME_ID }, env.JWT_SECRET);
+  return json({ token }, 200, corsHeaders(origin));
+}
+
+// ============================================================
 // POST /api/rollaxy/player — プレイヤー表示名の即時更新
 // ============================================================
 async function handlePlayerUpdate(request, env) {
@@ -432,6 +492,10 @@ export default {
 
     if (method === 'OPTIONS') {
       return new Response(null, { status: 204, headers: corsHeaders(request.headers.get('Origin') ?? '') });
+    }
+
+    if (method === 'GET' && path === '/api/session') {
+      return handleSession(request, env);
     }
 
     if (method === 'POST' && path === '/api/rollaxy/share') {

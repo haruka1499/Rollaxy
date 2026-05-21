@@ -14,7 +14,10 @@ database_id = "0bf7131a-ee13-4b51-a05c-691bb44ac0ee"
 binding = "RANKING_CACHE"
 id = "15af2d0c1ed64b409b10f138f49dd543"
 
-# ADMIN_SECRET は Cloudflare ダッシュボードの Secrets で管理する
-# Workers & Pages → novora-game → Settings → Variables → Add variable（Type: Secret）
-# キー名: ADMIN_SECRET　値: ランダムな長い文字列（例: openssl rand -hex 32 で生成）
+# Secrets は Cloudflare ダッシュボードで管理する
+# Workers & Pages → novora-game → Settings → Variables and Secrets → Add variable（Type: Secret）
 # [vars] に平文で書かない。
+#
+# ADMIN_SECRET : 管理用クリーンアップ API の認証キー（設定済み）
+# JWT_SECRET   : セッショントークン署名キー（Phase 2 で追加）
+#                設定するまでトークン検証はスキップされる（後方互換）

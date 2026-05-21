@@ -45,10 +45,11 @@ async function _createShare() {
           drop_count,
           body_count: bodies.length,
         },
-        ui_lang:      typeof currentLang !== 'undefined' ? currentLang : 'ja',
-        version:      CFG.GAME_VERSION,
-        player_id:    getPlayerId(),    // guest_xxx 形式（将来ログイン統合時は差し替え）
-        display_name: getDisplayName(), // ランキングに表示する表示名
+        ui_lang:       typeof currentLang !== 'undefined' ? currentLang : 'ja',
+        version:       CFG.GAME_VERSION,
+        player_id:     getPlayerId(),    // guest_xxx 形式（将来ログイン統合時は差し替え）
+        display_name:  getDisplayName(), // ランキングに表示する表示名
+        session_token: typeof _sessionToken !== 'undefined' ? _sessionToken : null,
       }),
       signal: controller.signal,
     });
