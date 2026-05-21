@@ -21,18 +21,18 @@ body { display: flex; flex-direction: column; align-items: center; }
 
 /* ============================================================
    ヘッダー
-   「次の天体が表示されているところ」= #next-wrap（右寄せ）
-   「設定ボタン」= #settings-btn（⚙ アイコン、#next-wrap の右隣）
-   #header-right で 2つをまとめて flex 配置
+   3カラム flex: 左(#header-left) ・ 中央(#next-wrap) ・ 右(#header-right)
+   左右を flex:1 にすることで #next-wrap が常に水平中央に配置される
    ============================================================ */
 #header {
   width: 100%; max-width: 400px;
   display: flex; justify-content: space-between; align-items: center;
   padding: 8px 14px; color: #fff; flex-shrink: 0;
 }
+#header-left  { flex: 1; }
+#header-right { flex: 1; display: flex; justify-content: flex-end; align-items: center; }
 #score-el { font-size: 20px; font-weight: bold; }
 #hi-el    { font-size: 13px; opacity: 0.75; margin-top: 2px; }
-#header-right { display: flex; align-items: center; gap: 10px; }
 #next-wrap { font-size: 12px; text-align: center; line-height: 1.3; }
 #next-emoji { font-size: 28px; display: block; }
 

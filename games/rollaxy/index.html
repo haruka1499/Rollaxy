@@ -40,20 +40,19 @@
 
 <!--
   ヘッダー（#header）
-  ┌─────────────────────────────────────┐
-  │ スコア / 最高スコア  │  次の天体  ⚙ │
-  └─────────────────────────────────────┘
-  「次の天体が表示されているところ」= #next-wrap（次にドロップされる天体の絵文字プレビュー）
-  「設定ボタン」= #settings-btn（⚙ アイコンの四角ボタン）
-  #header-right で next-wrap と settings-btn をまとめて右寄せ
+  ┌──────────────────────────────────────────┐
+  │ スコア / 最高スコア │ 次の天体 │        ⚙ │
+  └──────────────────────────────────────────┘
+  3カラム flex: 左(#header-left)・中央(#next-wrap)・右(#header-right)
+  左右を flex:1 にすることで中央が常に水平中央に来る
 -->
 <div id="header">
-  <div>
+  <div id="header-left">
     <div id="score-el">スコア: 0</div>
     <div id="hi-el">最高: 0</div>
   </div>
+  <div id="next-wrap"><span data-i18n="next">次の天体</span><span id="next-emoji">💫</span></div>
   <div id="header-right">
-    <div id="next-wrap"><span data-i18n="next">次の天体</span><span id="next-emoji">💫</span></div>
     <button id="settings-btn" aria-label="Menu"><span></span><span></span><span></span></button>
   </div>
 </div>
