@@ -379,9 +379,11 @@ async function loadRanking() {
   const bestScore = Number(localStorage.getItem('novora_best_score') || 0);
   const scoreUnit = tg('scoreUnit') || '点';
 
+  // tz: -(getTimezoneOffset()) でUTC+分数に変換（getTimezoneOffset は符号が逆）
+  const _tz = -(new Date().getTimezoneOffset());
   let entries;
   try {
-    const res = await fetch(`/api/rollaxy/ranking?period=${period}&limit=100`);
+    const res = await fetch(`/api/rollaxy/ranking?period=${period}&limit=100&tz=${_tz}`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     entries = data.entries || [];

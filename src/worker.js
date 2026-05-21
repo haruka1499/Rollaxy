@@ -185,20 +185,46 @@ async function handleRanking(request, env) {
   const period = url.searchParams.get('period') ?? 'all';
   const limit  = Math.min(parseInt(url.searchParams.get('limit') ?? DEF_LIMIT, 10), MAX_LIMIT);
 
+  // tz: クライアントのUTCオフセット（分）。例: JST=+540、EST=-300
+  // -(new Date().getTimezoneOffset()) で取得した値をそのまま渡す。
+  // 未指定・不正値はUTC(0)にフォールバック。有効範囲: -720〜840
+  const tzRaw = parseInt(url.searchParams.get('tz') ?? '0', 10);
+  const tz    = (Number.isFinite(tzRaw) && tzRaw >= -720 && tzRaw <= 840) ? tzRaw : 0;
+
   if (!['all', 'daily', 'weekly'].includes(period)) {
     return json({ error: 'period must be all | daily | weekly' }, 400);
   }
 
-  const cacheKey = `${GAME_ID}:ranking:${period}:${limit}`;
+  // all はタイムゾーン無関係。daily/weekly はtz別にキャッシュを分ける
+  const cacheKey = period === 'all'
+    ? `${GAME_ID}:ranking:${period}:${limit}`
+    : `${GAME_ID}:ranking:${period}:${limit}:tz${tz}`;
   try {
     const cached = await env.RANKING_CACHE.get(cacheKey, 'json');
     if (cached) return json(cached, 200, { 'X-Cache': 'HIT' });
   } catch (_) {}
 
   const now   = Math.floor(Date.now() / 1000);
-  const since = period === 'daily'  ? now - 86400
-              : period === 'weekly' ? now - 604800
-              : 0;
+  // ── カレンダー境界計算 ──
+  // ローリングウィンドウ（now-86400s）ではなく、ローカル時刻の「今日00:00」「今週月曜00:00」を使う。
+  // tzSec: UTCオフセットを秒換算。localNow: ローカル時刻での Unix 秒（擬似値）。
+  let since;
+  if (period === 'all') {
+    since = 0;
+  } else {
+    const tzSec   = tz * 60;
+    const localNow = now + tzSec; // ローカル時刻でのUnix秒（エポックからの秒数をローカル基準にずらす）
+    if (period === 'daily') {
+      // ローカルの今日 00:00:00 をUTCのUnix秒に変換
+      since = Math.floor(localNow / 86400) * 86400 - tzSec;
+    } else {
+      // ローカルの今週月曜 00:00:00 をUTCのUnix秒に変換
+      // エポック(1970-01-01)は木曜 → 月曜起算(0=Mon)で index 3
+      const localDays       = Math.floor(localNow / 86400);
+      const daysSinceMonday = (localDays + 3) % 7; // 0=月,1=火,...,6=日
+      since = (localDays - daysSinceMonday) * 86400 - tzSec;
+    }
+  }
 
   // players テーブルを LEFT JOIN して最新の表示名を取得
   // フォールバック: players テーブルなし → shares.display_name → 列なし の順で試みる
