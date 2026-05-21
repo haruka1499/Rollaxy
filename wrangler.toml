@@ -7,7 +7,7 @@ directory = "."
 
 [[d1_databases]]
 binding = "DB"
-database_name = "novora_game"
+database_name = "novora_game_staging"
 database_id = "0bf7131a-ee13-4b51-a05c-691bb44ac0ee"
 
 [[kv_namespaces]]
