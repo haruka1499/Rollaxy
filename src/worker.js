@@ -483,7 +483,7 @@ async function handleSharePage(id, env) {
   <div class="footer-links">
     <a href="/">${L.footerHome}</a><a href="/games/">${L.footerGames}</a><a href="/privacy/">${L.footerPrivacy}</a>
   </div>
-  &copy; 2025 NOVORA GAME
+  &copy; 2026 NOVORA GAME
 </footer>
 </body></html>`;
 
