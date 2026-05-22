@@ -62,12 +62,21 @@ async function _createShare() {
       _pendingShareId = id;
       addMyShareId(id, shareScore); // share_ids / best_share_id を localStorage に記録
       // OGP 画像をバックグラウンドで生成（fire-and-forget）
-      // ボタン有効化をブロックしないよう await しない。
-      // Twitter クローラーはシェアから数十秒後に到達するため OGP は確実に間に合う。
       fetch(`/games/rollaxy/ogp/${id}`).catch(() => {});
+    } else {
+      // 400/429 などのエラー内容をコンソールに出力してデバッグしやすくする
+      try {
+        const errBody = await res.json();
+        console.warn('[share] rejected by server:', res.status, errBody,
+          { score, highest_body_tier: highestTier, elapsed_ms, drop_count });
+      } catch (_) {
+        console.warn('[share] rejected by server:', res.status,
+          { score, highest_body_tier: highestTier, elapsed_ms, drop_count });
+      }
     }
-  } catch (_) {
+  } catch (err) {
     // タイムアウト・ネットワークエラー等 → フォールバックURLでシェア可能
+    console.warn('[share] network error:', err);
   } finally {
     clearTimeout(timeoutId);
     _restoreShareButton();

@@ -5,8 +5,10 @@ export const GAME_ID  = 'rollaxy';
 export const SITE_URL = 'https://novoragame.com';
 
 // tier n を達成するには最低限これだけのスコアが必要（粗い整合性チェック用）
-// 計算根拠: tier n を作るには tier 0 が 2^n 個必要 → スコアの合計下限
-export const MIN_SCORE_FOR_TIER = [0, 1, 3, 6, 11, 20, 35, 60, 100, 160, 250, 380];
+// tier 0〜4 は MAX_SPAWN=4 によりマージなしで直接スポーン可能 → min=0
+// tier 5〜11 はスポーン不可・合成必須 → その tier を生み出す合成1回分のスコアが下限
+// （config.js BODIES[n].s と同値: sun=16, red_giant=22, ... galaxy_cluster=68）
+export const MIN_SCORE_FOR_TIER = [0, 0, 0, 0, 0, 16, 22, 29, 37, 46, 56, 68];
 
 export const BODY_EMOJIS = ['💫','🪨','🌙','🌍','🪐','☀️','🔴','⭐','💠','🌑','🌌','🌐'];
 export const BODY_COLORS = [
