@@ -270,6 +270,35 @@ async function handleRanking(request, env) {
 }
 
 // ============================================================
+// POST /api/admin/clear-ogp-cache — OGP KVキャッシュ一括削除（要認証）
+// KV の "ogp:" プレフィックスを持つキーをすべて削除する。
+// ============================================================
+async function handleClearOgpCache(request, env) {
+  let body;
+  try { body = await request.json(); }
+  catch { return json({ error: 'Invalid JSON' }, 400); }
+
+  if (!env.ADMIN_SECRET || body.secret !== env.ADMIN_SECRET) {
+    return json({ error: 'Unauthorized' }, 401);
+  }
+
+  let deleted = 0;
+  let cursor  = undefined;
+
+  // KV list は最大1000件/回なのでカーソルでページネーション
+  while (true) {
+    const listRes = await env.RANKING_CACHE.list({ prefix: 'ogp:', limit: 1000, cursor });
+    const keys = listRes.keys.map(k => k.name);
+    await Promise.all(keys.map(k => env.RANKING_CACHE.delete(k)));
+    deleted += keys.length;
+    if (listRes.list_complete) break;
+    cursor = listRes.cursor;
+  }
+
+  return json({ ok: true, deleted });
+}
+
+// ============================================================
 // POST /api/admin/cleanup — 手動クリーンアップ（要認証）
 // ============================================================
 async function handleCleanup(request, env) {
@@ -593,6 +622,10 @@ export default {
 
     if (method === 'POST' && path === '/api/admin/cleanup') {
       return handleCleanup(request, env);
+    }
+
+    if (method === 'POST' && path === '/api/admin/clear-ogp-cache') {
+      return handleClearOgpCache(request, env);
     }
 
     const shareMatch = path.match(/^\/games\/rollaxy\/share\/([^/]+)$/);
