@@ -99,6 +99,10 @@ function _dataURLtoBlob(dataUrl) {
 }
 
 function shareToX() {
+  // disabled 状態（シェアID取得中）はタッチイベント経由でも実行しない。
+  // 一部ブラウザでは disabled ボタンでも touchend が発火するため明示ガードが必要。
+  if (shareBtn.disabled) return;
+
   logEvent('share_click', {
     game_id:       'rollaxy',
     score,
