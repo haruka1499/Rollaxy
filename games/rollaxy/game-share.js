@@ -58,11 +58,20 @@ async function _createShare() {
       signal: controller.signal,
     });
     if (res.ok) {
-      const { id } = await res.json();
+      const { id, rank, total } = await res.json();
       _pendingShareId = id;
       addMyShareId(id, shareScore); // share_ids / best_share_id を localStorage に記録
       // OGP 画像をバックグラウンドで生成（fire-and-forget）
       fetch(`/games/rollaxy/ogp/${id}`).catch(() => {});
+      // 上位%を計算してゲームオーバー画面に表示
+      if (typeof rank === 'number' && typeof total === 'number' && total > 0) {
+        const pct = rank === 1 ? 1 : Math.min(99, Math.ceil(rank / Math.max(total, 1) * 100));
+        const pctEl = document.getElementById('rank-pct-el');
+        if (pctEl) {
+          pctEl.textContent = T('rankPct')(pct);
+          pctEl.style.display = '';
+        }
+      }
     } else {
       // 400/429 などのエラー内容をコンソールに出力してデバッグしやすくする
       try {

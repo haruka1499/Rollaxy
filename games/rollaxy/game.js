@@ -277,6 +277,8 @@ function init() {
   // ゲームオーバー・設定オーバーレイを閉じ、スタート画面を表示
   overlay.classList.remove('show');         // 「ゲームオーバー時のオーバーレイ」
   document.getElementById('share-note')?.classList.remove('show');
+  const _rankPctEl = document.getElementById('rank-pct-el');
+  if (_rankPctEl) { _rankPctEl.style.display = 'none'; _rankPctEl.textContent = ''; }
   _restoreShareButton();
   settingsOverlay.classList.remove('show'); // 「設定を開いたとき」の画面
   startOverlay.classList.add('show');       // 「スタート画面」

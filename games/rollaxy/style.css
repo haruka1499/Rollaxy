@@ -83,6 +83,16 @@ canvas { position: absolute; top: 0; left: 0; transform-origin: top left; }
 #overlay h2 { font-size: 38px; font-weight: bold; }
 #overlay .result { font-size: 20px; }
 #new-hi { color: #ffd700; font-size: 17px; }
+#rank-pct-el {
+  font-size: 15px;
+  color: #cc88ff;
+  letter-spacing: 0.04em;
+  animation: rankPctFadeIn 0.6s ease both;
+}
+@keyframes rankPctFadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
 
 /* 「もう一度」ボタン（ゲームオーバー画面）
    スマホ向け: padding を大きめに取りタップしやすく。

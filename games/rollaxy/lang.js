@@ -51,6 +51,7 @@ const LANGS = {
     startNameHintOk: 'わかった',
     tweetText:     n => `ころころ宇宙で ${n} 点獲得！ #ころころ宇宙`,
     shareNote:     '📥 盤面画像をダウンロードしました。ツイートに添付してください。',
+    rankPct:       pct => `全体の上位 ${pct}% ✨`,
   },
   en: {
     name:        'English',
@@ -98,6 +99,7 @@ const LANGS = {
     startNameHintOk: 'Got it',
     tweetText:     n => `I scored ${n} in Rollaxy! #Rollaxy`,
     shareNote:     '📥 Image downloaded. Please attach it to your tweet.',
+    rankPct:       pct => `Top ${pct}% overall ✨`,
   },
   zh: {
     name:        '中文',
@@ -145,6 +147,7 @@ const LANGS = {
     startNameHintOk: '知道了',
     tweetText:     n => `我在 Rollaxy 获得了 ${n} 分！ #Rollaxy`,
     shareNote:     '📥 已下载盘面图片，请将其附加到推文中。',
+    rankPct:       pct => `全服前 ${pct}% ✨`,
   },
 };
 

@@ -173,8 +173,19 @@ async function handleSharePost(request, env) {
 
   try { await env.RANKING_CACHE.delete('all'); } catch (_) {}
 
+  // ── 順位・総数を取得してレスポンスに含める（ゲームオーバー画面での上位%表示用）──
+  let rank = null, total = null;
+  try {
+    const [rankRow, totalRow] = await Promise.all([
+      env.DB.prepare(`SELECT COUNT(*) AS cnt FROM shares WHERE game_id=? AND score>?`).bind(GAME_ID, score).first(),
+      env.DB.prepare(`SELECT COUNT(*) AS cnt FROM shares WHERE game_id=?`).bind(GAME_ID).first(),
+    ]);
+    rank  = (rankRow?.cnt  ?? 0) + 1;
+    total = (totalRow?.cnt ?? 1);
+  } catch (_) {}
+
   return json(
-    { id, url: `${SITE_URL}/games/rollaxy/share/${id}` },
+    { id, url: `${SITE_URL}/games/rollaxy/share/${id}`, rank, total },
     201,
     corsHeaders(origin)
   );
