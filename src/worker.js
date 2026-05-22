@@ -233,28 +233,59 @@ async function handleRanking(request, env) {
     }
   }
 
-  // players テーブルを LEFT JOIN して最新の表示名を取得
+  // ── ランキング取得（プレイヤーごとにベストスコアのみ表示） ──
+  // ROW_NUMBER() で player_id 単位のベスト1件に絞る。
+  // player_id IS NULL の旧データはランキングから除外（データ自体は保持）。
+  // タイスコアは最新のレコードを優先（created_at DESC）。
   // フォールバック: players テーブルなし → shares.display_name → 列なし の順で試みる
   let results;
   try {
     ({ results } = await env.DB.prepare(
-      `SELECT s.id, s.score, s.highest_body_tier, s.created_at,
-              COALESCE(p.display_name, s.display_name) AS display_name
-       FROM shares s
-       LEFT JOIN players p ON s.player_id = p.player_id
-       WHERE s.game_id=? AND s.created_at>=?
-       ORDER BY s.score DESC LIMIT ?`
+      `SELECT id, score, highest_body_tier, created_at, display_name
+       FROM (
+         SELECT s.id, s.score, s.highest_body_tier, s.created_at,
+                COALESCE(p.display_name, s.display_name) AS display_name,
+                ROW_NUMBER() OVER (
+                  PARTITION BY s.player_id
+                  ORDER BY s.score DESC, s.created_at DESC
+                ) AS rn
+         FROM shares s
+         LEFT JOIN players p ON s.player_id = p.player_id
+         WHERE s.game_id=? AND s.created_at>=? AND s.player_id IS NOT NULL
+       )
+       WHERE rn=1
+       ORDER BY score DESC LIMIT ?`
     ).bind(GAME_ID, since, limit).all());
   } catch (_) {
     try {
       ({ results } = await env.DB.prepare(
         `SELECT id, score, highest_body_tier, created_at, display_name
-         FROM shares WHERE game_id=? AND created_at>=? ORDER BY score DESC LIMIT ?`
+         FROM (
+           SELECT id, score, highest_body_tier, created_at, display_name,
+                  ROW_NUMBER() OVER (
+                    PARTITION BY player_id
+                    ORDER BY score DESC, created_at DESC
+                  ) AS rn
+           FROM shares
+           WHERE game_id=? AND created_at>=? AND player_id IS NOT NULL
+         )
+         WHERE rn=1
+         ORDER BY score DESC LIMIT ?`
       ).bind(GAME_ID, since, limit).all());
     } catch (_) {
       ({ results } = await env.DB.prepare(
         `SELECT id, score, highest_body_tier, created_at
-         FROM shares WHERE game_id=? AND created_at>=? ORDER BY score DESC LIMIT ?`
+         FROM (
+           SELECT id, score, highest_body_tier, created_at,
+                  ROW_NUMBER() OVER (
+                    PARTITION BY player_id
+                    ORDER BY score DESC, created_at DESC
+                  ) AS rn
+           FROM shares
+           WHERE game_id=? AND created_at>=? AND player_id IS NOT NULL
+         )
+         WHERE rn=1
+         ORDER BY score DESC LIMIT ?`
       ).bind(GAME_ID, since, limit).all());
     }
   }
