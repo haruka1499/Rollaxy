@@ -63,13 +63,26 @@ async function _createShare() {
       addMyShareId(id, shareScore); // share_ids / best_share_id を localStorage に記録
       // OGP 画像をバックグラウンドで生成（fire-and-forget）
       fetch(`/games/rollaxy/ogp/${id}`).catch(() => {});
-      // 上位%を計算してゲームオーバー画面に表示
-      if (typeof rank === 'number' && typeof total === 'number' && total > 0) {
-        const pct = rank === 1 ? 1 : Math.min(99, Math.ceil(rank / Math.max(total, 1) * 100));
-        const pctEl = document.getElementById('rank-pct-el');
-        if (pctEl) {
-          pctEl.textContent = T('rankPct')(pct);
-          pctEl.style.display = '';
+      // 上位%を計算してゲームオーバー画面に表示（今日・今週・全期間の最良値）
+      if (periods && typeof periods === 'object') {
+        // 各期間のパーセンタイルを計算（小数点1桁、最小0.1、最大99.9）
+        const calcPct = ({ rank, total }) => {
+          if (!total || total <= 0) return null;
+          const raw = rank / total * 100;
+          return Math.min(99.9, Math.max(0.1, Math.round(raw * 10) / 10));
+        };
+        const pcts = [periods.all, periods.today, periods.week]
+          .map(calcPct)
+          .filter(v => v !== null);
+        if (pcts.length > 0) {
+          const best   = Math.min(...pcts);
+          // 小数点1桁で表示（例: 12.3% / 1.0% / 0.5%）
+          const pctStr = best % 1 === 0 ? best.toFixed(1) : String(best);
+          const pctEl  = document.getElementById('rank-pct-el');
+          if (pctEl) {
+            pctEl.textContent = T('rankPct')(pctStr);
+            pctEl.style.display = '';
+          }
         }
       }
     } else {

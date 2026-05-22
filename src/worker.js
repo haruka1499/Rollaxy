@@ -173,19 +173,35 @@ async function handleSharePost(request, env) {
 
   try { await env.RANKING_CACHE.delete('all'); } catch (_) {}
 
-  // ── 順位・総数を取得してレスポンスに含める（ゲームオーバー画面での上位%表示用）──
-  let rank = null, total = null;
+  // ── 今日・今週・全期間の順位/総数を並列取得（ゲームオーバー画面での上位%表示用）──
+  // share POST には timezone 情報がないため、ローリングウィンドウで近似する。
+  //   today: 直近 24h  / week: 直近 7日 / all: 全期間
+  let periods = null;
   try {
-    const [rankRow, totalRow] = await Promise.all([
-      env.DB.prepare(`SELECT COUNT(*) AS cnt FROM shares WHERE game_id=? AND score>?`).bind(GAME_ID, score).first(),
-      env.DB.prepare(`SELECT COUNT(*) AS cnt FROM shares WHERE game_id=?`).bind(GAME_ID).first(),
+    const now      = Math.floor(Date.now() / 1000);
+    const day1ago  = now - 86400;
+    const day7ago  = now - 86400 * 7;
+    const [
+      allRank, allTotal,
+      dayRank, dayTotal,
+      wkRank,  wkTotal,
+    ] = await Promise.all([
+      env.DB.prepare(`SELECT COUNT(*) AS cnt FROM shares WHERE game_id=? AND score>?`         ).bind(GAME_ID, score   ).first(),
+      env.DB.prepare(`SELECT COUNT(*) AS cnt FROM shares WHERE game_id=?`                      ).bind(GAME_ID          ).first(),
+      env.DB.prepare(`SELECT COUNT(*) AS cnt FROM shares WHERE game_id=? AND score>? AND created_at>=?`).bind(GAME_ID, score, day1ago).first(),
+      env.DB.prepare(`SELECT COUNT(*) AS cnt FROM shares WHERE game_id=? AND created_at>=?`    ).bind(GAME_ID, day1ago ).first(),
+      env.DB.prepare(`SELECT COUNT(*) AS cnt FROM shares WHERE game_id=? AND score>? AND created_at>=?`).bind(GAME_ID, score, day7ago).first(),
+      env.DB.prepare(`SELECT COUNT(*) AS cnt FROM shares WHERE game_id=? AND created_at>=?`    ).bind(GAME_ID, day7ago ).first(),
     ]);
-    rank  = (rankRow?.cnt  ?? 0) + 1;
-    total = (totalRow?.cnt ?? 1);
+    periods = {
+      all:   { rank: (allRank?.cnt ?? 0) + 1, total: Math.max(allTotal?.cnt ?? 1, 1) },
+      today: { rank: (dayRank?.cnt ?? 0) + 1, total: Math.max(dayTotal?.cnt ?? 1, 1) },
+      week:  { rank: (wkRank?.cnt  ?? 0) + 1, total: Math.max(wkTotal?.cnt  ?? 1, 1) },
+    };
   } catch (_) {}
 
   return json(
-    { id, url: `${SITE_URL}/games/rollaxy/share/${id}`, rank, total },
+    { id, url: `${SITE_URL}/games/rollaxy/share/${id}`, periods },
     201,
     corsHeaders(origin)
   );
