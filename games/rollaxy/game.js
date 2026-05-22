@@ -647,12 +647,25 @@ function doGameOver() {
   // _startGameOverAnim() が bmap を順次削除する前にここで計算する
   let _highestTier = 0;
   for (const d of bmap.values()) { if (d.bi > _highestTier) _highestTier = d.bi; }
+  const _elapsedSec = Math.round((Date.now() - _gameStartTime) / 1000);
+  // ── プレイ統計を localStorage に蓄積 ──
+  try {
+    const _gc = parseInt(localStorage.getItem('rollaxy_game_count') || '0', 10);
+    localStorage.setItem('rollaxy_total_sec',
+      String((parseInt(localStorage.getItem('rollaxy_total_sec')   || '0', 10)) + _elapsedSec));
+    localStorage.setItem('rollaxy_total_score',
+      String((parseInt(localStorage.getItem('rollaxy_total_score') || '0', 10)) + score));
+    localStorage.setItem('rollaxy_total_drops',
+      String((parseInt(localStorage.getItem('rollaxy_total_drops') || '0', 10)) + _dropCount));
+    const _prevMaxTier = parseInt(localStorage.getItem('rollaxy_max_tier') || '0', 10);
+    if (_highestTier > _prevMaxTier) localStorage.setItem('rollaxy_max_tier', String(_highestTier));
+  } catch (_) {}
   logEvent('game_over', {
     game_id:      'rollaxy',
     score,
     highest_tier: _highestTier,
     drop_count:   _dropCount,
-    elapsed_sec:  Math.round((Date.now() - _gameStartTime) / 1000),
+    elapsed_sec:  _elapsedSec,
     is_new_best:  isHi ? 1 : 0,
     lang:         typeof currentLang !== 'undefined' ? currentLang : 'ja',
   });

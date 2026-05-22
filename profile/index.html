@@ -166,6 +166,38 @@
     }
     .recent-share-link:hover { background: rgba(255,255,255,0.08); }
 
+    /* ── 統計グリッド ── */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+    }
+    .stat-item {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(124,92,252,0.2);
+      border-radius: 10px;
+      padding: 14px 16px;
+    }
+    .stat-label {
+      font-size: 0.72rem;
+      color: var(--muted);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+    .stat-value {
+      font-size: 1.35rem;
+      font-weight: 800;
+      color: #fff;
+      line-height: 1.1;
+    }
+    .stat-value.accent { color: var(--accent2); }
+    .stat-sub {
+      font-size: 0.72rem;
+      color: var(--muted);
+      margin-top: 3px;
+    }
+
     /* ── CTAボタン群 ── */
     .profile-ctas {
       display: flex;
@@ -287,6 +319,14 @@
     <div class="prof-card">
       <div class="prof-card-title" data-i18n="profileRecentCard">最近のプレイ記録</div>
       <div id="recent-wrap" class="recent-list"></div>
+    </div>
+
+    <!-- プレイ統計 -->
+    <div class="prof-card">
+      <div class="prof-card-title" data-i18n="profileStatsCard">Rollaxy プレイ統計</div>
+      <div class="stats-grid" id="stats-grid">
+        <!-- JS で描画 -->
+      </div>
     </div>
 
     <!-- CTA -->
@@ -454,10 +494,87 @@ function renderRecentShares() {
 }
 renderRecentShares();
 
+// ── プレイ統計 ──
+const BODY_EMOJIS_P = ['💫','🪨','🌙','🌍','🪐','☀️','🔴','⭐','💠','🌑','🌌','🌐'];
+const BODY_NAMES_P  = ['ダスト','小惑星','月','地球','木星','太陽','赤色巨星','白色矮星','中性子星','ブラックホール','銀河','銀河団'];
+
+function fmtTime(sec) {
+  if (sec < 60)   return `${sec}${_tg('statSecUnit', '秒')}`;
+  if (sec < 3600) return `${Math.floor(sec / 60)}${_tg('statMinUnit', '分')} ${sec % 60}${_tg('statSecUnit', '秒')}`;
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  return `${h}${_tg('statHourUnit', '時間')} ${m}${_tg('statMinUnit', '分')}`;
+}
+
+function renderStats() {
+  const grid       = document.getElementById('stats-grid');
+  const gameCount  = parseInt(localStorage.getItem('rollaxy_game_count')  || '0', 10);
+  const totalSec   = parseInt(localStorage.getItem('rollaxy_total_sec')   || '0', 10);
+  const totalScore = parseInt(localStorage.getItem('rollaxy_total_score') || '0', 10);
+  const totalDrops = parseInt(localStorage.getItem('rollaxy_total_drops') || '0', 10);
+  const maxTier    = parseInt(localStorage.getItem('rollaxy_max_tier')    || '0', 10);
+  const noData     = _tg('profileNoData', '—');
+
+  const avgScore   = gameCount > 0 ? Math.round(totalScore / gameCount) : null;
+  const avgSec     = gameCount > 0 ? Math.round(totalSec   / gameCount) : null;
+  const avgDrops   = gameCount > 0 ? Math.round(totalDrops / gameCount) : null;
+  const maxEmoji   = BODY_EMOJIS_P[Math.min(11, maxTier)];
+  const maxName    = BODY_NAMES_P[Math.min(11, maxTier)];
+
+  const items = [
+    {
+      label: _tg('statPlays',    '総プレイ回数'),
+      value: gameCount > 0 ? `${gameCount.toLocaleString()}` : noData,
+      sub:   gameCount > 0 ? _tg('statPlaysUnit', '回') : '',
+      accent: false,
+    },
+    {
+      label: _tg('statTotalTime', '累計プレイ時間'),
+      value: totalSec > 0 ? fmtTime(totalSec) : noData,
+      sub:   avgSec != null ? `${_tg('statAvg', '平均')} ${fmtTime(avgSec)}/${_tg('statPerGame', '回')}` : '',
+      accent: false,
+    },
+    {
+      label: _tg('statAvgScore', '平均スコア'),
+      value: avgScore != null ? fmtScore(avgScore) : noData,
+      sub:   _tg('statPerGame', '/ 回'),
+      accent: true,
+    },
+    {
+      label: _tg('statMaxTier', '最高到達天体'),
+      value: gameCount > 0 ? `${maxEmoji}` : noData,
+      sub:   gameCount > 0 ? maxName : '',
+      accent: true,
+    },
+    {
+      label: _tg('statTotalDrops', '累計投下数'),
+      value: totalDrops > 0 ? totalDrops.toLocaleString() : noData,
+      sub:   avgDrops != null ? `${_tg('statAvg', '平均')} ${avgDrops.toLocaleString()}/${_tg('statPerGame', '回')}` : '',
+      accent: false,
+    },
+    {
+      label: _tg('statTotalScore', '累計スコア'),
+      value: totalScore > 0 ? fmtScore(totalScore) : noData,
+      sub:   '',
+      accent: false,
+    },
+  ];
+
+  grid.innerHTML = items.map(({ label, value, sub, accent }) => `
+    <div class="stat-item">
+      <div class="stat-label">${label}</div>
+      <div class="stat-value${accent ? ' accent' : ''}">${value}</div>
+      ${sub ? `<div class="stat-sub">${sub}</div>` : ''}
+    </div>
+  `).join('');
+}
+renderStats();
+
 // 言語変更時に再描画
 document.addEventListener('globalLangChange', () => {
   renderBestScore();
   renderRecentShares();
+  renderStats();
 });
 </script>
 
