@@ -869,6 +869,15 @@ function beginGame() {
     has_display_name: localStorage.getItem('novora_name_set') ? 1 : 0,
   });
   _fetchSessionToken(); // セッショントークンをバックグラウンドで取得（ゲーム開始はブロックしない）
+
+  // 初回ゲーム開始時のみスキルバーをパルスアニメで強調（存在に気づかせる）
+  if (_gameCount === 1) {
+    const skillBar = document.getElementById('skill-bar');
+    skillBar.classList.add('skill-bar-highlight');
+    skillBar.addEventListener('animationend', () => {
+      skillBar.classList.remove('skill-bar-highlight');
+    }, { once: true });
+  }
 }
 
 // ゲーム開始時にサーバーからセッショントークンを非同期取得。

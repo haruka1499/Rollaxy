@@ -104,6 +104,40 @@ function resetSkillState() {
   updateSkillButtons();
 }
 
+// ── 初回タップ時のワンショットトースト ──
+const _SKILL_HINT_KEYS = {
+  bomb:    'rollaxy_skill_hint_bomb',
+  upgrade: 'rollaxy_skill_hint_upgrade',
+  delete:  'rollaxy_skill_hint_delete',
+};
+const _SKILL_HINT_LANG_KEYS = {
+  bomb:    'skillHintBomb',
+  upgrade: 'skillHintUpgrade',
+  delete:  'skillHintDelete',
+};
+let _skillToastTimer = null;
+const _skillToastEl = document.getElementById('skill-toast');
+
+function showSkillHintToast(skill) {
+  if (!_skillToastEl) return;
+  const lsKey = _SKILL_HINT_KEYS[skill];
+  if (localStorage.getItem(lsKey)) return; // 表示済み
+  localStorage.setItem(lsKey, '1');
+
+  clearTimeout(_skillToastTimer);
+  _skillToastEl.classList.remove('hiding');
+  _skillToastEl.textContent = T(_SKILL_HINT_LANG_KEYS[skill]);
+  _skillToastEl.style.display = '';
+
+  _skillToastTimer = setTimeout(() => {
+    _skillToastEl.classList.add('hiding');
+    _skillToastEl.addEventListener('animationend', () => {
+      _skillToastEl.style.display = 'none';
+      _skillToastEl.classList.remove('hiding');
+    }, { once: true });
+  }, 3000);
+}
+
 // スキルボタンを押したときの処理（同じスキルならトグルオフ）
 function setActiveSkill(skill) {
   if (dead || waiting) return;
@@ -116,6 +150,7 @@ function setActiveSkill(skill) {
   skillSelectMode = (skill === 'upgrade' || skill === 'delete');
   skillSelectedId = null;
   updateSkillButtons();
+  showSkillHintToast(skill); // 初回タップ時のみトーストを表示
 }
 
 // ============================================================

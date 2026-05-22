@@ -52,6 +52,9 @@ const LANGS = {
     tweetText:     n => `ころころ宇宙で ${n} 点獲得！ #ころころ宇宙`,
     shareNote:     '📥 盤面画像をダウンロードしました。ツイートに添付してください。',
     rankPct:       pct => `全体の上位 ${pct}% ✨`,
+    skillHintBomb:    '💣 次の投下に爆弾を使います。着地後に爆発！',
+    skillHintUpgrade: '⬆ 天体を1つタップして1段階強化します',
+    skillHintDelete:  '✕ 天体を1つタップして削除します',
   },
   en: {
     name:        'English',
@@ -100,6 +103,9 @@ const LANGS = {
     tweetText:     n => `I scored ${n} in Rollaxy! #Rollaxy`,
     shareNote:     '📥 Image downloaded. Please attach it to your tweet.',
     rankPct:       pct => `Top ${pct}% overall ✨`,
+    skillHintBomb:    '💣 Bomb drops as your next body. Explodes on landing!',
+    skillHintUpgrade: '⬆ Tap a body to upgrade it by 1 tier',
+    skillHintDelete:  '✕ Tap a body to remove it',
   },
   zh: {
     name:        '中文',
@@ -148,6 +154,9 @@ const LANGS = {
     tweetText:     n => `我在 Rollaxy 获得了 ${n} 分！ #Rollaxy`,
     shareNote:     '📥 已下载盘面图片，请将其附加到推文中。',
     rankPct:       pct => `全服前 ${pct}% ✨`,
+    skillHintBomb:    '💣 将炸弹作为下一个投放物使用，落地后爆炸！',
+    skillHintUpgrade: '⬆ 点击一个天体将其升级一阶',
+    skillHintDelete:  '✕ 点击一个天体将其删除',
   },
 };
 

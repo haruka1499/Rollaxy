@@ -198,9 +198,9 @@
     <div id="chain-reward-title" data-i18n="chooseSkill">スキルを選択</div>
     <div class="reward-queue-info" id="choice-queue-info"></div>
     <div id="chain-reward-btns">
-      <button class="chain-reward-btn" data-skill="bomb"><span class="cr-icon">💣</span><span class="cr-label" data-i18n="skillBomb">爆弾</span></button>
-      <button class="chain-reward-btn" data-skill="upgrade"><span class="cr-icon">⬆</span><span class="cr-label" data-i18n="skillUpgrade">強化</span></button>
-      <button class="chain-reward-btn" data-skill="delete"><span class="cr-icon">✕</span><span class="cr-label" data-i18n="skillDelete">削除</span></button>
+      <button class="chain-reward-btn" data-skill="bomb"><span class="cr-icon">💣</span><span class="cr-label" data-i18n="skillBomb">爆弾</span><span class="cr-desc" data-i18n="bombDesc">範囲内の天体を消去</span></button>
+      <button class="chain-reward-btn" data-skill="upgrade"><span class="cr-icon">⬆</span><span class="cr-label" data-i18n="skillUpgrade">強化</span><span class="cr-desc" data-i18n="upgradeDesc">天体を1段階強化</span></button>
+      <button class="chain-reward-btn" data-skill="delete"><span class="cr-icon">✕</span><span class="cr-label" data-i18n="skillDelete">削除</span><span class="cr-desc" data-i18n="deleteDesc">天体を削除</span></button>
     </div>
   </div>
 
@@ -254,6 +254,7 @@
     <span class="skill-label" data-i18n="reward">報酬</span>
     <span class="skill-count" id="skill-claim-count">0</span>
   </button>
+  <div id="skill-toast" style="display:none"></div>
 </div>
 
 <script src="vendor/matter.min.js"></script>
