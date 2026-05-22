@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<title>Body Image Adjuster — ROLLAXY</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #060412;
+  color: #e8eaf0;
+  font-family: 'Segoe UI', 'Helvetica Neue', sans-serif;
+  padding: 24px 20px 60px;
+}
+h1 {
+  font-size: 1.3rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: #cc88ff;
+  margin-bottom: 6px;
+}
+.desc {
+  font-size: 0.82rem;
+  color: #6b7280;
+  margin-bottom: 24px;
+  line-height: 1.6;
+}
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 14px;
+  margin-bottom: 28px;
+}
+.card {
+  background: #111827;
+  border: 1px solid rgba(124,92,252,0.3);
+  border-radius: 12px;
+  padding: 14px;
+}
+.card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.tier-badge {
+  font-size: 0.68rem;
+  background: rgba(124,92,252,0.28);
+  color: #cc88ff;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+.body-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+canvas {
+  display: block;
+  width: 200px;
+  height: 200px;
+  margin: 0 auto 12px;
+  border-radius: 8px;
+}
+.controls label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 7px;
+  font-size: 0.76rem;
+  color: #9ca3af;
+}
+.lname {
+  width: 58px;
+  flex-shrink: 0;
+  font-size: 0.74rem;
+}
+.val {
+  width: 42px;
+  text-align: right;
+  color: #e8eaf0;
+  font-family: 'Courier New', monospace;
+  font-size: 0.78rem;
+  flex-shrink: 0;
+}
+input[type=range] {
+  flex: 1;
+  accent-color: #7c5cfc;
+  cursor: pointer;
+}
+.reset-btn {
+  margin-top: 8px;
+  width: 100%;
+  padding: 5px;
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 6px;
+  color: #6b7280;
+  font-size: 0.74rem;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.reset-btn:hover { background: rgba(255,255,255,0.06); color: #9ca3af; }
+
+.output-section {
+  background: #111827;
+  border: 1px solid rgba(124,92,252,0.3);
+  border-radius: 12px;
+  padding: 18px;
+}
+.output-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.output-header h2 { font-size: 0.9rem; color: #cc88ff; letter-spacing: 0.05em; }
+.copy-btn {
+  padding: 7px 18px;
+  background: #7c5cfc;
+  border: none;
+  border-radius: 6px;
+  color: #fff;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.copy-btn:hover { background: #6a4ae0; }
+textarea {
+  width: 100%;
+  height: 280px;
+  background: #060412;
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 8px;
+  color: #c9d1d9;
+  font-family: 'Courier New', monospace;
+  font-size: 0.78rem;
+  padding: 12px;
+  resize: vertical;
+  line-height: 1.6;
+}
+.note {
+  margin-top: 10px;
+  font-size: 0.75rem;
+  color: #4b5563;
+  line-height: 1.5;
+}
+</style>
+</head>
+<body>
+
+<h1>Body Image Adjuster</h1>
+<p class="desc">
+  各天体の画像を円に正しくフィットさせるためのツールです。<br>
+  <strong>Scale</strong>: 画像サイズ（1.0 = 円と同じ径、大きくすると画像が拡大）<br>
+  <strong>Offset X / Y</strong>: 円の中心からのズレ（±0.5 = 円の半径分まで移動可能）<br>
+  調整後、下の「値をコピー」を押して取得した値を開発者に渡してください。
+</p>
+
+<div class="grid" id="grid"></div>
+
+<div class="output-section">
+  <div class="output-header">
+    <h2>調整値</h2>
+    <button class="copy-btn" id="copy-btn">クリップボードにコピー</button>
+  </div>
+  <textarea id="output" readonly></textarea>
+  <p class="note">※ scale: 画像の拡縮倍率（対円径）/ dx: X方向オフセット（対円半径）/ dy: Y方向オフセット（対円半径）</p>
+</div>
+
+<script>
+const BODY_KEYS   = ['dust','asteroid','moon','earth','jupiter','sun','red_giant','white_dwarf','neutron_star','black_hole','galaxy','galaxy_cluster'];
+const BODY_COLORS = ['#b0a090','#807060','#d0c8b0','#3388cc','#d4a870','#ffcc00','#cc2200','#c8d8ff','#2244cc','#110022','#7744cc','#aa44ff'];
+const BODY_NAMES  = ['ダスト','小惑星','月','地球','木星','太陽','赤色巨星','白色矮星','中性子星','ブラックホール','銀河','銀河団'];
+
+const C = 400;   // actual canvas resolution
+const D = 200;   // CSS display size
+const R = 160;   // fixed circle radius in canvas px (= 80px CSS)
+
+const adj = BODY_KEYS.map(() => ({ scale: 1.0, dx: 0.0, dy: 0.0 }));
+
+const imgs = BODY_KEYS.map((key, i) => {
+  const img = new Image();
+  img.src = `images/${key}.png`;
+  img.onload = () => draw(i);
+  return img;
+});
+
+function draw(i) {
+  const canvas = document.getElementById(`c${i}`);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const a = adj[i];
+  const cx = C / 2, cy = C / 2;
+
+  ctx.clearRect(0, 0, C, C);
+  ctx.fillStyle = '#0a0818';
+  ctx.fillRect(0, 0, C, C);
+
+  // Base circle
+  ctx.beginPath();
+  ctx.arc(cx, cy, R, 0, Math.PI * 2);
+  ctx.fillStyle = BODY_COLORS[i];
+  ctx.globalAlpha = 0.85;
+  ctx.fill();
+  ctx.globalAlpha = 1;
+
+  // Image clipped to circle
+  const img = imgs[i];
+  if (img && img.complete && img.naturalWidth > 0) {
+    const ir = R * a.scale;
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, R, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.drawImage(img, cx - ir + R * a.dx, cy - ir + R * a.dy, ir * 2, ir * 2);
+    ctx.restore();
+  }
+
+  // Circle outline
+  ctx.beginPath();
+  ctx.arc(cx, cy, R, 0, Math.PI * 2);
+  ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Center crosshair
+  ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([5, 5]);
+  ctx.beginPath();
+  ctx.moveTo(cx - R, cy); ctx.lineTo(cx + R, cy);
+  ctx.moveTo(cx, cy - R); ctx.lineTo(cx, cy + R);
+  ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+function sync() {
+  const lines = adj.map((a, i) =>
+    `  { scale: ${a.scale.toFixed(2)}, dx: ${a.dx.toFixed(2)}, dy: ${a.dy.toFixed(2)} }, // ${i}: ${BODY_NAMES[i]}`
+  );
+  document.getElementById('output').value =
+    `const BODY_IMAGE_ADJUST = [\n${lines.join('\n')}\n];`;
+}
+
+// Build cards
+const grid = document.getElementById('grid');
+BODY_KEYS.forEach((key, i) => {
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = `
+    <div class="card-header">
+      <span class="tier-badge">Tier ${i}</span>
+      <span class="body-name">${BODY_NAMES[i]}</span>
+    </div>
+    <canvas id="c${i}" width="${C}" height="${C}" style="width:${D}px;height:${D}px;"></canvas>
+    <div class="controls">
+      <label>
+        <span class="lname">Scale</span>
+        <input type="range" id="s${i}" min="0.5" max="2.0" step="0.01" value="1.0">
+        <span class="val" id="sv${i}">1.00</span>
+      </label>
+      <label>
+        <span class="lname">Offset X</span>
+        <input type="range" id="x${i}" min="-0.5" max="0.5" step="0.01" value="0">
+        <span class="val" id="xv${i}">0.00</span>
+      </label>
+      <label>
+        <span class="lname">Offset Y</span>
+        <input type="range" id="y${i}" min="-0.5" max="0.5" step="0.01" value="0">
+        <span class="val" id="yv${i}">0.00</span>
+      </label>
+    </div>
+    <button class="reset-btn" id="r${i}">リセット</button>
+  `;
+  grid.appendChild(card);
+
+  const ss = document.getElementById(`s${i}`);
+  const sx = document.getElementById(`x${i}`);
+  const sy = document.getElementById(`y${i}`);
+
+  ss.addEventListener('input', e => {
+    adj[i].scale = parseFloat(e.target.value);
+    document.getElementById(`sv${i}`).textContent = adj[i].scale.toFixed(2);
+    draw(i); sync();
+  });
+  sx.addEventListener('input', e => {
+    adj[i].dx = parseFloat(e.target.value);
+    document.getElementById(`xv${i}`).textContent = adj[i].dx.toFixed(2);
+    draw(i); sync();
+  });
+  sy.addEventListener('input', e => {
+    adj[i].dy = parseFloat(e.target.value);
+    document.getElementById(`yv${i}`).textContent = adj[i].dy.toFixed(2);
+    draw(i); sync();
+  });
+
+  document.getElementById(`r${i}`).addEventListener('click', () => {
+    adj[i] = { scale: 1.0, dx: 0.0, dy: 0.0 };
+    ss.value = 1.0; document.getElementById(`sv${i}`).textContent = '1.00';
+    sx.value = 0;   document.getElementById(`xv${i}`).textContent = '0.00';
+    sy.value = 0;   document.getElementById(`yv${i}`).textContent = '0.00';
+    draw(i); sync();
+  });
+
+  draw(i);
+});
+
+document.getElementById('copy-btn').addEventListener('click', () => {
+  const ta = document.getElementById('output');
+  const btn = document.getElementById('copy-btn');
+  navigator.clipboard.writeText(ta.value)
+    .then(() => { btn.textContent = 'コピーしました！'; setTimeout(() => btn.textContent = 'クリップボードにコピー', 2000); })
+    .catch(() => { ta.select(); document.execCommand('copy'); });
+});
+
+sync();
+</script>
+</body>
+</html>
