@@ -207,15 +207,29 @@ function draw(i) {
   ctx.fill();
   ctx.globalAlpha = 1;
 
-  // Image clipped to circle
+  // Image clipped to circle — CSS "object-fit: cover" 相当（アスペクト比を保持して中央クロップ）
+  // 画像が 1536×1024 など正方形でない場合でも正しく円に収まるよう、
+  // 短辺を描画サイズに合わせてスケールし、長辺方向を中央クロップする。
   const img = imgs[i];
   if (img && img.complete && img.naturalWidth > 0) {
-    const ir = R * a.scale;
+    const ir = R * a.scale;        // 描画半径
+    const dw = ir * 2, dh = ir * 2; // 描画サイズ（正方形）
+    const iw = img.naturalWidth, ih = img.naturalHeight;
+    const ar = iw / ih;            // 画像アスペクト比
+    let sx, sy, sw, sh;
+    if (ar > 1) {
+      // 横長 → 高さ基準でスケール、横方向を中央クロップ
+      sh = ih; sw = ih; sx = (iw - sw) / 2; sy = 0;
+    } else {
+      // 縦長 → 幅基準でスケール、縦方向を中央クロップ
+      sw = iw; sh = iw; sx = 0; sy = (ih - sh) / 2;
+    }
     ctx.save();
     ctx.beginPath();
     ctx.arc(cx, cy, R, 0, Math.PI * 2);
     ctx.clip();
-    ctx.drawImage(img, cx - ir + R * a.dx, cy - ir + R * a.dy, ir * 2, ir * 2);
+    ctx.drawImage(img, sx, sy, sw, sh,
+                  cx - ir + R * a.dx, cy - ir + R * a.dy, dw, dh);
     ctx.restore();
   }
 
