@@ -24,8 +24,16 @@ async function loadFont(env) {
   return null;
 }
 
+// CPU 使用時間制限対策: 画像を貼るのは高 tier 上位 MAX_IMAGE_TIERS 種類まで。
+// それ以外の tier は色付き円（フォールバック）で描画する。
+// resvg は base64 PNG の枚数に比例して CPU を消費するため、
+// 枚数を絞ることで Worker の CPU 制限（50ms）超過を防ぐ。
+const MAX_IMAGE_TIERS = 5;
+
 async function loadBodyImages(env, bodies) {
-  const usedTiers = [...new Set(bodies.map(b => Math.max(0, Math.min(11, b.tier))))];
+  const usedTiers = [...new Set(bodies.map(b => Math.max(0, Math.min(11, b.tier))))]
+    .sort((a, b) => b - a)   // 高 tier 優先
+    .slice(0, MAX_IMAGE_TIERS);
   const pairs = await Promise.all(
     usedTiers.map(async tier => {
       const url = `${SITE_URL}/games/rollaxy/images/${BODY_KEYS[tier]}.png`;
