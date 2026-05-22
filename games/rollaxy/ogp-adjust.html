@@ -76,18 +76,30 @@ canvas {
   flex-shrink: 0;
   font-size: 0.74rem;
 }
-.val {
-  width: 42px;
-  text-align: right;
-  color: #e8eaf0;
-  font-family: 'Courier New', monospace;
-  font-size: 0.78rem;
-  flex-shrink: 0;
-}
 input[type=range] {
   flex: 1;
   accent-color: #7c5cfc;
   cursor: pointer;
+  min-width: 0;
+}
+input[type=number] {
+  width: 54px;
+  flex-shrink: 0;
+  background: #060412;
+  border: 1px solid rgba(124,92,252,0.4);
+  border-radius: 5px;
+  color: #e8eaf0;
+  font-family: 'Courier New', monospace;
+  font-size: 0.76rem;
+  padding: 3px 5px;
+  text-align: right;
+  -moz-appearance: textfield;
+}
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button { opacity: 1; }
+input[type=number]:focus {
+  outline: none;
+  border-color: rgba(124,92,252,0.9);
 }
 .reset-btn {
   margin-top: 8px;
@@ -273,50 +285,58 @@ BODY_KEYS.forEach((key, i) => {
     <div class="controls">
       <label>
         <span class="lname">Scale</span>
-        <input type="range" id="s${i}" min="0.5" max="2.0" step="0.01" value="1.0">
-        <span class="val" id="sv${i}">1.00</span>
+        <input type="range"  id="s${i}"  min="0.5"  max="2.0"  step="0.01" value="1.0">
+        <input type="number" id="sn${i}" min="0.5"  max="2.0"  step="0.01" value="1.00">
       </label>
       <label>
         <span class="lname">Offset X</span>
-        <input type="range" id="x${i}" min="-0.5" max="0.5" step="0.01" value="0">
-        <span class="val" id="xv${i}">0.00</span>
+        <input type="range"  id="x${i}"  min="-0.5" max="0.5"  step="0.01" value="0">
+        <input type="number" id="xn${i}" min="-0.5" max="0.5"  step="0.01" value="0.00">
       </label>
       <label>
         <span class="lname">Offset Y</span>
-        <input type="range" id="y${i}" min="-0.5" max="0.5" step="0.01" value="0">
-        <span class="val" id="yv${i}">0.00</span>
+        <input type="range"  id="y${i}"  min="-0.5" max="0.5"  step="0.01" value="0">
+        <input type="number" id="yn${i}" min="-0.5" max="0.5"  step="0.01" value="0.00">
       </label>
     </div>
     <button class="reset-btn" id="r${i}">リセット</button>
   `;
   grid.appendChild(card);
 
-  const ss = document.getElementById(`s${i}`);
-  const sx = document.getElementById(`x${i}`);
-  const sy = document.getElementById(`y${i}`);
+  const ss = document.getElementById(`s${i}`),  sn = document.getElementById(`sn${i}`);
+  const sx = document.getElementById(`x${i}`),  xn = document.getElementById(`xn${i}`);
+  const sy = document.getElementById(`y${i}`),  yn = document.getElementById(`yn${i}`);
 
-  ss.addEventListener('input', e => {
-    adj[i].scale = parseFloat(e.target.value);
-    document.getElementById(`sv${i}`).textContent = adj[i].scale.toFixed(2);
+  function setScale(v) {
+    v = Math.max(0.5, Math.min(2.0, isNaN(v) ? 1.0 : v));
+    adj[i].scale = v; ss.value = v; sn.value = v.toFixed(2);
     draw(i); sync();
-  });
-  sx.addEventListener('input', e => {
-    adj[i].dx = parseFloat(e.target.value);
-    document.getElementById(`xv${i}`).textContent = adj[i].dx.toFixed(2);
+  }
+  function setDx(v) {
+    v = Math.max(-0.5, Math.min(0.5, isNaN(v) ? 0 : v));
+    adj[i].dx = v; sx.value = v; xn.value = v.toFixed(2);
     draw(i); sync();
-  });
-  sy.addEventListener('input', e => {
-    adj[i].dy = parseFloat(e.target.value);
-    document.getElementById(`yv${i}`).textContent = adj[i].dy.toFixed(2);
+  }
+  function setDy(v) {
+    v = Math.max(-0.5, Math.min(0.5, isNaN(v) ? 0 : v));
+    adj[i].dy = v; sy.value = v; yn.value = v.toFixed(2);
     draw(i); sync();
-  });
+  }
+
+  ss.addEventListener('input', e => setScale(parseFloat(e.target.value)));
+  sn.addEventListener('change', e => setScale(parseFloat(e.target.value)));
+  sn.addEventListener('input',  e => setScale(parseFloat(e.target.value)));
+
+  sx.addEventListener('input', e => setDx(parseFloat(e.target.value)));
+  xn.addEventListener('change', e => setDx(parseFloat(e.target.value)));
+  xn.addEventListener('input',  e => setDx(parseFloat(e.target.value)));
+
+  sy.addEventListener('input', e => setDy(parseFloat(e.target.value)));
+  yn.addEventListener('change', e => setDy(parseFloat(e.target.value)));
+  yn.addEventListener('input',  e => setDy(parseFloat(e.target.value)));
 
   document.getElementById(`r${i}`).addEventListener('click', () => {
-    adj[i] = { scale: 1.0, dx: 0.0, dy: 0.0 };
-    ss.value = 1.0; document.getElementById(`sv${i}`).textContent = '1.00';
-    sx.value = 0;   document.getElementById(`xv${i}`).textContent = '0.00';
-    sy.value = 0;   document.getElementById(`yv${i}`).textContent = '0.00';
-    draw(i); sync();
+    setScale(1.0); setDx(0.0); setDy(0.0);
   });
 
   draw(i);
