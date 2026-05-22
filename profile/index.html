@@ -518,8 +518,9 @@ function renderStats() {
   const avgScore   = gameCount > 0 ? Math.round(totalScore / gameCount) : null;
   const avgSec     = gameCount > 0 ? Math.round(totalSec   / gameCount) : null;
   const avgDrops   = gameCount > 0 ? Math.round(totalDrops / gameCount) : null;
-  const maxEmoji   = BODY_EMOJIS_P[Math.min(11, maxTier)];
-  const maxName    = BODY_NAMES_P[Math.min(11, maxTier)];
+  const maxEmoji      = BODY_EMOJIS_P[Math.min(11, maxTier)];
+  const maxName       = BODY_NAMES_P[Math.min(11, maxTier)];
+  const clusterCount  = parseInt(localStorage.getItem('rollaxy_cluster_count') || '0', 10);
 
   const items = [
     {
@@ -543,7 +544,9 @@ function renderStats() {
     {
       label: _tg('statMaxTier', '最高到達天体'),
       value: gameCount > 0 ? `${maxEmoji}` : noData,
-      sub:   gameCount > 0 ? maxName : '',
+      sub:   maxTier >= 11 && clusterCount > 0
+               ? `${maxName}  ×${clusterCount.toLocaleString()}`
+               : (gameCount > 0 ? maxName : ''),
       accent: true,
     },
     {

@@ -659,6 +659,11 @@ function doGameOver() {
       String((parseInt(localStorage.getItem('rollaxy_total_drops') || '0', 10)) + _dropCount));
     const _prevMaxTier = parseInt(localStorage.getItem('rollaxy_max_tier') || '0', 10);
     if (_highestTier > _prevMaxTier) localStorage.setItem('rollaxy_max_tier', String(_highestTier));
+    // 銀河団（tier 11）到達ゲームをカウント
+    if (_highestTier >= 11) {
+      localStorage.setItem('rollaxy_cluster_count',
+        String((parseInt(localStorage.getItem('rollaxy_cluster_count') || '0', 10)) + 1));
+    }
   } catch (_) {}
   logEvent('game_over', {
     game_id:      'rollaxy',
