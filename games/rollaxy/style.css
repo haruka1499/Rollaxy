@@ -52,7 +52,6 @@ body { display: flex; flex-direction: column; align-items: center; }
   display: block; width: 18px; height: 2px;
   background: #fff; border-radius: 1px;
 }
-#settings-btn:hover { background: rgba(140,100,255,0.45); }
 
 
 /* ============================================================
@@ -124,10 +123,6 @@ canvas { position: absolute; top: 0; left: 0; transform-origin: top left; }
   font-size: 14px;
   font-weight: 600;
   transition: background 0.15s, border-color 0.15s;
-}
-#ranking-link:hover {
-  background: rgba(124,92,252,0.35);
-  border-color: rgba(124,92,252,0.8);
 }
 #share-note {
   font-size: 12px;
@@ -239,7 +234,6 @@ canvas { position: absolute; top: 0; left: 0; transform-origin: top left; }
   border-color: rgba(255,200,0,0.55);
   animation: claimPulse 1.6s ease-in-out infinite;
 }
-#skill-claim:hover { background: rgba(255,200,0,0.28); border-color: rgba(255,200,0,0.9); }
 #skill-claim .skill-count { background: rgba(255,180,0,0.35); }
 @keyframes claimPulse {
   0%, 100% { box-shadow: 0 0 0 rgba(255,180,0,0); }
@@ -414,7 +408,6 @@ canvas { position: absolute; top: 0; left: 0; transform-origin: top left; }
   -webkit-tap-highlight-color: transparent;
   transition: background 0.15s, border-color 0.15s, transform 0.1s;
 }
-.chain-reward-btn:hover  { background: rgba(255,200,0,0.25); border-color: rgba(255,200,0,0.7); }
 .chain-reward-btn:active { transform: scale(0.94); }
 .chain-reward-btn .cr-icon  { font-size: 22px; line-height: 1; }
 .chain-reward-btn .cr-label { font-size: 11px; opacity: 0.85; }
@@ -459,7 +452,6 @@ canvas { position: absolute; top: 0; left: 0; transform-origin: top left; }
   transition: background 0.1s;
   white-space: nowrap; overflow: hidden;
 }
-.dbg-btn:hover  { background: rgba(80,200,120,0.18); border-color: rgba(80,200,120,0.4); }
 .dbg-btn.active {
   background: rgba(80,200,120,0.28);
   border-color: rgba(80,200,120,0.75);
@@ -508,10 +500,6 @@ canvas { position: absolute; top: 0; left: 0; transform-origin: top left; }
   border-color: rgba(160,120,255,0.8);
   box-shadow: 0 0 8px rgba(140,100,255,0.4);
 }
-.lang-btn:not(.active):hover {
-  background: rgba(255,255,255,0.18);
-  color: #fff;
-}
 /* スタート画面のプレイヤー名エリア */
 #start-playername {
   background: rgba(124,92,252,0.15);
@@ -536,7 +524,6 @@ canvas { position: absolute; top: 0; left: 0; transform-origin: top left; }
   opacity: 0.6; transition: opacity 0.15s;
   -webkit-tap-highlight-color: transparent;
 }
-#start-name-edit-btn:hover { opacity: 1; }
 #start-name-editor {
   display: none; gap: 5px; width: 100%;
 }
@@ -577,7 +564,6 @@ canvas { position: absolute; top: 0; left: 0; transform-origin: top left; }
   -webkit-tap-highlight-color: transparent;
   transition: background 0.15s;
 }
-#start-name-hint-ok:hover { background: rgba(255,216,110,0.35); }
 #start-btn {
   padding: 13px 48px; font-size: 20px; font-weight: bold;
   background: linear-gradient(135deg, #ff7722, #ff4400);
@@ -618,7 +604,6 @@ canvas { position: absolute; top: 0; left: 0; transform-origin: top left; }
   -webkit-tap-highlight-color: transparent;
   transition: background 0.15s;
 }
-#settings-back-btn:hover { background: rgba(255,255,255,0.1); }
 
 /* メニュー内「設定」ボタン */
 #menu-settings-btn {
@@ -630,7 +615,6 @@ canvas { position: absolute; top: 0; left: 0; transform-origin: top left; }
   -webkit-tap-highlight-color: transparent;
   transition: background 0.15s, border-color 0.15s;
 }
-#menu-settings-btn:hover { background: rgba(255,255,255,0.14); border-color: rgba(255,255,255,0.4); }
 
 /* 「ゲームに戻る」ボタン（紫グラデーション） */
 #resume-btn {
@@ -650,7 +634,6 @@ canvas { position: absolute; top: 0; left: 0; transform-origin: top left; }
   -webkit-tap-highlight-color: transparent;
   transition: background 0.15s, border-color 0.15s;
 }
-#autoshow-btn:hover { background: rgba(255,200,0,0.22); border-color: rgba(255,200,0,0.7); }
 
 /* 効果音スライダー行 */
 #sfx-row {
@@ -697,7 +680,6 @@ canvas { position: absolute; top: 0; left: 0; transform-origin: top left; }
   -webkit-tap-highlight-color: transparent;
   transition: background 0.15s;
 }
-#displayname-save:hover { background: rgba(124,92,252,0.8); }
 #displayname-status {
   font-size: 11px; color: #88ff88; min-height: 16px;
 }
@@ -719,12 +701,6 @@ canvas { position: absolute; top: 0; left: 0; transform-origin: top left; }
   -webkit-tap-highlight-color: transparent;
   transition: background 0.15s, border-color 0.15s;
 }
-#settings-ranking-link:hover,
-#start-ranking-link:hover,
-#start-games-link:hover {
-  background: rgba(124,92,252,0.32);
-  border-color: rgba(124,92,252,0.8);
-}
 /* プロフィールリンク（設定メニュー内） */
 #settings-profile-link {
   display: inline-block;
@@ -739,10 +715,6 @@ canvas { position: absolute; top: 0; left: 0; transform-origin: top left; }
   -webkit-tap-highlight-color: transparent;
   transition: background 0.15s, border-color 0.15s;
 }
-#settings-profile-link:hover {
-  background: rgba(62,207,255,0.24);
-  border-color: rgba(62,207,255,0.65);
-}
 
 /* 「リセット」ボタン（オレンジ、「もう一度」と同スタイル） */
 #reset-btn {
@@ -751,4 +723,48 @@ canvas { position: absolute; top: 0; left: 0; transform-origin: top left; }
   color: #fff; border: none; border-radius: 30px; cursor: pointer;
   box-shadow: 0 4px 14px rgba(255,80,0,0.45);
   -webkit-tap-highlight-color: transparent;
+}
+
+/* ============================================================
+   デバイス適応 UI
+   ② hover: hover  → マウスデバイスのみホバーエフェクトを適用
+      タッチデバイスでは :hover が残留してしまう問題を防ぐ
+   ③ pointer: coarse → タッチ/スタイラス向けにタップ領域を拡大
+   ============================================================ */
+
+/* ── ② マウス専用ホバーエフェクト ── */
+@media (hover: hover) {
+  #settings-btn:hover           { background: rgba(140,100,255,0.45); }
+  #ranking-link:hover           { background: rgba(124,92,252,0.35); border-color: rgba(124,92,252,0.8); }
+  #skill-claim:hover            { background: rgba(255,200,0,0.28); border-color: rgba(255,200,0,0.9); }
+  .chain-reward-btn:hover       { background: rgba(255,200,0,0.25); border-color: rgba(255,200,0,0.7); }
+  .dbg-btn:hover                { background: rgba(80,200,120,0.18); border-color: rgba(80,200,120,0.4); }
+  .lang-btn:not(.active):hover  { background: rgba(255,255,255,0.18); color: #fff; }
+  #start-name-edit-btn:hover    { opacity: 1; }
+  #start-name-hint-ok:hover     { background: rgba(255,216,110,0.35); }
+  #settings-back-btn:hover      { background: rgba(255,255,255,0.1); }
+  #menu-settings-btn:hover      { background: rgba(255,255,255,0.14); border-color: rgba(255,255,255,0.4); }
+  #autoshow-btn:hover           { background: rgba(255,200,0,0.22); border-color: rgba(255,200,0,0.7); }
+  #displayname-save:hover       { background: rgba(124,92,252,0.8); }
+  #settings-ranking-link:hover,
+  #start-ranking-link:hover,
+  #start-games-link:hover       { background: rgba(124,92,252,0.32); border-color: rgba(124,92,252,0.8); }
+  #settings-profile-link:hover  { background: rgba(62,207,255,0.24); border-color: rgba(62,207,255,0.65); }
+}
+
+/* ── ③ タッチデバイス向けタップ領域拡大 ── */
+@media (pointer: coarse) {
+  /* スキルボタン・設定ボタンは最低 48px の高さ（Apple HIG 推奨） */
+  #settings-btn        { width: 44px; height: 44px; }
+  #skill-claim         { min-height: 48px; }
+  .chain-reward-btn    { min-height: 52px; padding: 14px 16px; }
+  #autoshow-btn        { min-height: 48px; }
+  #settings-back-btn,
+  #menu-settings-btn   { min-height: 48px; }
+  #resume-btn,
+  #reset-btn,
+  #start-btn           { padding: 16px 48px; }
+  /* 表示名編集ボタンも少し広く */
+  #start-name-edit-btn { padding: 4px 8px; font-size: 16px; }
+  #displayname-save    { padding: 10px 18px; }
 }

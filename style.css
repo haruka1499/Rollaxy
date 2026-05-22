@@ -95,11 +95,6 @@ main {
   transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
   box-shadow: 0 0 0 transparent;
 }
-.game-card:hover {
-  transform: translateY(-4px);
-  border-color: var(--accent);
-  box-shadow: 0 8px 32px var(--glow), 0 0 0 1px var(--accent);
-}
 .game-card:active { transform: translateY(-1px); }
 
 .game-thumb {
@@ -179,7 +174,7 @@ main {
   white-space: nowrap;
   transition: opacity 0.15s;
 }
-.nav-logo:hover { opacity: 0.75; }
+
 .nav-links {
   display: flex;
   list-style: none;
@@ -194,7 +189,6 @@ main {
   transition: color 0.15s, background 0.15s;
   white-space: nowrap;
 }
-.nav-links a:hover { color: var(--text); background: rgba(255,255,255,0.06); }
 .nav-links a.active { color: var(--accent2); }
 
 /* ── Page Hero（サブページ用コンパクトヘッダー） ── */
@@ -265,7 +259,6 @@ main {
   text-decoration: none;
   transition: color 0.15s;
 }
-.footer-links a:hover { color: var(--text); }
 
 /* ── Language Selector (site-wide) ── */
 #site-lang-selector {
@@ -287,10 +280,6 @@ main {
   transition: background 0.15s, color 0.15s, border-color 0.15s;
   white-space: nowrap;
 }
-.site-lang-btn:hover {
-  background: rgba(124,92,252,0.1);
-  color: var(--text);
-}
 .site-lang-btn.active {
   background: var(--accent);
   border-color: var(--accent);
@@ -304,4 +293,23 @@ main {
 @media (max-width: 480px) {
   .nav-links a { padding: 6px 8px; font-size: 0.8rem; }
   .site-lang-btn { padding: 4px 8px; font-size: 0.7rem; }
+}
+
+/* ── マウス専用ホバーエフェクト（タッチデバイスで残留しない） ── */
+@media (hover: hover) {
+  .game-card:hover {
+    transform: translateY(-4px);
+    border-color: var(--accent);
+    box-shadow: 0 8px 32px var(--glow), 0 0 0 1px var(--accent);
+  }
+  .nav-logo:hover    { opacity: 0.75; }
+  .nav-links a:hover { color: var(--text); background: rgba(255,255,255,0.06); }
+  .footer-links a:hover { color: var(--text); }
+  .site-lang-btn:hover  { background: rgba(124,92,252,0.1); color: var(--text); }
+}
+
+/* ── タッチデバイス向けナビリンク拡大 ── */
+@media (pointer: coarse) {
+  .nav-links a   { padding: 10px 12px; }
+  .site-lang-btn { min-height: 40px; padding: 6px 14px; }
 }
