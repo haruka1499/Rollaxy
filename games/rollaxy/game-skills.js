@@ -336,7 +336,11 @@ function peekChoicePanel() {
 }
 
 // 5連鎖報酬: スキル選択パネルを表示（ドロップをブロック）
-function showChainRewardPanel() {
+// manual=true のとき（ユーザーが自力で開いた場合）は自動タイマーをセットしない
+let _choicePanelManual = false;
+
+function showChainRewardPanel(manual = false) {
+  _choicePanelManual = manual;
   // ピーク演出中なら中断してフルパネルに切り替え
   clearTimeout(choicePeekTimer); choicePeekTimer = null;
   const panel = document.getElementById('chain-reward');
@@ -345,12 +349,17 @@ function showChainRewardPanel() {
   chainRewardPending = true;
   panel.classList.add('show');
   clearTimeout(choiceAutoTimer);
-  choiceAutoTimer = setTimeout(closeChoicePanel, 5000); // 5秒で自動閉じ
+  if (!manual) {
+    choiceAutoTimer = setTimeout(closeChoicePanel, 5000); // 自動表示時のみ5秒で閉じる
+  } else {
+    choiceAutoTimer = null; // 手動で開いた場合は自動で閉じない
+  }
 }
 
 function closeChoicePanel() {
   clearTimeout(choiceAutoTimer); choiceAutoTimer = null;
   clearTimeout(choicePeekTimer); choicePeekTimer = null;
+  _choicePanelManual = false;
   chainRewardPending = false;
   const panel = document.getElementById('chain-reward');
   panel.classList.remove('show', 'panel-peek', 'panel-peek-out');
@@ -365,9 +374,11 @@ function onChoicePicked(skill) {
   pendingChoiceRewards--;
   updateRewardQueueInfo();
   if (pendingChoiceRewards > 0) {
-    // まだ残りあり: パネルを開いたまま自動タイマーをリセット
-    clearTimeout(choiceAutoTimer);
-    choiceAutoTimer = setTimeout(closeChoicePanel, 5000);
+    // まだ残りあり: 手動開放中はタイマーなし、自動開放中はタイマーリセット
+    if (!_choicePanelManual) {
+      clearTimeout(choiceAutoTimer);
+      choiceAutoTimer = setTimeout(closeChoicePanel, 5000);
+    }
   } else {
     closeChoicePanel();
   }
@@ -448,7 +459,7 @@ document.querySelectorAll('.chain-reward-btn').forEach(btn => {
 const skillClaimBtn = document.getElementById('skill-claim');
 const claimOpen = () => {
   if (dead) return;
-  if (pendingChoiceRewards > 0 && !chainRewardPending) showChainRewardPanel();
+  if (pendingChoiceRewards > 0 && !chainRewardPending) showChainRewardPanel(true);
 };
 skillClaimBtn.addEventListener('click',    claimOpen);
 skillClaimBtn.addEventListener('touchend', e => { e.preventDefault(); claimOpen(); });
