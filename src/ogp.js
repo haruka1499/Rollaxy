@@ -28,21 +28,30 @@ async function loadBodyImages(env, bodies) {
   const usedTiers = [...new Set(bodies.map(b => Math.max(0, Math.min(11, b.tier))))];
   const pairs = await Promise.all(
     usedTiers.map(async tier => {
+      const url = `${SITE_URL}/games/rollaxy/images/${BODY_KEYS[tier]}.png`;
       try {
-        const res = await env.ASSETS.fetch(
-          new Request(`${SITE_URL}/games/rollaxy/images/${BODY_KEYS[tier]}.png`)
-        );
-        if (!res.ok) return null;
-        return [tier, `data:image/png;base64,${toBase64(await res.arrayBuffer())}`];
-      } catch (_) { return null; }
+        const res = await env.ASSETS.fetch(new Request(url));
+        if (!res.ok) {
+          console.warn(`[ogp] image load failed: ${url} → HTTP ${res.status}`);
+          return null;
+        }
+        const buf = await res.arrayBuffer();
+        return [tier, `data:image/png;base64,${toBase64(buf)}`];
+      } catch (err) {
+        console.warn(`[ogp] image load error: ${url} → ${err}`);
+        return null;
+      }
     })
   );
-  return Object.fromEntries(pairs.filter(Boolean));
+  const result = Object.fromEntries(pairs.filter(Boolean));
+  console.log(`[ogp] loadBodyImages: ${Object.keys(result).length}/${usedTiers.length} tiers loaded`);
+  return result;
 }
 
 // bodies を SVG に描画する。
-// bodyImages が渡されていれば PNG を円形クリップして表示し、
-// 画像がない tier は塗り色の円にフォールバックする。
+// 常に着色ベース円 + ハイライトを描き（paintBody スタイルに合わせる）、
+// bodyImages が渡されていれば PNG を円形クリップして上に重ねる。
+// → 画像ロード失敗 / resvg が <image> を未サポートでも円が消えない防御的設計。
 // !! <defs> は shapes より必ず前に出力すること（SVG clipPath の参照前定義が必要）
 function buildOgpBoardCircles(bodies, bodyImages) {
   const scale = Math.min(460 / 400, 590 / 700);
@@ -62,16 +71,29 @@ function buildOgpBoardCircles(bodies, bodyImages) {
     const cx   = (offX + b.x * scale).toFixed(1);
     const cy   = (offY + b.y * scale).toFixed(1);
     const r    = (BODY_RADII[tier] * scale).toFixed(1);
-    const d    = (BODY_RADII[tier] * scale * 2).toFixed(1);
-    const lx   = (offX + b.x * scale - BODY_RADII[tier] * scale).toFixed(1);
-    const ly   = (offY + b.y * scale - BODY_RADII[tier] * scale).toFixed(1);
-    const dataUrl = bodyImages?.[tier];
+    const rNum = BODY_RADII[tier] * scale;
+    const d    = (rNum * 2).toFixed(1);
+    const lx   = (offX + b.x * scale - rNum).toFixed(1);
+    const ly   = (offY + b.y * scale - rNum).toFixed(1);
 
+    // ── ① ベース円（常に描く） ──
+    // 画像が読み込めない・resvg が <image> を描画できない場合でも
+    // 天体が完全に消えないようにするフォールバック兼ベースレイヤー。
+    shapes += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${BODY_COLORS[tier]}" opacity="0.9"/>`;
+
+    // ── ② ハイライト（立体感・paintBody に合わせたスタイル） ──
+    const hr = (rNum * 0.32).toFixed(1);
+    const hx = (offX + b.x * scale - rNum * 0.27).toFixed(1);
+    const hy = (offY + b.y * scale - rNum * 0.3).toFixed(1);
+    shapes += `<circle cx="${hx}" cy="${hy}" r="${hr}" fill="rgba(255,255,255,0.22)"/>`;
+
+    // ── ③ 画像オーバーレイ（ロードできた tier のみ） ──
+    // clip-path を <image> に直接付けず <g> ラッパーで適用することで
+    // resvg / Satori などレンダラー間の互換性を高める。
+    const dataUrl = bodyImages?.[tier];
     if (dataUrl) {
       defs   += `<clipPath id="bc${i}"><circle cx="${cx}" cy="${cy}" r="${r}"/></clipPath>`;
-      shapes += `<image href="${dataUrl}" x="${lx}" y="${ly}" width="${d}" height="${d}" clip-path="url(#bc${i})" preserveAspectRatio="xMidYMid slice"/>`;
-    } else {
-      shapes += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${BODY_COLORS[tier]}" opacity="0.9"/>`;
+      shapes += `<g clip-path="url(#bc${i})"><image href="${dataUrl}" x="${lx}" y="${ly}" width="${d}" height="${d}" preserveAspectRatio="xMidYMid slice"/></g>`;
     }
   }
 
