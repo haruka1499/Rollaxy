@@ -28,7 +28,10 @@ async function loadBodyImages(env, bodies) {
   const usedTiers = [...new Set(bodies.map(b => Math.max(0, Math.min(11, b.tier))))];
   const pairs = await Promise.all(
     usedTiers.map(async tier => {
-      const url = `${SITE_URL}/games/rollaxy/images/${BODY_KEYS[tier]}.png`;
+      // OGP 用サムネイル（256×256px、元画像の 1/10 以下のサイズ）を使用。
+      // 元画像（2〜3MB）を base64 埋め込みすると SVG が 25MB+ になり
+      // resvg(WASM) のメモリ限界を超えるため、専用の小サイズ版を使う。
+      const url = `${SITE_URL}/games/rollaxy/images/ogp/${BODY_KEYS[tier]}.png`;
       try {
         const res = await env.ASSETS.fetch(new Request(url));
         if (!res.ok) {
