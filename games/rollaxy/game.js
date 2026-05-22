@@ -625,7 +625,7 @@ function checkDanger() {
   let hi = false;
   for (const d of bmap.values()) {
     if (now - d.at < CFG.RULES.GRACE_MS) continue;
-    if (d.body.position.y - CFG.BODIES[d.bi].r < CFG.DANGER_Y) { hi = true; break; }
+    if (d.body.position.y < CFG.DANGER_Y) { hi = true; break; }
   }
   dangerCnt = hi ? dangerCnt + 1 : 0;
   if (dangerCnt >= CFG.RULES.DANGER_F) doGameOver();
@@ -695,7 +695,7 @@ function doGameOver() {
   // アウトした天体を特定して点滅強調 → GO_FLASH_MS 後に通常の消去アニメを開始
   _goFlashIds.clear();
   for (const [id, d] of bmap.entries()) {
-    if (d.body.position.y - CFG.BODIES[d.bi].r < CFG.DANGER_Y) _goFlashIds.add(id);
+    if (d.body.position.y < CFG.DANGER_Y) _goFlashIds.add(id);
   }
   _goFlashStart = Date.now();
   setTimeout(_startGameOverAnim, _goFlashIds.size > 0 ? GO_FLASH_MS : 0);
