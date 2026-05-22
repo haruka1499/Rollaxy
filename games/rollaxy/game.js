@@ -221,8 +221,9 @@ let _pendingShareId = null;
 let _sessionToken = null;
 
 // replay / anti-cheat 用メタデータ
-let _gameStartTime = 0; // beginGame() でセット
-let _dropCount     = 0; // 天体を落とすたびにカウント
+let _gameStartTime     = 0; // beginGame() でセット
+let _dropCount         = 0; // 天体を落とすたびにカウント
+let _clusterVanishCount = 0; // 銀河団同士の消滅回数（ゲーム内）
 
 // ゲームオーバーアニメーション
 // ・天体をランダム順に消去し、最後の天体が消えた後にオーバーレイを表示する
@@ -253,6 +254,7 @@ function init() {
   _pendingShareId = null;
   _goPopEffects = [];
   _dropCount = 0;
+  _clusterVanishCount = 0;
   chainCount = 0;
   clearTimeout(chainTimer);       chainTimer = null;
   clearTimeout(chainResolveTimer); chainResolveTimer = null;
@@ -501,6 +503,7 @@ function flushMerges() {
     if (m.vanish) {
       // 銀河団同士は消滅：ボーナススコアのみ加算
       score += CFG.BODIES[m.bi].s * 2;
+      _clusterVanishCount++;
       triggerChain();
       updateHUD();
       continue;
@@ -659,6 +662,10 @@ function doGameOver() {
       String((parseInt(localStorage.getItem('rollaxy_total_drops') || '0', 10)) + _dropCount));
     const _prevMaxTier = parseInt(localStorage.getItem('rollaxy_max_tier') || '0', 10);
     if (_highestTier > _prevMaxTier) localStorage.setItem('rollaxy_max_tier', String(_highestTier));
+    if (_clusterVanishCount > 0) {
+      localStorage.setItem('rollaxy_cluster_vanish',
+        String((parseInt(localStorage.getItem('rollaxy_cluster_vanish') || '0', 10)) + _clusterVanishCount));
+    }
     // 銀河団（tier 11）到達ゲームをカウント
     if (_highestTier >= 11) {
       localStorage.setItem('rollaxy_cluster_count',

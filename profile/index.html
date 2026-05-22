@@ -512,8 +512,9 @@ function renderStats() {
   const totalSec   = parseInt(localStorage.getItem('rollaxy_total_sec')   || '0', 10);
   const totalScore = parseInt(localStorage.getItem('rollaxy_total_score') || '0', 10);
   const totalDrops = parseInt(localStorage.getItem('rollaxy_total_drops') || '0', 10);
-  const maxTier    = parseInt(localStorage.getItem('rollaxy_max_tier')    || '0', 10);
-  const noData     = _tg('profileNoData', '—');
+  const maxTier       = parseInt(localStorage.getItem('rollaxy_max_tier')       || '0', 10);
+  const clusterVanish = parseInt(localStorage.getItem('rollaxy_cluster_vanish') || '0', 10);
+  const noData        = _tg('profileNoData', '—');
 
   const avgScore   = gameCount > 0 ? Math.round(totalScore / gameCount) : null;
   const avgSec     = gameCount > 0 ? Math.round(totalSec   / gameCount) : null;
@@ -560,6 +561,12 @@ function renderStats() {
       value: totalScore > 0 ? fmtScore(totalScore) : noData,
       sub:   '',
       accent: false,
+    },
+    {
+      label: _tg('statClusterVanish', '銀河団消滅回数'),
+      value: clusterVanish > 0 ? clusterVanish.toLocaleString() : noData,
+      sub:   clusterVanish > 0 ? '🌐 × 🌐 → 消滅' : '',
+      accent: true,
     },
   ];
 
