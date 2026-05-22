@@ -279,9 +279,9 @@
 
     <!-- タブ（全期間 / 今週 / 今日） -->
     <div class="rank-tabs">
-      <button class="rank-tab" data-period="all" data-i18n="tabAll">全期間</button>
       <button class="rank-tab" data-period="weekly" data-i18n="tabWeekly">今週</button>
       <button class="rank-tab" data-period="daily" data-i18n="tabDaily">今日</button>
+      <button class="rank-tab" data-period="all" data-i18n="tabAll">全期間</button>
     </div>
 
     <!-- カードリスト（自分のベストカードはリスト先頭にJSで挿入） -->
@@ -343,7 +343,7 @@ document.getElementById('back-btn').addEventListener('click', () => {
 // ── URL state ──
 const VALID_PERIODS = ['all', 'weekly', 'daily'];
 const params = new URLSearchParams(location.search);
-let period = VALID_PERIODS.includes(params.get('period')) ? params.get('period') : 'all';
+let period = VALID_PERIODS.includes(params.get('period')) ? params.get('period') : 'weekly';
 
 // ── タブ ──
 function renderTabs() {
@@ -363,7 +363,7 @@ document.querySelectorAll('.rank-tab').forEach(btn => {
 });
 
 window.addEventListener('popstate', e => {
-  period = e.state?.period || 'all';
+  period = e.state?.period || 'weekly';
   renderTabs();
   loadRanking();
 });
