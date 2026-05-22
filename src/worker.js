@@ -434,30 +434,33 @@ async function handleCleanup(request, env) {
 // ============================================================
 const _SL = {
   ja: {
-    rankText:  rank => `全体 ${rank.toLocaleString('en-US')} 位`,
-    playBtn:   'Rollaxy をプレイ',
-    tweetBtn:  'X でシェア',
-    gamesLink: 'ゲーム一覧',
+    rankText:       rank => `全体 ${rank.toLocaleString('en-US')} 位`,
+    playBtn:        'Rollaxy をプレイ',
+    tweetBtn:       'X でシェア',
+    gamesLink:      'ゲーム一覧',
+    backToRanking:  '← ランキングに戻る',
     tweetText: (score, title) => `スコア ${score} — ${title}！`,
     desc:      (score, title, emoji) => `${title} — スコア ${score}、最大天体 ${emoji}。あなたも挑戦！`,
     navGames: 'ゲーム', navAbout: 'About', navPrivacy: 'Privacy',
     footerHome: 'Home', footerGames: 'ゲーム', footerPrivacy: 'プライバシーポリシー',
   },
   en: {
-    rankText:  rank => `Overall Rank #${rank.toLocaleString('en-US')}`,
-    playBtn:   'Play Rollaxy',
-    tweetBtn:  'Share on X',
-    gamesLink: 'Game List',
+    rankText:       rank => `Overall Rank #${rank.toLocaleString('en-US')}`,
+    playBtn:        'Play Rollaxy',
+    tweetBtn:       'Share on X',
+    gamesLink:      'Game List',
+    backToRanking:  '← Back to Ranking',
     tweetText: (score, title) => `Score ${score} — ${title}!`,
     desc:      (score, title, emoji) => `${title} — Score ${score}, top body ${emoji}. Try it!`,
     navGames: 'Games', navAbout: 'About', navPrivacy: 'Privacy',
     footerHome: 'Home', footerGames: 'Games', footerPrivacy: 'Privacy Policy',
   },
   zh: {
-    rankText:  rank => `全球排名第 ${rank.toLocaleString('en-US')} 名`,
-    playBtn:   '开始游戏',
-    tweetBtn:  '分享到 X',
-    gamesLink: '游戏列表',
+    rankText:       rank => `全球排名第 ${rank.toLocaleString('en-US')} 名`,
+    playBtn:        '开始游戏',
+    tweetBtn:       '分享到 X',
+    gamesLink:      '游戏列表',
+    backToRanking:  '← 返回排行榜',
     tweetText: (score, title) => `得分 ${score} — ${title}！`,
     desc:      (score, title, emoji) => `${title} — 得分 ${score}，最大天体 ${emoji}。快来挑战！`,
     navGames: '游戏', navAbout: 'About', navPrivacy: 'Privacy',
@@ -562,6 +565,8 @@ async function handleSharePage(id, env) {
     .share-tweet:hover{background:#222}
     .share-links{margin-top:16px;font-size:.85rem}
     .share-links a{color:#776699;margin:0 8px}
+    .share-back{display:inline-block;padding:9px 22px;border:1px solid rgba(119,68,204,.5);border-radius:8px;color:#aa88ff;font-size:.9rem;text-decoration:none;cursor:pointer;background:transparent;margin-bottom:16px;transition:background .15s}
+    .share-back:hover{background:rgba(119,68,204,.15)}
   </style>
 </head>
 <body>
@@ -574,6 +579,7 @@ async function handleSharePage(id, env) {
   </ul>
 </div></nav>
 <main><div class="share-page">
+  <button class="share-back" id="back-to-ranking-btn">${L.backToRanking}</button>
   <div class="share-board">${svg}</div>
   <div class="share-score">${scoreStr}</div>
   <div class="share-title">${titleStr} ${maxEmoji}</div>
@@ -584,6 +590,14 @@ async function handleSharePage(id, env) {
   </div>
   <div class="share-links"><a href="/games/">${L.gamesLink}</a></div>
 </div></main>
+<script>
+// ランキングから target="_blank" で開かれたタブなら window.close() でタブを閉じる。
+// 直接URLアクセスの場合は window.close() が無視されるため、ランキングページへ遷移する。
+document.getElementById('back-to-ranking-btn').addEventListener('click', function() {
+  window.close();
+  setTimeout(function() { location.href = '/games/rollaxy/ranking/'; }, 150);
+});
+</script>
 <footer class="site-footer">
   <div class="footer-links">
     <a href="/">${L.footerHome}</a><a href="/games/">${L.footerGames}</a><a href="/privacy/">${L.footerPrivacy}</a>
