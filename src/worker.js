@@ -4,7 +4,7 @@
 // ============================================================
 import {
   GAME_ID, SITE_URL, MIN_SCORE_FOR_TIER,
-  BODY_EMOJIS, BODY_COLORS, BODY_RADII,
+  BODY_EMOJIS, BODY_COLORS, BODY_RADII, BODY_KEYS,
   getTitle, getTitleI18n, scoreWithComma,
 } from './constants.js';
 import { handleOgp } from './ogp.js';
@@ -413,23 +413,32 @@ const _SL = {
 function buildBoardSVG(bodies) {
   const LW = 200, LH = 350, SCALE = 0.5;
   const BOX_L = 18, BOX_T = 168, BOX_R = 382, BOX_B = 688;
-  let circles = '', texts = '';
-  for (const b of bodies) {
+  let defs = '<defs>', circles = '', images = '';
+  for (let i = 0; i < bodies.length; i++) {
+    const b    = bodies[i];
     const tier = Math.max(0, Math.min(11, b.tier));
-    const x  = (b.x * SCALE).toFixed(1);
-    const y  = (b.y * SCALE).toFixed(1);
+    const cx = (b.x * SCALE).toFixed(1);
+    const cy = (b.y * SCALE).toFixed(1);
     const r  = (BODY_RADII[tier] * SCALE).toFixed(1);
-    const fs = Math.max(8, BODY_RADII[tier] * SCALE * 0.9).toFixed(1);
-    circles += `<circle cx="${x}" cy="${y}" r="${r}" fill="${BODY_COLORS[tier]}" opacity="0.85"/>`;
-    texts   += `<text x="${x}" y="${y}" font-size="${fs}" text-anchor="middle" dominant-baseline="central">${BODY_EMOJIS[tier]}</text>`;
+    const rn = BODY_RADII[tier] * SCALE;
+    const lx = (b.x * SCALE - rn).toFixed(1);
+    const ly = (b.y * SCALE - rn).toFixed(1);
+    const d  = (rn * 2).toFixed(1);
+    // ① ベース円（画像ロード失敗時のフォールバック）
+    circles += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${BODY_COLORS[tier]}" opacity="0.85"/>`;
+    // ② 実際のゲーム画像をクリップして円形に貼る（ブラウザが PNG を直接読み込む）
+    defs    += `<clipPath id="c${i}"><circle cx="${cx}" cy="${cy}" r="${r}"/></clipPath>`;
+    images  += `<image href="/games/rollaxy/images/${BODY_KEYS[tier]}.png" x="${lx}" y="${ly}" width="${d}" height="${d}" clip-path="url(#c${i})" preserveAspectRatio="xMidYMid slice"/>`;
   }
+  defs += '</defs>';
   const bx = (BOX_L * SCALE).toFixed(1), by = (BOX_T * SCALE).toFixed(1);
   const bw = ((BOX_R - BOX_L) * SCALE).toFixed(1), bh = ((BOX_B - BOX_T) * SCALE).toFixed(1);
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${LW}" height="${LH}" viewBox="0 0 ${LW} ${LH}">
+  return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${LW}" height="${LH}" viewBox="0 0 ${LW} ${LH}">
+  ${defs}
   <rect width="${LW}" height="${LH}" fill="#060412"/>
   <rect x="${bx}" y="${by}" width="${bw}" height="${bh}" fill="#0c0720"/>
   <rect x="${bx}" y="${by}" width="${bw}" height="${bh}" fill="none" stroke="#7744bb" stroke-width="1.5"/>
-  ${circles}${texts}</svg>`;
+  ${circles}${images}</svg>`;
 }
 
 async function handleSharePage(id, env) {
