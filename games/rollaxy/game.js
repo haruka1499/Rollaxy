@@ -33,6 +33,9 @@ const canvas      = document.getElementById('game');
 const ctx         = canvas.getContext('2d');
 const outer       = document.getElementById('canvas-outer');
 
+// デバイスピクセル比（Retina / 高DPI 対応）。3倍超はパフォーマンス重視で上限を設ける
+const _dpr = Math.min(window.devicePixelRatio || 1, 3);
+
 // 「ゲームオーバー時のオーバーレイ」= #overlay
 const overlay     = document.getElementById('overlay');
 const scoreEl     = document.getElementById('score-el');
@@ -237,8 +240,13 @@ const clamp = (v, lo, hi) => v < lo ? lo : v > hi ? hi : v;
 // INIT — ゲーム全体の初期化（「リセット」時も呼ばれる）
 // ============================================================
 function init() {
-  canvas.width  = CFG.W;
-  canvas.height = CFG.H;
+  // canvas バッファを DPR 倍に設定し、論理座標は CFG.W×CFG.H のままにする。
+  // これにより Retina/高DPI ディスプレイで描画がくっきりする。
+  // ※ canvas.width を再代入するとコンテキスト状態がリセットされるため、
+  //   必ずその直後に ctx.scale(_dpr, _dpr) を呼ぶ。
+  canvas.width  = CFG.W * _dpr;
+  canvas.height = CFG.H * _dpr;
+  ctx.scale(_dpr, _dpr);
   resize();
 
   score = 0; dangerCnt = 0; dead = false; paused = false; waiting = true;
@@ -644,6 +652,7 @@ function doGameOver() {
     drop_count:   _dropCount,
     elapsed_sec:  Math.round((Date.now() - _gameStartTime) / 1000),
     is_new_best:  isHi ? 1 : 0,
+    lang:         typeof currentLang !== 'undefined' ? currentLang : 'ja',
   });
   // share API を即座に非同期呼び出し（アニメーション中に裏で通信）
   _pendingShareId = null;
@@ -820,7 +829,18 @@ function beginGame() {
   startOverlay.classList.remove('show');
   updateSkillButtons(); // waiting=false になったのでボタンの disabled を解除
   _unlockAudio();       // ユーザー操作のタイミングで音声を起動し autoplay 制限を解除
-  logEvent('game_start', { game_id: 'rollaxy' });
+  // game_number: このブラウザで何回目のゲームか（初回=1）
+  // is_returning は increment 前に確認する（初回は必ず 0 になるように）
+  const _prevCount  = parseInt(localStorage.getItem('rollaxy_game_count') || '0', 10);
+  const _gameCount  = _prevCount + 1;
+  localStorage.setItem('rollaxy_game_count', String(_gameCount));
+  logEvent('game_start', {
+    game_id:          'rollaxy',
+    lang:             typeof currentLang !== 'undefined' ? currentLang : 'ja',
+    game_number:      _gameCount,           // 通算プレイ回数（リテンション分析用）
+    is_returning:     _prevCount > 0 ? 1 : 0, // 初回=0、2回目以降=1
+    has_display_name: localStorage.getItem('novora_name_set') ? 1 : 0,
+  });
   _fetchSessionToken(); // セッショントークンをバックグラウンドで取得（ゲーム開始はブロックしない）
 }
 

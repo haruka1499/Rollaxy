@@ -4,6 +4,16 @@
 // PLAYER — GA4 イベント / プレイヤーID / 表示名管理
 // ============================================================
 
+// デバイス情報（起動時に一度だけ収集）
+// pointer: coarse = タッチ/スタイラス、fine = マウス
+// _dpr は game.js で定義。未定義時は window.devicePixelRatio を参照
+const _DEVICE_PARAMS = {
+  device_type:  navigator.maxTouchPoints > 0 ? 'touch' : 'mouse',
+  pixel_ratio:  Math.round((window.devicePixelRatio || 1) * 10) / 10,
+  screen_w:     screen.width,
+  screen_h:     screen.height,
+};
+
 // すべての gtag('event', ...) はこの関数を経由することで
 // ・呼び出し漏れチェック（typeof gtag）
 // ・パラメータ共通化（game_id 等）
@@ -11,6 +21,12 @@
 function logEvent(eventName, params = {}) {
   if (typeof gtag !== 'function') return;
   gtag('event', eventName, params);
+}
+
+// デバイス情報をデフォルトパラメータとして GA4 に設定
+// これにより以降の全イベントに device_type / pixel_ratio が自動付与される
+if (typeof gtag === 'function') {
+  gtag('set', { ..._DEVICE_PARAMS });
 }
 
 // ============================================================
