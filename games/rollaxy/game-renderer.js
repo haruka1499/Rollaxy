@@ -92,6 +92,26 @@ function draw() {
       else          { glowMap.delete(id); }
     }
     paintBody(d.body.position.x, d.body.position.y, d.body.angle, d.bi, glowT);
+    // ゲームオーバー: アウト天体を赤く点滅
+    if (_goFlashIds && _goFlashIds.size > 0 && _goFlashIds.has(id)) {
+      const elapsed = now - _goFlashStart;
+      const blink = 0.5 + 0.5 * Math.sin(elapsed * 0.0314); // ~5Hz サイン波
+      const r = CFG.BODIES[d.bi].r;
+      ctx.save();
+      ctx.translate(d.body.position.x, d.body.position.y);
+      ctx.beginPath();
+      ctx.arc(0, 0, r, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(255,40,40,${(blink * 0.45).toFixed(3)})`;
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(0, 0, r + 3.5, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(255,80,60,${(blink * 0.9).toFixed(3)})`;
+      ctx.lineWidth = 3.5;
+      ctx.shadowColor = `rgba(255,0,0,${(blink * 0.7).toFixed(3)})`;
+      ctx.shadowBlur = 12;
+      ctx.stroke();
+      ctx.restore();
+    }
   }
 
   // 壁（天体の上に重ねて縁をきれいに）

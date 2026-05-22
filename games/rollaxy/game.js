@@ -228,9 +228,12 @@ let _clusterVanishCount = 0; // 銀河団同士の消滅回数（ゲーム内）
 // ゲームオーバーアニメーション
 // ・天体をランダム順に消去し、最後の天体が消えた後にオーバーレイを表示する
 // ・消去間隔 = GO_ANIM_MS ÷ 天体数 → 天体数に関わらず合計所要時間がほぼ一定
-const GO_ANIM_MS = 2500; // 全天体消去にかける合計時間 (ms)
-const POP_DUR_MS = 320;  // 1個あたりのポップアニメーション時間 (ms)
-let _goPopEffects = [];   // { x, y, bi, startTime }
+const GO_ANIM_MS   = 2500; // 全天体消去にかける合計時間 (ms)
+const POP_DUR_MS   = 320;  // 1個あたりのポップアニメーション時間 (ms)
+const GO_FLASH_MS  = 900;  // アウト天体の点滅強調時間 (ms) — この後に消去アニメが始まる
+let _goPopEffects  = [];   // { x, y, bi, startTime }
+let _goFlashIds    = new Set(); // 点滅強調するアウト天体のID
+let _goFlashStart  = 0;         // 点滅開始時刻 (Date.now())
 
 // ============================================================
 // UTIL
@@ -253,6 +256,8 @@ function init() {
   score = 0; dangerCnt = 0; dead = false; paused = false; waiting = true;
   _pendingShareId = null;
   _goPopEffects = [];
+  _goFlashIds.clear();
+  _goFlashStart = 0;
   _dropCount = 0;
   _clusterVanishCount = 0;
   chainCount = 0;
@@ -687,12 +692,18 @@ function doGameOver() {
   shareBtn.textContent = T('sharePreparing');
   shareBtn.classList.add('loading');
   _createShare();
-  // 天体を順番にポップ消去 → 全消去後にオーバーレイ表示
-  _startGameOverAnim();
+  // アウトした天体を特定して点滅強調 → GO_FLASH_MS 後に通常の消去アニメを開始
+  _goFlashIds.clear();
+  for (const [id, d] of bmap.entries()) {
+    if (d.body.position.y - CFG.BODIES[d.bi].r < CFG.DANGER_Y) _goFlashIds.add(id);
+  }
+  _goFlashStart = Date.now();
+  setTimeout(_startGameOverAnim, _goFlashIds.size > 0 ? GO_FLASH_MS : 0);
 }
 
 // 天体をランダム順にポップ消去し、終わったらゲームオーバーオーバーレイを表示する
 function _startGameOverAnim() {
+  _goFlashIds.clear(); // 点滅終了 → 消去アニメへ移行
   const ids = [...bmap.keys()];
   if (ids.length === 0) {
     overlay.classList.add('show');
