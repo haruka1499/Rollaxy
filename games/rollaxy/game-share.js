@@ -12,7 +12,11 @@ function _restoreShareButton() {
 }
 
 // 盤面スナップショットを Worker に POST して共有 URL を取得する（失敗しても UI に影響しない）
-// 成功・失敗どちらでも finally でシェアボタンを復元する。
+// 設計方針:
+//   1. share POST が成功したら即座にシェアボタンを有効化（UXを最優先）
+//   2. OGP 画像はバックグラウンドで生成・KVキャッシュに保存（fire-and-forget）
+//      Twitter クローラーはシェアから数十秒後に来るため、OGP 生成は十分間に合う。
+//      await すると有料プランでも resvg(WASM) の処理時間によってボタン有効化が遅延する。
 async function _createShare() {
   const controller  = new AbortController();
   const timeoutId   = setTimeout(() => controller.abort(), 10000);
@@ -57,19 +61,10 @@ async function _createShare() {
       const { id } = await res.json();
       _pendingShareId = id;
       addMyShareId(id, shareScore); // share_ids / best_share_id を localStorage に記録
-      // OGP 画像生成を完了まで待つ（最大 8 秒）
-      // fire-and-forget ではなく await することで、_restoreShareButton() が呼ばれる時点で
-      // 必ず KV キャッシュに乗っている状態を保証する。
-      // → Twitter クローラーがシェア URL にアクセスした時に画像が確実に存在する。
-      // タイムアウトしても finally でボタンは有効化されるので UI はブロックしない。
-      try {
-        const ogpCtrl    = new AbortController();
-        const ogpTimeout = setTimeout(() => ogpCtrl.abort(), 8000);
-        await fetch(`/games/rollaxy/ogp/${id}`, { signal: ogpCtrl.signal });
-        clearTimeout(ogpTimeout);
-      } catch (_) {
-        // タイムアウト or ネットワークエラー → OGP なしでシェア可能（URL は有効）
-      }
+      // OGP 画像をバックグラウンドで生成（fire-and-forget）
+      // ボタン有効化をブロックしないよう await しない。
+      // Twitter クローラーはシェアから数十秒後に到達するため OGP は確実に間に合う。
+      fetch(`/games/rollaxy/ogp/${id}`).catch(() => {});
     }
   } catch (_) {
     // タイムアウト・ネットワークエラー等 → フォールバックURLでシェア可能

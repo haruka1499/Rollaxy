@@ -70,22 +70,27 @@ async function handleSharePost(request, env) {
 
   // ── 基本バリデーション ──
   if (typeof score !== 'number' || !Number.isInteger(score) || score < 0 || score > 999999) {
+    console.warn(`[share] rejected: invalid score=${score}`);
     return json({ error: 'invalid score' }, 400, corsHeaders(origin));
   }
   if (typeof highest_body_tier !== 'number' || !Number.isInteger(highest_body_tier)
       || highest_body_tier < 0 || highest_body_tier > 11) {
+    console.warn(`[share] rejected: invalid tier=${highest_body_tier}`);
     return json({ error: 'invalid tier' }, 400, corsHeaders(origin));
   }
   if (!snapshot_payload) {
+    console.warn(`[share] rejected: missing snapshot_payload`);
     return json({ error: 'Missing required fields' }, 400, corsHeaders(origin));
   }
   if (score < MIN_SCORE_FOR_TIER[highest_body_tier]) {
+    console.warn(`[share] rejected: score/tier mismatch score=${score} tier=${highest_body_tier} min=${MIN_SCORE_FOR_TIER[highest_body_tier]}`);
     return json({ error: 'score/tier mismatch' }, 400, corsHeaders(origin));
   }
 
   // ── レートリミット（IP 単位 10回/分）──
   const ip = request.headers.get('CF-Connecting-IP') ?? 'unknown';
   if (!(await _rateLimit(env, ip))) {
+    console.warn(`[share] rejected: rate limit ip=${ip}`);
     return json({ error: 'rate limit exceeded' }, 429, corsHeaders(origin));
   }
 
@@ -106,9 +111,11 @@ async function handleSharePost(request, env) {
   const { drop_count, elapsed_ms } = snapshot_payload;
   if (typeof drop_count === 'number' && typeof elapsed_ms === 'number' && drop_count > 0) {
     if (elapsed_ms < drop_count * 200) {
+      console.warn(`[share] rejected: too fast elapsed_ms=${elapsed_ms} drop_count=${drop_count}`);
       return json({ error: 'invalid play data' }, 400, corsHeaders(origin));
     }
     if (score / drop_count > 1000) {
+      console.warn(`[share] rejected: score/drop ratio score=${score} drop_count=${drop_count}`);
       return json({ error: 'invalid play data' }, 400, corsHeaders(origin));
     }
   }
