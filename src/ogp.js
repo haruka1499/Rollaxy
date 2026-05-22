@@ -3,7 +3,7 @@
 // GET /games/rollaxy/ogp/:id
 // ============================================================
 import { Resvg } from '@cf-wasm/resvg/workerd';
-import { SITE_URL, BODY_RADII, BODY_COLORS, BODY_KEYS, scoreWithComma } from './constants.js';
+import { SITE_URL, BODY_RADII, BODY_COLORS, BODY_KEYS, BODY_IMAGE_ADJUST, scoreWithComma } from './constants.js';
 
 function toBase64(buffer) {
   const bytes = new Uint8Array(buffer);
@@ -75,13 +75,13 @@ function buildOgpBoardCircles(bodies, bodyImages) {
     const cy   = (offY + b.y * scale).toFixed(1);
     const r    = (BODY_RADII[tier] * scale).toFixed(1);
     const rNum = BODY_RADII[tier] * scale;
-    const d    = (rNum * 2).toFixed(1);
-    const lx   = (offX + b.x * scale - rNum).toFixed(1);
-    const ly   = (offY + b.y * scale - rNum).toFixed(1);
+    const iadj = BODY_IMAGE_ADJUST[tier];
+    const imgRad = rNum * iadj.scale;
+    const lx = (offX + b.x * scale - imgRad + rNum * iadj.dx).toFixed(1);
+    const ly = (offY + b.y * scale - imgRad + rNum * iadj.dy).toFixed(1);
+    const d  = (imgRad * 2).toFixed(1);
 
     // ── ① ベース円（常に描く） ──
-    // 画像が読み込めない・resvg が <image> を描画できない場合でも
-    // 天体が完全に消えないようにするフォールバック兼ベースレイヤー。
     shapes += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${BODY_COLORS[tier]}" opacity="0.9"/>`;
 
     // ── ② ハイライト（立体感・paintBody に合わせたスタイル） ──
@@ -91,8 +91,6 @@ function buildOgpBoardCircles(bodies, bodyImages) {
     shapes += `<circle cx="${hx}" cy="${hy}" r="${hr}" fill="rgba(255,255,255,0.22)"/>`;
 
     // ── ③ 画像オーバーレイ（ロードできた tier のみ） ──
-    // clip-path を <image> に直接付けず <g> ラッパーで適用することで
-    // resvg / Satori などレンダラー間の互換性を高める。
     const dataUrl = bodyImages?.[tier];
     if (dataUrl) {
       defs   += `<clipPath id="bc${i}"><circle cx="${cx}" cy="${cy}" r="${r}"/></clipPath>`;

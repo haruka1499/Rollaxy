@@ -20,6 +20,23 @@ export const BODY_KEYS = [
   'red_giant','white_dwarf','neutron_star','black_hole','galaxy','galaxy_cluster',
 ];
 
+// OGP・share ページの SVG 画像オーバーレイ調整値
+// ogp-adjust.html で目視調整して得た値。scale: 画像径/円径、dx/dy: 中心オフセット（円半径比）
+export const BODY_IMAGE_ADJUST = [
+  { scale: 1.20, dx:  0.02, dy:  0.01 }, // 0:  ダスト
+  { scale: 1.41, dx:  0.02, dy:  0.05 }, // 1:  小惑星
+  { scale: 1.23, dx:  0.02, dy:  0.02 }, // 2:  月
+  { scale: 1.18, dx:  0.03, dy:  0.02 }, // 3:  地球
+  { scale: 1.10, dx:  0.00, dy:  0.02 }, // 4:  木星
+  { scale: 1.18, dx: -0.01, dy:  0.00 }, // 5:  太陽
+  { scale: 1.15, dx: -0.01, dy:  0.00 }, // 6:  赤色巨星
+  { scale: 1.34, dx:  0.00, dy:  0.01 }, // 7:  白色矮星
+  { scale: 2.15, dx:  0.00, dy:  0.00 }, // 8:  中性子星
+  { scale: 1.28, dx:  0.01, dy:  0.08 }, // 9:  ブラックホール
+  { scale: 1.03, dx:  0.00, dy:  0.03 }, // 10: 銀河
+  { scale: 1.06, dx:  0.00, dy:  0.00 }, // 11: 銀河団
+];
+
 // score + highestTier → 称号文字列
 export function getTitle(score, highestTier) {
   if (highestTier >= 11) return '銀河団創造者';

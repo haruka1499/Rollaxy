@@ -4,7 +4,7 @@
 // ============================================================
 import {
   GAME_ID, SITE_URL, MIN_SCORE_FOR_TIER,
-  BODY_EMOJIS, BODY_COLORS, BODY_RADII, BODY_KEYS,
+  BODY_EMOJIS, BODY_COLORS, BODY_RADII, BODY_KEYS, BODY_IMAGE_ADJUST,
   getTitle, getTitleI18n, scoreWithComma,
 } from './constants.js';
 import { handleOgp } from './ogp.js';
@@ -420,10 +420,12 @@ function buildBoardSVG(bodies) {
     const cx = (b.x * SCALE).toFixed(1);
     const cy = (b.y * SCALE).toFixed(1);
     const r  = (BODY_RADII[tier] * SCALE).toFixed(1);
-    const rn = BODY_RADII[tier] * SCALE;
-    const lx = (b.x * SCALE - rn).toFixed(1);
-    const ly = (b.y * SCALE - rn).toFixed(1);
-    const d  = (rn * 2).toFixed(1);
+    const rn   = BODY_RADII[tier] * SCALE;
+    const iadj = BODY_IMAGE_ADJUST[tier];
+    const imgRn = rn * iadj.scale;
+    const lx = (b.x * SCALE - imgRn + rn * iadj.dx).toFixed(1);
+    const ly = (b.y * SCALE - imgRn + rn * iadj.dy).toFixed(1);
+    const d  = (imgRn * 2).toFixed(1);
     // ① ベース円（画像ロード失敗時のフォールバック）
     circles += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${BODY_COLORS[tier]}" opacity="0.85"/>`;
     // ② 実際のゲーム画像をクリップして円形に貼る（ブラウザが PNG を直接読み込む）
