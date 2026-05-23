@@ -637,6 +637,66 @@ async function handleSession(request, env) {
 }
 
 // ============================================================
+// GET /api/rollaxy/achievements — 解除済み実績一覧取得
+// ============================================================
+async function handleAchievementsGet(request, env) {
+  const origin = request.headers.get('Origin') ?? '';
+  const pid    = new URL(request.url).searchParams.get('pid') ?? '';
+
+  if (!/^[a-z]+_[a-z0-9]{8,28}$/.test(pid)) {
+    return json({ error: 'invalid player_id' }, 400, corsHeaders(origin));
+  }
+
+  try {
+    const { results } = await env.DB.prepare(
+      'SELECT ach_id FROM achievements WHERE player_id = ?'
+    ).bind(pid).all();
+    return json({ ids: results.map(r => r.ach_id) }, 200, corsHeaders(origin));
+  } catch (_) {
+    // achievements テーブル未作成の場合は空配列を返して続行
+    return json({ ids: [] }, 200, corsHeaders(origin));
+  }
+}
+
+// ============================================================
+// POST /api/rollaxy/achievements/unlock — 実績解除を記録
+// ============================================================
+async function handleAchievementsUnlock(request, env) {
+  const origin = request.headers.get('Origin') ?? '';
+
+  let body;
+  try { body = await request.json(); }
+  catch { return json({ error: 'Invalid JSON' }, 400, corsHeaders(origin)); }
+
+  const { player_id, ach_id } = body;
+
+  const pid = (typeof player_id === 'string' && /^[a-z]+_[a-z0-9]{8,28}$/.test(player_id))
+    ? player_id : null;
+  if (!pid) return json({ error: 'invalid player_id' }, 400, corsHeaders(origin));
+
+  // ach_id: 英小文字・数字・アンダースコアのみ、2〜50文字
+  if (typeof ach_id !== 'string' || !/^[a-z][a-z0-9_]{1,49}$/.test(ach_id)) {
+    return json({ error: 'invalid ach_id' }, 400, corsHeaders(origin));
+  }
+
+  // 1プレイヤーあたり上限200件（ストレージ保護）
+  try {
+    const countRow = await env.DB.prepare(
+      'SELECT COUNT(*) AS cnt FROM achievements WHERE player_id = ?'
+    ).bind(pid).first();
+    if ((countRow?.cnt ?? 0) >= 200) {
+      return json({ ok: true, skipped: true }, 200, corsHeaders(origin));
+    }
+    await env.DB.prepare(
+      'INSERT OR IGNORE INTO achievements (player_id, ach_id, unlocked_at) VALUES (?, ?, ?)'
+    ).bind(pid, ach_id, Math.floor(Date.now() / 1000)).run();
+    return json({ ok: true }, 200, corsHeaders(origin));
+  } catch (_) {
+    return json({ error: 'achievements table not ready' }, 503, corsHeaders(origin));
+  }
+}
+
+// ============================================================
 // POST /api/rollaxy/player — プレイヤー表示名の即時更新
 // ============================================================
 async function handlePlayerUpdate(request, env) {
@@ -708,6 +768,14 @@ export default {
 
     if (method === 'POST' && path === '/api/rollaxy/player') {
       return handlePlayerUpdate(request, env);
+    }
+
+    if (method === 'GET' && path === '/api/rollaxy/achievements') {
+      return handleAchievementsGet(request, env);
+    }
+
+    if (method === 'POST' && path === '/api/rollaxy/achievements/unlock') {
+      return handleAchievementsUnlock(request, env);
     }
 
     if (method === 'POST' && path === '/api/admin/cleanup') {

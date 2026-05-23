@@ -70,6 +70,7 @@ function explodeBomb(pos) {
 
   if (bombBody) { Matter.Composite.remove(world, bombBody, true); bombBody = null; }
   bombFuseTimer = null; bombHit = false;
+  _skillJustUsed = true; // スキル（爆弾）が適用された
   wakeAllBodies();
 }
 
@@ -209,10 +210,12 @@ function confirmSkillAction() {
     const dur = 300 + ni * 100;
     glowMap.set(nb.id, { endTime: Date.now() + dur, duration: dur });
     if (skillCharges.upgrade !== Infinity) skillCharges.upgrade--;
+    _skillJustUsed = true; // スキル（強化）が適用された
   } else if (activeSkill === 'delete') {
     bmap.delete(skillSelectedId); glowMap.delete(skillSelectedId);
     Matter.Composite.remove(world, d.body, true);
     if (skillCharges.delete !== Infinity) skillCharges.delete--;
+    _skillJustUsed = true; // スキル（削除）が適用された
   }
 
   // 操作後に全ボディの sleep を解除する。

@@ -224,6 +224,18 @@ let _sessionToken = null;
 let _gameStartTime     = 0; // beginGame() でセット
 let _dropCount         = 0; // 天体を落とすたびにカウント
 let _clusterVanishCount = 0; // 銀河団同士の消滅回数（ゲーム内）
+let _mergeCount        = 0; // このゲームでの合成回数（doGameOver で累計に加算）
+let _bodyMergeCount    = []; // このゲームでの天体種別合成回数（インデックス=bi）
+let _savedBodyMerges   = []; // ゲーム開始時に localStorage から読み込んだ累計
+let _maxChainThisGame  = 0;  // このゲームの最高連鎖数
+let _chainEventCount   = 0;  // このゲームで発生した連鎖回数（finalCount>=2の解決回数）
+let _lastDropHadChain  = false; // 前のドロップで連鎖が発生したか
+let _consecutiveChainDrops = 0; // 連続連鎖ドロップ数
+let _chainCountsByLevel = []; // このゲームでの各連鎖レベル(5〜15)達成回数
+let _savedChainCounts   = []; // ゲーム開始時に localStorage から読み込んだ累計
+let _skillJustUsed           = false; // スキルが適用されてから次のドロップ/連鎖解決前か
+let _skillChainCountsByLevel = []; // このゲームでのスキル経由各連鎖レベル(5〜10)達成回数
+let _savedSkillChainCounts   = []; // ゲーム開始時に localStorage から読み込んだ累計
 
 // ゲームオーバーアニメーション
 // ・天体をランダム順に消去し、最後の天体が消えた後にオーバーレイを表示する
@@ -260,6 +272,18 @@ function init() {
   _goFlashStart = 0;
   _dropCount = 0;
   _clusterVanishCount = 0;
+  _mergeCount = 0;
+  _bodyMergeCount = [];
+  _savedBodyMerges = JSON.parse(localStorage.getItem('rollaxy_body_merges') || '[]');
+  _maxChainThisGame = 0;
+  _chainEventCount = 0;
+  _lastDropHadChain = false;
+  _consecutiveChainDrops = 0;
+  _chainCountsByLevel = [];
+  _savedChainCounts = JSON.parse(localStorage.getItem('rollaxy_chain_counts') || '[]');
+  _skillJustUsed = false;
+  _skillChainCountsByLevel = [];
+  _savedSkillChainCounts = JSON.parse(localStorage.getItem('rollaxy_skill_chain_counts') || '[]');
   chainCount = 0;
   clearTimeout(chainTimer);       chainTimer = null;
   clearTimeout(chainResolveTimer); chainResolveTimer = null;
@@ -362,6 +386,18 @@ function drop() {
   canDrop = false;
   _dropCount++; // 投下カウント（replay / anti-cheat 用）
 
+  // 前のターンに連鎖があったか確認して連続連鎖を更新（初回ドロップは対象外）
+  if (_dropCount > 1) {
+    if (_lastDropHadChain) {
+      _consecutiveChainDrops++;
+      achCheckConsecutiveChain(_consecutiveChainDrops);
+    } else {
+      _consecutiveChainDrops = 0;
+    }
+  }
+  _lastDropHadChain = false;
+  _skillJustUsed = false; // ドロップ境界を超えたらスキル連鎖は無効
+
   if (bombMode) {
     // 爆弾を投下（curBi は変えない）
     const r = CFG.BOMB.R;
@@ -375,6 +411,7 @@ function drop() {
     const def = CFG.BODIES[curBi];
     const x = clamp(dropX, CFG.BOX.L + def.r + 1, CFG.BOX.R - def.r - 1);
     spawn(x, CFG.DROP_Y, curBi);
+    _checkSimultaneous();
     curBi = nxtBi; nxtBi = rnd();
     updateHUD();
   }
@@ -453,6 +490,10 @@ function triggerChain() {
   clearTimeout(chainTimer);
   chainTimer = null;
   chainCount++;
+  if (chainCount > _maxChainThisGame) {
+    _maxChainThisGame = chainCount;
+    achCheckMaxChain(_maxChainThisGame);
+  }
   playMergeSound(chainCount);
 
   if (chainCount >= 2) {
@@ -472,6 +513,31 @@ function triggerChain() {
 
     if (finalCount < 2) return;
 
+    _chainEventCount++;
+    _lastDropHadChain = true;
+    achCheckTotalChains(
+      parseInt(localStorage.getItem('rollaxy_total_chains') || '0', 10) + _chainEventCount
+    );
+    // 5連鎖以上なら各レベル(5〜finalCount)の累計カウントをインクリメントしてチェック
+    if (finalCount >= 5) {
+      for (let _lvl = 5; _lvl <= Math.min(finalCount, 15); _lvl++) {
+        _chainCountsByLevel[_lvl] = (_chainCountsByLevel[_lvl] || 0) + 1;
+        achCheckChainByLevel(_lvl, (_savedChainCounts[_lvl] || 0) + _chainCountsByLevel[_lvl]);
+      }
+    }
+    // スキル使用後の連鎖チェック（ドロップをまたがない場合のみ有効）
+    if (_skillJustUsed) {
+      achCheckSkillChain(finalCount);
+      // スキル経由の連鎖レベル別累計チェック（5〜10）
+      if (finalCount >= 5) {
+        for (let _lvl = 5; _lvl <= Math.min(finalCount, 10); _lvl++) {
+          _skillChainCountsByLevel[_lvl] = (_skillChainCountsByLevel[_lvl] || 0) + 1;
+          achCheckSkillChainByLevel(_lvl, (_savedSkillChainCounts[_lvl] || 0) + _skillChainCountsByLevel[_lvl]);
+        }
+      }
+      _skillJustUsed = false;
+    }
+
     // ぽん！演出（chainResolveTimer が非null の間はドロップをブロック）
     chainEl.classList.remove('show', 'chain-final');
     void chainEl.offsetWidth;
@@ -489,6 +555,15 @@ function triggerChain() {
   }, CFG.RULES.CHAIN_WINDOW_MS);
 }
 
+// フィールド上の天体を種別ごとに数えて同時存在系実績をチェック
+function _checkSimultaneous() {
+  const counts = new Array(CFG.BODIES.length).fill(0);
+  for (const d of bmap.values()) counts[d.bi]++;
+  for (let _bi = 0; _bi < counts.length; _bi++) {
+    if (counts[_bi] > 0) achCheckSimultaneous(_bi, counts[_bi]);
+  }
+}
+
 // mq を処理して実際に「合成」を実行する
 function flushMerges() {
   if (!mq.length) return;
@@ -500,6 +575,14 @@ function flushMerges() {
     if (!bmap.has(m.bA.id) || !bmap.has(m.bB.id)) continue;
     done.add(m.bA.id); done.add(m.bB.id);
     anyMerged = true;
+    _mergeCount++;
+    achCheckMergeCount(
+      parseInt(localStorage.getItem('rollaxy_total_merges') || '0', 10) + _mergeCount
+    );
+    if (m.bi >= 1 && m.bi <= 8) {
+      _bodyMergeCount[m.bi] = (_bodyMergeCount[m.bi] || 0) + 1;
+      achCheckBodyMerge(m.bi, (_savedBodyMerges[m.bi] || 0) + _bodyMergeCount[m.bi]);
+    }
 
     bmap.delete(m.bA.id); bmap.delete(m.bB.id);
     Matter.Composite.remove(world, m.bA, true);
@@ -537,7 +620,7 @@ function flushMerges() {
     updateHUD();
   }
   // 合成で生じた空間に周囲の天体が落下できるよう sleep を解除する
-  if (anyMerged) wakeAllBodies();
+  if (anyMerged) { wakeAllBodies(); _checkSimultaneous(); }
 }
 
 // ============================================================
@@ -665,6 +748,22 @@ function doGameOver() {
       String((parseInt(localStorage.getItem('rollaxy_total_score') || '0', 10)) + score));
     localStorage.setItem('rollaxy_total_drops',
       String((parseInt(localStorage.getItem('rollaxy_total_drops') || '0', 10)) + _dropCount));
+    localStorage.setItem('rollaxy_total_merges',
+      String((parseInt(localStorage.getItem('rollaxy_total_merges') || '0', 10)) + _mergeCount));
+    for (let _bi = 1; _bi <= 8; _bi++) {
+      if (_bodyMergeCount[_bi]) _savedBodyMerges[_bi] = (_savedBodyMerges[_bi] || 0) + _bodyMergeCount[_bi];
+    }
+    localStorage.setItem('rollaxy_body_merges', JSON.stringify(_savedBodyMerges));
+    localStorage.setItem('rollaxy_total_chains',
+      String((parseInt(localStorage.getItem('rollaxy_total_chains') || '0', 10)) + _chainEventCount));
+    for (let _lvl = 5; _lvl <= 15; _lvl++) {
+      if (_chainCountsByLevel[_lvl]) _savedChainCounts[_lvl] = (_savedChainCounts[_lvl] || 0) + _chainCountsByLevel[_lvl];
+    }
+    localStorage.setItem('rollaxy_chain_counts', JSON.stringify(_savedChainCounts));
+    for (let _lvl = 5; _lvl <= 10; _lvl++) {
+      if (_skillChainCountsByLevel[_lvl]) _savedSkillChainCounts[_lvl] = (_savedSkillChainCounts[_lvl] || 0) + _skillChainCountsByLevel[_lvl];
+    }
+    localStorage.setItem('rollaxy_skill_chain_counts', JSON.stringify(_savedSkillChainCounts));
     const _prevMaxTier = parseInt(localStorage.getItem('rollaxy_max_tier') || '0', 10);
     if (_highestTier > _prevMaxTier) localStorage.setItem('rollaxy_max_tier', String(_highestTier));
     if (_clusterVanishCount > 0) {
@@ -746,6 +845,7 @@ function _popBody(id) {
 // ============================================================
 function updateHUD() {
   scoreEl.textContent = `${T('score')}: ${score}`;
+  achCheckScore(score);
   const _ni = bodyImages[nxtBi];
   if (_ni && _ni.complete && _ni.naturalWidth > 0) {
     nextEmoEl.innerHTML = `<img src="${_ni.src}" style="height:1.3em;vertical-align:middle;border-radius:50%">`;

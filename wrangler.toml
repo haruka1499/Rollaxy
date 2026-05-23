@@ -12,8 +12,10 @@ binding = "ASSETS"
 
 [[d1_databases]]
 binding = "DB"
-database_name = "novora_game_staging"
+database_name = "novora_game_staging"   # ⚠️ 名前は staging だが実態は本番DB
 database_id = "0bf7131a-ee13-4b51-a05c-691bb44ac0ee"
+# D1 は database_name をあとから変更する公式手段がないため、この名前のまま運用する。
+# コード上のバインド名は "DB" で固定なので動作への影響はない。
 
 [[kv_namespaces]]
 binding = "RANKING_CACHE"

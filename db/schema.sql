@@ -1,5 +1,15 @@
 -- Rollaxy Share & Ranking — D1 スキーマ
--- 適用: wrangler d1 execute novora_game --file=db/schema.sql
+--
+-- ⚠️  DB名について
+--   wrangler.toml の database_name が "novora_game_staging" のままだが、
+--   これが実際の本番DBとして機能している（名前と実態が乖離している状態）。
+--   D1 は database_name をあとから変更する公式手段がない。
+--   binding 名（コード上の "DB"）は変わらないため動作に支障はなく、
+--   無理に変える必要もない。見た目だけの問題として放置で OK。
+--
+-- ✅  このファイルの適用コマンド（achievements テーブル追加時など）:
+--   wrangler d1 execute novora_game_staging --file=db/schema.sql
+--   （database_name に合わせて "novora_game_staging" を指定すること）
 
 CREATE TABLE IF NOT EXISTS shares (
   id                TEXT    PRIMARY KEY,
@@ -35,3 +45,12 @@ CREATE TABLE IF NOT EXISTS players (
   display_name TEXT    NOT NULL,
   updated_at   INTEGER NOT NULL
 );
+
+-- 実績解除記録（ゲームごとではなく player_id 単位で管理）
+CREATE TABLE IF NOT EXISTS achievements (
+  player_id   TEXT    NOT NULL,
+  ach_id      TEXT    NOT NULL,
+  unlocked_at INTEGER NOT NULL,
+  PRIMARY KEY (player_id, ach_id)
+);
+CREATE INDEX IF NOT EXISTS idx_ach_player ON achievements (player_id);

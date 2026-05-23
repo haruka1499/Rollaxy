@@ -1,0 +1,385 @@
+'use strict';
+
+// ============================================================
+// ころころ宇宙 — game-achievements.js
+// 実績システム（ロジック・UI）
+//
+// 実績の名前・レア度・アイコンを変更したい場合は
+// achievement-data.js を編集してください。このファイルは触らなくて OK。
+// ============================================================
+
+// ACH_RARITY / ACH_CATS は achievement-data.js で定義済み（先にロードされる）
+
+// フラットマップ（ID検索用）
+const _achById = new Map();
+for (const cat of ACH_CATS) for (const it of cat.items) _achById.set(it.id, it);
+
+// ── 永続化 ──
+function _loadAch() {
+  try { return new Set(JSON.parse(localStorage.getItem('rollaxy_ach') || '[]')); }
+  catch (_) { return new Set(); }
+}
+function _saveAch() {
+  try { localStorage.setItem('rollaxy_ach', JSON.stringify([..._unlocked])); }
+  catch (_) {}
+}
+let _unlocked = _loadAch();
+
+// ── トースト通知キュー ──
+const _toastQ = [];
+let _toastBusy  = false;
+let _toastTimer = null; // 現在のトーストの自動消去タイマーID（キャンセル可能）
+
+// 現在表示中のトーストをフェードアウトして次へ進む（タップ/タイムアウト共通）
+function _dismissToast() {
+  if (_toastTimer) { clearTimeout(_toastTimer); _toastTimer = null; }
+  const el = document.getElementById('ach-toast');
+  if (!el) { _showNextToast(); return; }
+  el.classList.remove('ach-toast-in');
+  el.classList.add('ach-toast-out');
+  setTimeout(() => {
+    el.style.display = 'none';
+    el.classList.remove('ach-toast-out');
+    _showNextToast();
+  }, 420);
+}
+
+function _showNextToast() {
+  if (!_toastQ.length) { _toastBusy = false; return; }
+  _toastBusy = true;
+
+  // ID が存在しない実績はスキップ（データ不整合対策）
+  let ach = null;
+  while (_toastQ.length && !ach) {
+    const id = _toastQ.shift();
+    ach = _achById.get(id) || null;
+  }
+  if (!ach) { _toastBusy = false; return; }
+
+  const el = document.getElementById('ach-toast');
+  if (!el) {
+    // DOM 要素がない場合も次の要素をスキップせずキューをそのまま保持して終了
+    _toastBusy = false;
+    return;
+  }
+
+  const lang   = typeof currentLang !== 'undefined' ? currentLang : 'ja';
+  const capL   = lang.charAt(0).toUpperCase() + lang.slice(1);
+  const name   = ach[`name${capL}`] || ach.nameJa;
+  const sub    = ach[`sub${capL}`]  || ach.subJa  || null;
+  const r      = ACH_RARITY[ach.rarity];
+  const label  = typeof T !== 'undefined' ? T('achNewUnlock') : '実績解除！';
+  const queueRem = _toastQ.length; // このトーストの後に残っている件数
+
+  el.innerHTML =
+    `<span class="ach-toast-icon">${ach.icon}</span>` +
+    `<div class="ach-toast-body">` +
+      `<div class="ach-toast-title">${label}</div>` +
+      `<div class="ach-toast-name">${name}</div>` +
+      (sub ? `<div class="ach-toast-sub">${sub}</div>` : '') +
+    `</div>` +
+    (queueRem > 0 ? `<div class="ach-toast-queue">+${queueRem}</div>` : '');
+
+  if (ach.rarity === 'secret') {
+    el.classList.add('ach-rainbow-border');
+    el.style.borderColor = '';
+  } else {
+    el.classList.remove('ach-rainbow-border');
+    el.style.borderColor = r.border;
+  }
+
+  el.style.display = 'flex';
+  el.classList.remove('ach-toast-out');
+  void el.offsetWidth;
+  el.classList.add('ach-toast-in');
+
+  // キューが3件以上残っている場合は表示時間を短縮
+  const duration = queueRem >= 3 ? 2500 : 4500;
+  _toastTimer = setTimeout(_dismissToast, duration);
+}
+
+// ── サーバー同期 ──
+
+// ページ読み込み時: サーバーの解除済み一覧を取得して localStorage とマージ
+// トースト通知は出さない（すでに知っている実績なので）
+async function _syncFromServer() {
+  const pid = typeof getPlayerId === 'function' ? getPlayerId() : null;
+  if (!pid) return;
+  try {
+    const res = await fetch(`/api/rollaxy/achievements?pid=${encodeURIComponent(pid)}`);
+    if (!res.ok) return;
+    const { ids } = await res.json();
+    if (!Array.isArray(ids)) return;
+    let changed = false;
+    for (const id of ids) {
+      if (!_unlocked.has(id)) { _unlocked.add(id); changed = true; }
+    }
+    if (changed) _saveAch();
+  } catch (_) {}
+}
+
+// 実績解除時: バックグラウンドでサーバーに送信
+async function _syncToServer(id) {
+  const pid = typeof getPlayerId === 'function' ? getPlayerId() : null;
+  if (!pid) return;
+  try {
+    await fetch('/api/rollaxy/achievements/unlock', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ player_id: pid, ach_id: id }),
+    });
+  } catch (_) {}
+}
+
+// ── 解除（外部から直接呼ばない） ──
+function _unlockAch(id) {
+  if (_unlocked.has(id)) return;
+  _unlocked.add(id);
+  _saveAch();
+  _syncToServer(id); // バックグラウンドでサーバーに記録（失敗しても続行）
+  _toastQ.push(id);
+  if (!_toastBusy) _showNextToast();
+}
+
+// ── ゲームから呼ばれるチェック関数 ──
+// スコアが増えた直後に updateHUD() から呼ぶ
+function achCheckScore(currentScore) {
+  for (const it of ACH_CATS[0].items) {
+    // items はスコア昇順で並んでいるので、閾値を超えない最初の要素で打ち切る
+    if (currentScore >= it.scoreThreshold) _unlockAch(it.id);
+    else break;
+  }
+}
+
+// 合成時に flushMerges() から呼ぶ（totalMerges = 累計合成数）
+function achCheckMergeCount(totalMerges) {
+  const cat = ACH_CATS.find(c => c.id === 'merge');
+  if (!cat) return;
+  for (const it of cat.items) {
+    if (totalMerges >= it.mergeThreshold) _unlockAch(it.id);
+    else break;
+  }
+}
+
+// 天体種別の合成実績チェック（bodyIndex = 合成された天体のインデックス, total = 累計）
+function achCheckBodyMerge(bodyIndex, total) {
+  const cat = ACH_CATS.find(c => c.bodyIndex === bodyIndex);
+  if (!cat) return;
+  for (const it of cat.items) {
+    if (total >= it.mergeThreshold) _unlockAch(it.id);
+    else break;
+  }
+}
+
+// 1ゲーム中の最高連鎖数チェック
+function achCheckMaxChain(max) {
+  const cat = ACH_CATS.find(c => c.id === 'chain_max');
+  if (!cat) return;
+  for (const it of cat.items) {
+    if (max >= it.mergeThreshold) _unlockAch(it.id);
+    else break;
+  }
+}
+
+// 累計連鎖回数チェック（total = 累計連鎖解決回数）
+function achCheckTotalChains(total) {
+  const cat = ACH_CATS.find(c => c.id === 'chain_total');
+  if (!cat) return;
+  for (const it of cat.items) {
+    if (total >= it.mergeThreshold) _unlockAch(it.id);
+    else break;
+  }
+}
+
+// 連続連鎖ターン数チェック
+function achCheckConsecutiveChain(count) {
+  const cat = ACH_CATS.find(c => c.id === 'chain_consec');
+  if (!cat) return;
+  for (const it of cat.items) {
+    if (count >= it.mergeThreshold) _unlockAch(it.id);
+    else break;
+  }
+}
+
+// 特定連鎖レベルの累計達成回数チェック（level=5〜15, total=累計達成回数）
+// finalCount >= level のとき、level〜finalCount の各カテゴリへ呼ぶ
+function achCheckChainByLevel(level, total) {
+  const cat = ACH_CATS.find(c => c.id === `chain${level}`);
+  if (!cat) return;
+  for (const it of cat.items) {
+    if (total >= it.mergeThreshold) _unlockAch(it.id);
+    else break;
+  }
+}
+
+// スキル使用後の連鎖チェック（finalCount = その連鎖の最終カウント）
+function achCheckSkillChain(finalCount) {
+  const cat = ACH_CATS.find(c => c.id === 'skill_chain');
+  if (!cat) return;
+  for (const it of cat.items) {
+    if (finalCount >= it.mergeThreshold) _unlockAch(it.id);
+    else break;
+  }
+}
+
+// 同時存在数チェック（bodyIndex = 天体インデックス, count = 現在フィールド上の個数）
+function achCheckSimultaneous(bodyIndex, count) {
+  const cat = ACH_CATS.find(c => c.simIndex === bodyIndex);
+  if (!cat) return;
+  for (const it of cat.items) {
+    if (count >= it.simThreshold) _unlockAch(it.id);
+    else break;
+  }
+}
+
+// スキル経由の連鎖レベル別累計チェック（level=5〜10, total=累計達成回数）
+function achCheckSkillChainByLevel(level, total) {
+  const cat = ACH_CATS.find(c => c.id === `skill_chain${level}`);
+  if (!cat) return;
+  for (const it of cat.items) {
+    if (total >= it.mergeThreshold) _unlockAch(it.id);
+    else break;
+  }
+}
+
+// ── 実績オーバーレイの中身を描画 ──
+function _renderAchBody() {
+  const bodyEl  = document.getElementById('ach-body');
+  const statsEl = document.getElementById('ach-stats');
+  if (!bodyEl) return;
+
+  const lang = typeof currentLang !== 'undefined' ? currentLang : 'ja';
+  const capL = lang.charAt(0).toUpperCase() + lang.slice(1);
+  const total    = _achById.size;
+  const unlocked = _unlocked.size;
+
+  if (statsEl) statsEl.textContent = `${unlocked} / ${total}`;
+
+  bodyEl.innerHTML = '';
+
+  for (const cat of ACH_CATS) {
+    const catUnlocked = cat.items.filter(i => _unlocked.has(i.id)).length;
+    const catName     = cat[`name${capL}`] || cat.nameJa;
+
+    const section = document.createElement('div');
+    section.className = 'ach-section';
+
+    // アコーディオンヘッダー
+    const pct = cat.items.length > 0 ? (catUnlocked / cat.items.length) * 100 : 0;
+    const hdr = document.createElement('button');
+    hdr.className = 'ach-section-hdr';
+    hdr.innerHTML =
+      `<div class="ach-cat-hdr-row">` +
+        `<span class="ach-cat-icon">${cat.icon}</span>` +
+        `<span class="ach-cat-name">${catName}</span>` +
+        `<span class="ach-cat-prog">${catUnlocked}/${cat.items.length}</span>` +
+        `<span class="ach-cat-arrow">▶</span>` +
+      `</div>` +
+      `<div class="ach-cat-bar-wrap"><div class="ach-cat-bar" style="width:${pct.toFixed(1)}%"></div></div>`;
+
+    // アイテムリスト（デフォルト折り畳み）
+    const content = document.createElement('div');
+    content.className = 'ach-section-body';
+
+    for (const it of cat.items) {
+      const isOn     = _unlocked.has(it.id);
+      const isSecret = it.rarity === 'secret';
+      const r        = ACH_RARITY[it.rarity];
+      const rawName  = it[`name${capL}`] || it.nameJa;
+      const rawCond  = it[`cond${capL}`] || it.condJa;
+      const rawSub   = it[`sub${capL}`]  || it.subJa  || null;
+      const rLbl     = r[lang] || r.ja;
+
+      // シークレット実績がロック中は名前・条件・サブテキストを隠す
+      const name = (isOn || !isSecret) ? rawName : '???';
+      const cond = (isOn || !isSecret) ? rawCond : '???';
+      const sub  = (isOn || !isSecret) ? rawSub  : null;
+
+      const card  = document.createElement('div');
+      card.className = 'ach-card' + (isOn ? ' ach-card-on' : ' ach-card-off');
+
+      if (isSecret) {
+        card.classList.add('ach-rainbow-border');
+      } else {
+        card.style.borderColor = r.border;
+        card.style.background  = r.bg;
+      }
+
+      const rarityHtml = isSecret
+        ? `<div class="ach-card-rarity ach-rainbow-text">${rLbl}</div>`
+        : `<div class="ach-card-rarity" style="color:${r.text}">${rLbl}</div>`;
+
+      card.innerHTML =
+        `<div class="ach-card-icon">${isOn ? it.icon : '🔒'}</div>` +
+        `<div class="ach-card-info">` +
+          `<div class="ach-card-name">${name}</div>` +
+          `<div class="ach-card-cond">${cond}</div>` +
+          rarityHtml +
+          (sub ? `<div class="ach-card-sub">${sub}</div>` : '') +
+        `</div>`;
+
+      content.appendChild(card);
+    }
+
+    // 開閉トグル
+    let open = false;
+    const toggle = () => {
+      open = !open;
+      content.style.display = open ? 'flex' : 'none';
+      hdr.querySelector('.ach-cat-arrow').textContent = open ? '▼' : '▶';
+    };
+    hdr.addEventListener('click',    toggle);
+    hdr.addEventListener('touchend', e => { e.preventDefault(); toggle(); });
+
+    section.appendChild(hdr);
+    section.appendChild(content);
+    bodyEl.appendChild(section);
+  }
+}
+
+// ── オーバーレイ開閉 ──
+function openAchievements() {
+  _renderAchBody();
+  document.getElementById('achievement-overlay').classList.add('show');
+}
+
+function closeAchievements() {
+  document.getElementById('achievement-overlay').classList.remove('show');
+}
+
+// ページ読み込み時にサーバーから解除済み実績を取得してマージ（バックグラウンド）
+_syncFromServer();
+
+// ── ボタンのバインド ──
+(function () {
+  const closeBtn   = document.getElementById('ach-close-btn');
+  const startBtn   = document.getElementById('start-ach-btn');
+  const menuBtn    = document.getElementById('menu-ach-btn');
+  const overlayBtn = document.getElementById('overlay-ach-btn');
+
+  const _bind = (el, fn) => {
+    if (!el) return;
+    el.addEventListener('click',    fn);
+    el.addEventListener('touchend', e => { e.preventDefault(); fn(); });
+  };
+
+  _bind(closeBtn,   closeAchievements);
+  _bind(startBtn,   openAchievements);
+  _bind(menuBtn,    openAchievements);
+  _bind(overlayBtn, openAchievements);
+
+  // トーストをタップ/クリックで即スキップ（次の実績へ）
+  const toastEl = document.getElementById('ach-toast');
+  if (toastEl) {
+    toastEl.addEventListener('click',    () => { if (_toastBusy) _dismissToast(); });
+    toastEl.addEventListener('touchend', e => { e.preventDefault(); if (_toastBusy) _dismissToast(); });
+  }
+})();
+
+// 言語切替時にオーバーレイが開いていたら再描画
+document.addEventListener('langchange', () => {
+  const overlay = document.getElementById('achievement-overlay');
+  if (overlay && overlay.classList.contains('show')) _renderAchBody();
+  const titleEl = document.getElementById('ach-title');
+  if (titleEl && typeof T !== 'undefined') titleEl.textContent = T('achievements');
+});

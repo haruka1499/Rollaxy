@@ -79,6 +79,7 @@
     <button id="retry-btn" data-i18n="retry">もう一度</button>
     <button id="share-btn" data-i18n="shareBtn">X でシェア</button>
     <a id="ranking-link" href="/games/rollaxy/ranking/" data-i18n="rankingBtn">🏆 ランキング</a>
+    <button id="overlay-ach-btn" class="ach-open-btn" data-i18n="achievements">🏆 実績</button>
     <p id="share-note"></p>
   </div>
   <div id="settings-overlay">
@@ -88,6 +89,7 @@
       <button id="resume-btn" data-i18n="resume">ゲームに戻る</button>
       <button id="menu-settings-btn" data-i18n="settings">設定</button>
       <a id="settings-ranking-link" href="/games/rollaxy/ranking/" data-i18n="rankingBtn" target="_blank" rel="noopener">🏆 ランキング</a>
+      <button id="menu-ach-btn" class="ach-open-btn" data-i18n="achievements">🏆 実績</button>
       <a id="settings-profile-link" href="/profile/" data-i18n="profileLink" target="_blank" rel="noopener">👤 プロフィール</a>
       <button id="reset-btn" data-i18n="reset">リセット</button>
     </div>
@@ -204,6 +206,19 @@
     </div>
   </div>
 
+  <!-- 実績トースト通知 -->
+  <div id="ach-toast" style="display:none"></div>
+
+  <!-- 実績オーバーレイ -->
+  <div id="achievement-overlay">
+    <div id="ach-header">
+      <span id="ach-title" data-i18n="achievements">🏆 実績</span>
+      <span id="ach-stats"></span>
+      <button id="ach-close-btn" aria-label="Close">✕</button>
+    </div>
+    <div id="ach-body"></div>
+  </div>
+
   <div id="start-overlay" class="show">
     <h2 data-i18n="title">ころころ宇宙</h2>
     <div id="start-playername">
@@ -224,6 +239,7 @@
     </div>
     <button id="start-btn" data-i18n="start">スタート</button>
     <a id="start-ranking-link" href="/games/rollaxy/ranking/" data-i18n="rankingBtn" target="_blank" rel="noopener">🏆 ランキング</a>
+    <button id="start-ach-btn" class="ach-open-btn" data-i18n="achievements">🏆 実績</button>
     <a id="start-games-link" href="/games/" data-i18n="gamesLink">🎮 ゲーム一覧</a>
   </div>
 </div>
@@ -265,6 +281,8 @@
 <script src="game-skills.js"></script>
 <script src="game-renderer.js"></script>
 <script src="game-share.js"></script>
+<script src="achievement-data.js"></script>
+<script src="game-achievements.js"></script>
 <script src="game.js"></script>
 </body>
 </html>
