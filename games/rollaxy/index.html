@@ -46,17 +46,6 @@
   3カラム flex: 左(#header-left)・中央(#next-wrap)・右(#header-right)
   左右を flex:1 にすることで中央が常に水平中央に来る
 -->
-<div id="header">
-  <div id="header-left">
-    <div id="score-el">スコア: 0</div>
-    <div id="hi-el">最高: 0</div>
-  </div>
-  <div id="next-wrap"><span data-i18n="next">次の天体</span><span id="next-emoji">💫</span></div>
-  <div id="header-right">
-    <button id="settings-btn" aria-label="Menu"><span></span><span></span><span></span></button>
-  </div>
-</div>
-
 <!--
   ゲームエリア（#canvas-outer）
   - <canvas> が物理演算・描画を担う。論理サイズ 400×700px を CSS transform で画面にフィット。
@@ -71,6 +60,16 @@
 -->
 <div id="canvas-outer">
   <canvas id="game"></canvas>
+  <div id="header">
+    <div id="header-left">
+      <div id="score-el">スコア: 0</div>
+      <div id="hi-el">最高: 0</div>
+    </div>
+    <div id="next-wrap"><span data-i18n="next">次の天体</span><span id="next-emoji">💫</span></div>
+    <div id="header-right">
+      <button id="settings-btn" aria-label="Menu"><span></span><span></span><span></span></button>
+    </div>
+  </div>
   <div id="overlay">
     <h2 data-i18n="gameOver">ゲームオーバー</h2>
     <p class="result"><span data-i18n="scoreResult">スコア</span>: <strong id="final-score">0</strong></p>
@@ -144,6 +143,7 @@
       <div>Shift+R: 全消去</div>
       <div>` : 終了</div>
     </div>
+    <button id="debug-reset-btn" title="スコア・実績・チュートリアルをリセットしてリロード">🗑 全リセット</button>
     <div id="debug-count">0 bodies</div>
   </div>
 
@@ -214,9 +214,17 @@
     <div id="ach-header">
       <span id="ach-title" data-i18n="achievements">🏆 実績</span>
       <span id="ach-stats"></span>
-      <button id="ach-close-btn" aria-label="Close">✕</button>
     </div>
     <div id="ach-body"></div>
+    <div id="ach-footer">
+      <button id="ach-back-btn" data-i18n="achBack">← 戻る</button>
+    </div>
+  </div>
+
+  <!-- チュートリアル指ポインター（初回連鎖時に最大天体の上に表示） -->
+  <div id="tutorial-pointer">
+    <div id="tut-text"></div>
+    <div id="tut-emoji">👇</div>
   </div>
 
   <div id="start-overlay" class="show">

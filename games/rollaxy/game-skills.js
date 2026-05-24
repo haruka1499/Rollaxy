@@ -91,8 +91,8 @@ function updateSkillButtons() {
   skillUpgradeCount.textContent = fmt(skillCharges.upgrade);
   skillDeleteCount.textContent  = fmt(skillCharges.delete);
 
-  // 所持数 0 またはゲーム非アクティブ時は無効化
-  const inactive = dead || waiting;
+  // 所持数 0 / ゲーム非アクティブ / チュートリアル・強制使用中は無効化
+  const inactive = dead || waiting || tutorialActive || _forcedSkillActive;
   skillBombBtn.disabled    = inactive || skillCharges.bomb    === 0;
   skillUpgradeBtn.disabled = inactive || skillCharges.upgrade === 0;
   skillDeleteBtn.disabled  = inactive || skillCharges.delete  === 0;
@@ -142,6 +142,7 @@ function showSkillHintToast(skill) {
 // スキルボタンを押したときの処理（同じスキルならトグルオフ）
 function setActiveSkill(skill) {
   if (dead || waiting) return;
+  if (tutorialActive || _forcedSkillActive) return; // 強制/チュートリアル中は切替不可
   if (activeSkill === skill) { resetSkillState(); return; } // トグルオフ
 
   // 既存スキルをキャンセルしてから新スキルを有効化
@@ -174,7 +175,12 @@ function handleSelectTap(lx, ly) {
     // upgrade の場合、最上位（銀河団 bi=11）は選択不可
     if (activeSkill === 'upgrade' && d.bi >= CFG.BODIES.length - 1) continue;
     skillSelectedId = id;
-    showConfirmPanel(id);
+    if (tutorialActive) {
+      // チュートリアル: 確認パネルなしで即適用
+      confirmSkillAction();
+    } else {
+      showConfirmPanel(id);
+    }
     return;
   }
 }
@@ -219,11 +225,22 @@ function confirmSkillAction() {
   }
 
   // 操作後に全ボディの sleep を解除する。
-  // Matter.js は enableSleeping:true のため周囲の天体が休眠しており、
-  // 天体の消滅・サイズ変化に反応できない。強制起床で重なり解消・落下を再開させる。
   wakeAllBodies();
 
+  // チュートリアル・強制使用の後処理
+  const wasTutorial = tutorialActive;
+  const wasForced   = _forcedSkillActive;
+  _sessionEverUsedSkill = true; // 強制・チュートリアル問わず「使った」として強調を解除
+
   resetSkillState();
+
+  if (wasTutorial) {
+    completeTutorial();
+  } else if (wasForced) {
+    _forcedSkillActive = false;
+    onForcedSkillUsed();
+  }
+  updateReminderHighlight();
 }
 
 // bmap 内の全天体を sleep から起こす
@@ -246,6 +263,7 @@ function wakeAllBodies() {
 }
 
 function cancelSkillAction() {
+  if (tutorialActive || _forcedSkillActive) return; // 強制/チュートリアル中はキャンセル不可
   // キャンセルは選択モードに戻る（スキル自体は継続）
   skillSelectedId = null;
   skillConfirmEl.classList.remove('show');
@@ -263,7 +281,8 @@ function showRoulette() {
   rouletteActive = true;
   rltStopping    = false;
   rltPos         = 0;
-  rltTarget      = Math.floor(Math.random() * 3); // 当選スキルを事前決定
+  // 初回チュートリアル: upgrade（index 1）に固定。2回目以降はランダム
+  rltTarget = tutorialDone ? Math.floor(Math.random() * 3) : 1;
   document.getElementById('roulette-stop').disabled = false;
   document.getElementById('roulette-overlay').classList.add('show');
   rltSetHighlight(RLT_SPIN_MS);
@@ -308,14 +327,22 @@ function rltSetHighlight(transMs) {
 }
 
 function rltFinish() {
-  // 結果を500ms見せてから閉じて次のルーレットがあれば再生
+  // 結果を500ms見せてから処理
   setTimeout(() => {
     const skill = RLT_SKILLS[rltTarget];
-    if (skillCharges[skill] !== Infinity) skillCharges[skill]++;
-    updateSkillButtons();
     document.getElementById('roulette-overlay').classList.remove('show');
     rouletteActive = false;
-    if (rouletteQueue.length > 0) setTimeout(processNextRoulette, 350);
+
+    if (!tutorialDone) {
+      // 初回チュートリアル: upgradeを強制使用させる
+      localStorage.setItem('rollaxy_tutorial_done', '1');
+      tutorialDone = true;
+      startTutorialForcedUpgrade();
+    } else {
+      // 2回目以降: 即時強制使用（チケット蓄積なし）
+      activateForcedSkill(skill);
+      // 次のルーレットはスキル使用完了後に onForcedSkillUsed() で処理
+    }
   }, 500);
 }
 
@@ -338,6 +365,7 @@ function enqueueRoulette() {
 
 function processNextRoulette() {
   if (rouletteQueue.length === 0) return;
+  if (_forcedSkillActive || tutorialActive) return; // 強制使用完了まで待機
   rouletteQueue.shift();
   showRoulette();
 }
@@ -345,9 +373,16 @@ function processNextRoulette() {
 // 5連鎖報酬をカウントアップして、状況に応じてパネルを表示
 function enqueueChoice() {
   if (dead) return; // ゲームオーバー後は報酬を与えない
+  if (!tutorialDone) {
+    // 初回チュートリアル: ルーレット（upgrade固定）に流す
+    enqueueRoulette();
+    return;
+  }
+  _session5ChainCount++;
   pendingChoiceRewards++;
   updateRewardQueueInfo();
   updateSkillBarRewardState();
+  updateReminderHighlight();
   if (chainRewardPending) return; // すでにパネル開放中 → カウント更新だけ
   if (pendingChoiceRewards === 1 && choiceAutoShow) {
     showChainRewardPanel(); // 初回かつ自動表示ON → フルパネル
@@ -410,6 +445,7 @@ function onChoicePicked(skill) {
   if (skillCharges[skill] !== Infinity) skillCharges[skill]++;
   updateSkillButtons();
   pendingChoiceRewards--;
+  _sessionEverClaimed = true; // 報酬を受け取った
   updateRewardQueueInfo();
   if (pendingChoiceRewards > 0) {
     // まだ残りあり: 手動開放中はタイマーなし、自動開放中はタイマーリセット
@@ -421,6 +457,7 @@ function onChoicePicked(skill) {
     closeChoicePanel();
   }
   updateSkillBarRewardState();
+  updateReminderHighlight();
 }
 
 // 各オーバーレイの待機件数表示を更新
@@ -457,6 +494,129 @@ autoshowBtn.addEventListener('click', () => {
   choiceAutoShow = !choiceAutoShow;
   updateAutoshowBtn();
 });
+
+// ============================================================
+// チュートリアル・強制使用ヘルパー
+// ============================================================
+
+// スキルをプログラム的に直接有効化（ボタンガードを経由しない）
+function _activateSkillDirect(skill) {
+  activeSkill    = skill;
+  bombMode       = (skill === 'bomb');
+  skillSelectMode= (skill === 'upgrade' || skill === 'delete');
+  skillSelectedId= null;
+  updateSkillButtons();
+}
+
+// 4連鎖後の強制即時使用: チャージを1追加して即有効化
+function activateForcedSkill(skill) {
+  if (skillCharges[skill] !== Infinity) skillCharges[skill]++;
+  _forcedSkillActive = true;
+  _activateSkillDirect(skill);
+}
+
+// 強制スキル使用完了時（upgrade/delete は confirmSkillAction、bomb は drop から呼ばれる）
+function onForcedSkillUsed() {
+  _forcedSkillActive = false;
+  updateSkillButtons();
+  updateReminderHighlight();
+  if (rouletteQueue.length > 0) setTimeout(processNextRoulette, 350);
+}
+
+// ---- チュートリアル ----
+
+// アップグレード可能な最大天体のIDを返す
+function findLargestUpgradableBodyId() {
+  let maxBi = -1, maxId = null;
+  for (const [id, d] of bmap.entries()) {
+    if (d.bi > maxBi && d.bi < CFG.BODIES.length - 1) {
+      maxBi = d.bi; maxId = id;
+    }
+  }
+  return maxId;
+}
+
+// チュートリアル: upgrade強制使用モードを開始してポインターを表示
+function startTutorialForcedUpgrade() {
+  const targetId = findLargestUpgradableBodyId();
+  if (!targetId) {
+    // 強化できる天体がない場合はチュートリアルをスキップ
+    return;
+  }
+  tutorialTargetId = targetId;
+  tutorialActive   = true;
+  // upgrade を強制有効化（チャージ不要: tutorial は無償）
+  if (skillCharges.upgrade !== Infinity) skillCharges.upgrade++;
+  _activateSkillDirect('upgrade');
+  showTutorialPointer();
+}
+
+// チュートリアル完了
+function completeTutorial() {
+  tutorialActive   = false;
+  tutorialTargetId = null;
+  hideTutorialPointer();
+  updateSkillButtons(); // ボタン再有効化
+}
+
+// ポインターを表示
+function showTutorialPointer() {
+  const ptr = document.getElementById('tutorial-pointer');
+  document.getElementById('tut-text').textContent = T('tutHint');
+  ptr.classList.add('show');
+}
+
+// ポインターを非表示
+function hideTutorialPointer() {
+  const ptr = document.getElementById('tutorial-pointer');
+  if (ptr) ptr.classList.remove('show');
+}
+
+// ポインター位置を毎フレーム更新（loop() から呼ばれる）
+function updateTutorialPointerEl() {
+  if (!tutorialActive) return;
+  // ターゲットが消えた（合成など）場合は最大天体を再検索
+  if (!tutorialTargetId || !bmap.has(tutorialTargetId)) {
+    tutorialTargetId = findLargestUpgradableBodyId();
+    if (!tutorialTargetId) { hideTutorialPointer(); return; }
+  }
+  const ptr = document.getElementById('tutorial-pointer');
+  if (!ptr.classList.contains('show')) return;
+  const d = bmap.get(tutorialTargetId);
+  if (!d) return;
+
+  // 論理座標 → canvas-outer 内 CSS 座標（resize() がキャッシュした値を使用）
+  const cx     = _canvasOffsetX + d.body.position.x * _canvasScale;
+  const cy     = d.body.position.y * _canvasScale;
+  const radius = d.body.circleRadius * _canvasScale;
+
+  ptr.style.left      = cx + 'px';
+  ptr.style.top       = (cy - radius - 8) + 'px'; // 天体の上端から8px上
+  // transform で下端が基準点になるよう調整（translateX(-50%) は style.cssに定義済み）
+}
+
+// ---- リマインダーハイライト ----
+
+function updateReminderHighlight() {
+  const totalCharges = skillCharges.bomb + skillCharges.upgrade + skillCharges.delete;
+  const claimBtn = document.getElementById('skill-claim');
+
+  // 報酬クレームボタン: 2回目以降の5連鎖で一度も報酬を受け取っていない場合に強調
+  const claimHighlight =
+    pendingChoiceRewards > 0 &&
+    _session5ChainCount >= 2 &&
+    !_sessionEverClaimed;
+  if (claimBtn) claimBtn.classList.toggle('skill-highlight', claimHighlight);
+
+  // スキルボタン: 報酬を受け取ったがスキルを一度も使っていない場合に強調
+  const skillHighlight =
+    totalCharges > 0 &&
+    _sessionEverClaimed &&
+    !_sessionEverUsedSkill;
+  skillBombBtn.classList.toggle(   'skill-highlight', skillHighlight && skillCharges.bomb    > 0);
+  skillUpgradeBtn.classList.toggle('skill-highlight', skillHighlight && skillCharges.upgrade > 0);
+  skillDeleteBtn.classList.toggle( 'skill-highlight', skillHighlight && skillCharges.delete  > 0);
+}
 
 // ============================================================
 // イベントリスナー（スキルボタン / 確認パネル / ルーレット / 連鎖報酬）
@@ -497,7 +657,11 @@ document.querySelectorAll('.chain-reward-btn').forEach(btn => {
 const skillClaimBtn = document.getElementById('skill-claim');
 const claimOpen = () => {
   if (dead) return;
-  if (pendingChoiceRewards > 0 && !chainRewardPending) showChainRewardPanel(true);
+  if (chainRewardPending) {
+    closeChoicePanel(); // パネルが開いているときは閉じる（トグル）
+  } else if (pendingChoiceRewards > 0) {
+    showChainRewardPanel(true);
+  }
 };
 skillClaimBtn.addEventListener('click',    claimOpen);
 skillClaimBtn.addEventListener('touchend', e => { e.preventDefault(); claimOpen(); });

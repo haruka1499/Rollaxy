@@ -339,8 +339,8 @@ function drawBodyBar() {
   // 上段: bodies[6..11] 逆順 → [銀河団, 銀河, ブラックホール, 中性子星, 白色矮星, 赤色巨星]
   const topRow = [...bodies.slice(6)].reverse();
 
-  // バー背景
-  ctx.fillStyle = 'rgba(10,5,30,0.80)';
+  // バー背景（ヘッダーと同色 #1a0e30）
+  ctx.fillStyle = '#1a0e30';
   ctx.fillRect(0, 0, CFG.W, BAR_H);
   ctx.strokeStyle = 'rgba(255,255,255,0.12)';
   ctx.lineWidth = 1;

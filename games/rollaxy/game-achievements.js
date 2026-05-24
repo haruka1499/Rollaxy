@@ -63,21 +63,18 @@ function _showNextToast() {
     return;
   }
 
-  const lang   = typeof currentLang !== 'undefined' ? currentLang : 'ja';
-  const capL   = lang.charAt(0).toUpperCase() + lang.slice(1);
-  const name   = ach[`name${capL}`] || ach.nameJa;
-  const sub    = ach[`sub${capL}`]  || ach.subJa  || null;
-  const r      = ACH_RARITY[ach.rarity];
-  const label  = typeof T !== 'undefined' ? T('achNewUnlock') : '実績解除！';
+  const lang     = typeof currentLang !== 'undefined' ? currentLang : 'ja';
+  const capL     = lang.charAt(0).toUpperCase() + lang.slice(1);
+  const name     = ach[`name${capL}`] || ach.nameJa;
+  const cond     = ach[`cond${capL}`] || ach.condJa || null;
+  const r        = ACH_RARITY[ach.rarity];
+  const label    = typeof T !== 'undefined' ? T('achNewUnlock') : '実績解除！';
   const queueRem = _toastQ.length; // このトーストの後に残っている件数
 
   el.innerHTML =
-    `<span class="ach-toast-icon">${ach.icon}</span>` +
-    `<div class="ach-toast-body">` +
-      `<div class="ach-toast-title">${label}</div>` +
-      `<div class="ach-toast-name">${name}</div>` +
-      (sub ? `<div class="ach-toast-sub">${sub}</div>` : '') +
-    `</div>` +
+    `<div class="ach-toast-title">${label}</div>` +
+    `<div class="ach-toast-name">${name}</div>` +
+    (cond ? `<div class="ach-toast-sub">${cond}</div>` : `<div class="ach-toast-sub">${name}</div>`) +
     (queueRem > 0 ? `<div class="ach-toast-queue">+${queueRem}</div>` : '');
 
   if (ach.rarity === 'secret') {
@@ -242,6 +239,46 @@ function achCheckSkillChainByLevel(level, total) {
   }
 }
 
+// ── 実績カード要素を生成（内部ヘルパー） ──
+function _makeAchCard(it, lang, capL) {
+  const isOn     = _unlocked.has(it.id);
+  const isSecret = it.rarity === 'secret';
+  const r        = ACH_RARITY[it.rarity];
+  const rawName  = it[`name${capL}`] || it.nameJa;
+  const rawCond  = it[`cond${capL}`] || it.condJa;
+  const rawSub   = it[`sub${capL}`]  || it.subJa  || null;
+  const rLbl     = r[lang] || r.ja;
+
+  const name = (isOn || !isSecret) ? rawName : '???';
+  const cond = (isOn || !isSecret) ? rawCond : '???';
+  const sub  = (isOn || !isSecret) ? rawSub  : null;
+
+  const card = document.createElement('div');
+  card.className = 'ach-card' + (isOn ? ' ach-card-on' : ' ach-card-off');
+
+  if (isSecret) {
+    card.classList.add('ach-rainbow-border');
+  } else {
+    card.style.borderColor = r.border;
+    card.style.background  = r.bg;
+  }
+
+  const rarityHtml = isSecret
+    ? `<div class="ach-card-rarity ach-rainbow-text">${rLbl}</div>`
+    : `<div class="ach-card-rarity" style="color:${r.text}">${rLbl}</div>`;
+
+  card.innerHTML =
+    `<div class="ach-card-icon">${isOn ? it.icon : '🔒'}</div>` +
+    `<div class="ach-card-info">` +
+      `<div class="ach-card-name">${name}</div>` +
+      `<div class="ach-card-cond">${cond}</div>` +
+      rarityHtml +
+      (sub ? `<div class="ach-card-sub">${sub}</div>` : '') +
+    `</div>`;
+
+  return card;
+}
+
 // ── 実績オーバーレイの中身を描画 ──
 function _renderAchBody() {
   const bodyEl  = document.getElementById('ach-body');
@@ -257,22 +294,29 @@ function _renderAchBody() {
 
   bodyEl.innerHTML = '';
 
-  for (const cat of ACH_CATS) {
-    const catUnlocked = cat.items.filter(i => _unlocked.has(i.id)).length;
-    const catName     = cat[`name${capL}`] || cat.nameJa;
+  // ACH_GROUPS の順に1グループ＝1アコーディオンで描画
+  for (const grp of ACH_GROUPS) {
+    // グループに属する全カテゴリのアイテムを順番に収集
+    const allItems = ACH_CATS
+      .filter(c => c.group === grp.id)
+      .flatMap(c => c.items);
+    if (!allItems.length) continue;
+
+    const grpUnlocked = allItems.filter(i => _unlocked.has(i.id)).length;
+    const grpName     = grp[`name${capL}`] || grp.nameJa;
 
     const section = document.createElement('div');
     section.className = 'ach-section';
 
     // アコーディオンヘッダー
-    const pct = cat.items.length > 0 ? (catUnlocked / cat.items.length) * 100 : 0;
+    const pct = (grpUnlocked / allItems.length) * 100;
     const hdr = document.createElement('button');
     hdr.className = 'ach-section-hdr';
     hdr.innerHTML =
       `<div class="ach-cat-hdr-row">` +
-        `<span class="ach-cat-icon">${cat.icon}</span>` +
-        `<span class="ach-cat-name">${catName}</span>` +
-        `<span class="ach-cat-prog">${catUnlocked}/${cat.items.length}</span>` +
+        `<span class="ach-cat-icon">${grp.icon}</span>` +
+        `<span class="ach-cat-name">${grpName}</span>` +
+        `<span class="ach-cat-prog">${grpUnlocked}/${allItems.length}</span>` +
         `<span class="ach-cat-arrow">▶</span>` +
       `</div>` +
       `<div class="ach-cat-bar-wrap"><div class="ach-cat-bar" style="width:${pct.toFixed(1)}%"></div></div>`;
@@ -281,44 +325,8 @@ function _renderAchBody() {
     const content = document.createElement('div');
     content.className = 'ach-section-body';
 
-    for (const it of cat.items) {
-      const isOn     = _unlocked.has(it.id);
-      const isSecret = it.rarity === 'secret';
-      const r        = ACH_RARITY[it.rarity];
-      const rawName  = it[`name${capL}`] || it.nameJa;
-      const rawCond  = it[`cond${capL}`] || it.condJa;
-      const rawSub   = it[`sub${capL}`]  || it.subJa  || null;
-      const rLbl     = r[lang] || r.ja;
-
-      // シークレット実績がロック中は名前・条件・サブテキストを隠す
-      const name = (isOn || !isSecret) ? rawName : '???';
-      const cond = (isOn || !isSecret) ? rawCond : '???';
-      const sub  = (isOn || !isSecret) ? rawSub  : null;
-
-      const card  = document.createElement('div');
-      card.className = 'ach-card' + (isOn ? ' ach-card-on' : ' ach-card-off');
-
-      if (isSecret) {
-        card.classList.add('ach-rainbow-border');
-      } else {
-        card.style.borderColor = r.border;
-        card.style.background  = r.bg;
-      }
-
-      const rarityHtml = isSecret
-        ? `<div class="ach-card-rarity ach-rainbow-text">${rLbl}</div>`
-        : `<div class="ach-card-rarity" style="color:${r.text}">${rLbl}</div>`;
-
-      card.innerHTML =
-        `<div class="ach-card-icon">${isOn ? it.icon : '🔒'}</div>` +
-        `<div class="ach-card-info">` +
-          `<div class="ach-card-name">${name}</div>` +
-          `<div class="ach-card-cond">${cond}</div>` +
-          rarityHtml +
-          (sub ? `<div class="ach-card-sub">${sub}</div>` : '') +
-        `</div>`;
-
-      content.appendChild(card);
+    for (const it of allItems) {
+      content.appendChild(_makeAchCard(it, lang, capL));
     }
 
     // 開閉トグル
@@ -352,7 +360,7 @@ _syncFromServer();
 
 // ── ボタンのバインド ──
 (function () {
-  const closeBtn   = document.getElementById('ach-close-btn');
+  const backBtn    = document.getElementById('ach-back-btn');
   const startBtn   = document.getElementById('start-ach-btn');
   const menuBtn    = document.getElementById('menu-ach-btn');
   const overlayBtn = document.getElementById('overlay-ach-btn');
@@ -363,7 +371,7 @@ _syncFromServer();
     el.addEventListener('touchend', e => { e.preventDefault(); fn(); });
   };
 
-  _bind(closeBtn,   closeAchievements);
+  _bind(backBtn,    closeAchievements);
   _bind(startBtn,   openAchievements);
   _bind(menuBtn,    openAchievements);
   _bind(overlayBtn, openAchievements);

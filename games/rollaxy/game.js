@@ -205,6 +205,21 @@ let choiceAutoShow = true;   // 報酬パネルを自動表示するか（設定
 let choiceAutoTimer = null;  // 自動非表示タイマー
 let choicePeekTimer = null;  // 短時間ピーク演出タイマー
 
+// ---- チュートリアル / 強制スキル使用 ----
+let tutorialDone = !!localStorage.getItem('rollaxy_tutorial_done');
+let tutorialActive = false;     // チュートリアル強制使用モード中
+let tutorialTargetId = null;    // ポインターが指す天体ID
+let _forcedSkillActive = false; // 4連鎖後の強制即時使用待ち中
+
+// ---- リマインダー追跡（セッション単位） ----
+let _session5ChainCount   = 0;     // 今セッションの5連鎖報酬付与回数
+let _sessionEverClaimed   = false; // 一度でも報酬を選択したか
+let _sessionEverUsedSkill = false; // 一度でも自分でスキルを使ったか
+
+// ---- ポインター座標変換キャッシュ ----
+let _canvasScale   = 1;
+let _canvasOffsetX = 0;
+
 // ---- デバッグモード状態 ----
 let debugMode    = false; // ` キーでトグル
 let debugBi      = 0;     // パレットで選択中の天体インデックス
@@ -304,7 +319,12 @@ function init() {
   pendingChoiceRewards = 0;
   updateRewardQueueInfo();
   updateSkillBarRewardState();
+  // チュートリアル・強制使用・リマインダーをリセット
+  tutorialActive = false; tutorialTargetId = null; _forcedSkillActive = false;
+  hideTutorialPointer();
+  _session5ChainCount = 0; _sessionEverClaimed = false; _sessionEverUsedSkill = false;
   updateSkillButtons();
+  updateReminderHighlight();
   // ゲームオーバー・設定オーバーレイを閉じ、スタート画面を表示
   overlay.classList.remove('show');         // 「ゲームオーバー時のオーバーレイ」
   document.getElementById('share-note')?.classList.remove('show');
@@ -407,6 +427,7 @@ function drop() {
     activeSkill = null;
     if (skillCharges.bomb !== Infinity) skillCharges.bomb--;
     updateSkillButtons();
+    if (_forcedSkillActive) onForcedSkillUsed(); // 強制爆弾は投下で完了
   } else {
     const def = CFG.BODIES[curBi];
     const x = clamp(dropX, CFG.BOX.L + def.r + 1, CFG.BOX.R - def.r - 1);
@@ -722,6 +743,8 @@ function doGameOver() {
   clearTimeout(chainResolveTimer); chainResolveTimer = null;
   rouletteQueue.length = 0; // キュー済みルーレットも破棄
   pendingChoiceRewards = 0; // 未受け取り報酬を破棄（スキルバーの「受け取る」ボタンを消す）
+  tutorialActive = false; tutorialTargetId = null; _forcedSkillActive = false;
+  hideTutorialPointer();
   rltReset(); // ルーレット表示中でもゲームオーバーで強制終了
   closeChoicePanel(); // updateSkillBarRewardState を内部で呼ぶ（pendingChoiceRewards=0 が先に必要）
   resetSkillState(); // スキル状態をクリア
@@ -872,6 +895,7 @@ function loop(t) {
     checkDanger();
   }
   draw();
+  if (tutorialActive) updateTutorialPointerEl();
   requestAnimationFrame(loop);
 }
 
@@ -880,17 +904,25 @@ function loop(t) {
 // canvas は論理サイズ 400×700px を固定し、CSS transform:scale で画面サイズに合わせる。
 // これにより物理演算の座標系を変えずにスマホ・PC どちらでも正しく表示できる。
 // ============================================================
+const _headerEl = document.getElementById('header');
 function resize() {
   const ow = outer.clientWidth  || CFG.W;
   const oh = outer.clientHeight || CFG.H;
   const s  = Math.min(ow / CFG.W, oh / CFG.H);
   const ox = Math.floor((ow - CFG.W * s) / 2);
+  _canvasScale = s; _canvasOffsetX = ox; // ポインター座標変換用
   canvas.style.width           = CFG.W + 'px';
   canvas.style.height          = CFG.H + 'px';
   canvas.style.transform       = `scale(${s})`;
   canvas.style.transformOrigin = 'top left';
   canvas.style.left            = ox + 'px';
   outer.style.height           = Math.ceil(CFG.H * s) + 'px';
+  // body bar（天体の段階表示）直下にヘッダーを配置
+  const _barH = Math.round(CFG.BAR_H * s);
+  _headerEl.style.top = _barH + 'px';
+  // 実績トーストを天体バーと同じ高さに
+  const _toastEl = document.getElementById('ach-toast');
+  if (_toastEl) _toastEl.style.height = _barH + 'px';
 }
 
 // ============================================================
@@ -1122,6 +1154,15 @@ document.addEventListener('langchange', () => {
 const DBG_KEYS   = '1234567890-='; // 12天体のショートカット
 const dbgPanel   = document.getElementById('debug-panel');
 const dbgCountEl = document.getElementById('debug-count');
+
+// デバッグ: ゲームデータを全リセットしてリロード
+document.getElementById('debug-reset-btn').addEventListener('click', () => {
+  const keep = new Set(['novora_lang', 'novora_displayname', 'rollaxy_sfx_vol']);
+  Object.keys(localStorage)
+    .filter(k => !keep.has(k))
+    .forEach(k => localStorage.removeItem(k));
+  location.reload();
+});
 
 function buildDebugPalette() {
   const container = document.getElementById('debug-palette');
