@@ -47,8 +47,38 @@
   左右を flex:1 にすることで中央が常に水平中央に来る
 -->
 <!--
+  スタート画面（#start-screen）
+  ゲームキャンバスとは完全に分離した独立レイヤー。
+  position: fixed で viewport 全体を不透明に覆い、ゲームが一切見えない状態を作る。
+  beginGame() で .hidden クラスを付与してフェードアウト。init() で .hidden を外してフェードイン。
+-->
+<div id="start-screen">
+  <h2 data-i18n="title">ころころ宇宙</h2>
+  <div id="start-playername">
+    <div id="start-name-view">
+      <span>👤</span>
+      <span id="start-playername-val"></span>
+      <button id="start-name-edit-btn" aria-label="Edit name">✎</button>
+    </div>
+    <div id="start-name-editor">
+      <input id="start-name-input" type="text" maxlength="15">
+      <button id="start-name-save-btn">✓</button>
+      <button id="start-name-cancel-btn">✕</button>
+    </div>
+    <div id="start-name-hint">
+      <span id="start-name-hint-msg"></span>
+      <button id="start-name-hint-ok"></button>
+    </div>
+  </div>
+  <button id="start-btn" data-i18n="start">スタート</button>
+  <a id="start-ranking-link" href="/games/rollaxy/ranking/" data-i18n="rankingBtn" target="_blank" rel="noopener">🏆 ランキング</a>
+  <button id="start-ach-btn" class="ach-open-btn" data-i18n="achievements">🏆 実績</button>
+  <a id="start-games-link" href="/games/" data-i18n="gamesLink">🎮 ゲーム一覧</a>
+</div>
+
+<!--
   ゲームエリア（#canvas-outer）
-  - <canvas> が物理演算・描画を担う。論理サイズ 400×700px を CSS transform で画面にフィット。
+  - <canvas> が物理演算・描画を担う。論理サイズ 400×772px を CSS transform で画面にフィット。
   - オーバーレイ 2種（どちらも canvas の上に absolute で重なる）:
 
   「ゲームオーバー時のオーバーレイ」= #overlay
@@ -120,11 +150,6 @@
       <button id="settings-back-btn" data-i18n="settingsBack">← 戻る</button>
     </div>
   </div>
-  <!--
-    「スタート画面」= #start-overlay
-    ページ読み込み直後に表示。スタートボタンを押すまでゲームは始まらない。
-    「もう一度」「リセット」後も init() 経由でここに戻る。
-  -->
   <!-- 連鎖表示（「N連鎖！」のポップアップ。2連鎖以上で表示） -->
   <div id="chain-display"></div>
 
@@ -227,29 +252,6 @@
     <div id="tut-emoji">👇</div>
   </div>
 
-  <div id="start-overlay">
-    <h2 data-i18n="title">ころころ宇宙</h2>
-    <div id="start-playername">
-      <div id="start-name-view">
-        <span>👤</span>
-        <span id="start-playername-val"></span>
-        <button id="start-name-edit-btn" aria-label="Edit name">✎</button>
-      </div>
-      <div id="start-name-editor">
-        <input id="start-name-input" type="text" maxlength="15">
-        <button id="start-name-save-btn">✓</button>
-        <button id="start-name-cancel-btn">✕</button>
-      </div>
-      <div id="start-name-hint">
-        <span id="start-name-hint-msg"></span>
-        <button id="start-name-hint-ok"></button>
-      </div>
-    </div>
-    <button id="start-btn" data-i18n="start">スタート</button>
-    <a id="start-ranking-link" href="/games/rollaxy/ranking/" data-i18n="rankingBtn" target="_blank" rel="noopener">🏆 ランキング</a>
-    <button id="start-ach-btn" class="ach-open-btn" data-i18n="achievements">🏆 実績</button>
-    <a id="start-games-link" href="/games/" data-i18n="gamesLink">🎮 ゲーム一覧</a>
-  </div>
 </div>
 
 <!--

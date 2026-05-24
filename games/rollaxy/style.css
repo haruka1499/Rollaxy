@@ -292,18 +292,26 @@ canvas { position: absolute; top: 0; left: 0; transform-origin: top left; }
 }
 #confirm-cancel:active { transform: scale(0.92); box-shadow: 0 1px 6px rgba(200,40,40,0.4); }
 
-/* スタート画面（#overlay と同じ半透明+blur デザイン）
-   class="show" を HTML に直書きしているので、ページ読み込み直後から表示される。
-   JS の init() が show を付け直し、beginGame() が外す。 */
-#start-overlay {
-  display: none; position: absolute; inset: 0;
-  background: rgba(0,0,0,0.78);
-  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
-  flex-direction: column; align-items: center; justify-content: center;
+/* ============================================================
+   スタート画面（#start-screen）
+   ゲームcanvasとは独立した専用レイヤー。
+   position: fixed でビューポート全体を不透明に覆い、
+   ゲームcanvasが一切透けて見えない状態を作る。
+   init()     → .hidden を外す（表示）
+   beginGame()→ .hidden を付ける（フェードアウトして非表示）
+   ============================================================ */
+#start-screen {
+  position: fixed; inset: 0; z-index: 1000;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: #060412;
   color: #fff; gap: 24px; text-align: center;
+  transition: opacity 0.35s ease;
 }
-#start-overlay.show { display: flex; }
-#start-overlay h2 { font-size: 36px; font-weight: bold; }
+#start-screen.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+#start-screen h2 { font-size: 36px; font-weight: bold; }
 
 /* ============================================================
    4連鎖ルーレット
@@ -690,7 +698,6 @@ canvas { position: absolute; top: 0; left: 0; transform-origin: top left; }
 }
 
 /* 設定オーバーレイ（#overlay と同じ半透明+blur デザイン） */
-/* z-index: 12 → #start-overlay（z-index なし＝DOM順で後）より上に表示されるよう明示 */
 #settings-overlay {
   display: none; position: absolute; inset: 0;
   background: rgba(0,0,0,0.78);
