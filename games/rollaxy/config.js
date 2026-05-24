@@ -114,4 +114,23 @@ const CFG = {
   SOUND: {
     DEFAULT_VOL: 1.0, // デフォルト音量（0.0〜1.0）。スライダーで変更した値は localStorage に保存される
   },
+
+  // ゲーム用天体画像の表示調整値（image-adjuster.html で決定した値）
+  // ゲーム本体 (images/*.png) 専用。OGP用画像 (images/ogp/*.png) の調整値は
+  // サーバー側の src/constants.js BODY_IMAGE_ADJUST で別途管理する。
+  // scale: カバースケールへの乗数 / ox,oy: 中心からのオフセット（ゲーム px）
+  IMAGE_ADJUST: [
+    /*  0: 宇宙塵         */ { scale: 1.22, ox:  0.2, oy:  0.1 },
+    /*  1: 小惑星         */ { scale: 1.39, ox:  0.0, oy:  1.0 },
+    /*  2: 月             */ { scale: 1.23, ox:  0.5, oy:  1.0 },
+    /*  3: 地球           */ { scale: 1.19, ox:  0.8, oy:  0.6 },
+    /*  4: 木星           */ { scale: 1.09, ox:  0.3, oy:  1.0 },
+    /*  5: 太陽           */ { scale: 1.20, ox:  0.0, oy:  0.0 },
+    /*  6: 赤色巨星       */ { scale: 1.14, ox:  0.0, oy:  0.0 },
+    /*  7: 白色矮星       */ { scale: 1.35, ox:  0.0, oy:  0.0 },
+    /*  8: 中性子星       */ { scale: 2.39, ox:  0.0, oy:  1.5 },
+    /*  9: ブラックホール */ { scale: 1.20, ox:  0.5, oy:  5.0 },
+    /* 10: 銀河           */ { scale: 1.01, ox: -0.1, oy: 10.0 },
+    /* 11: 銀河団         */ { scale: 1.05, ox:  0.0, oy:  0.0 },
+  ],
 };

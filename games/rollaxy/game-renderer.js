@@ -191,7 +191,7 @@ function draw() {
       // カスタム画像（あれば）
       const _bimg = bodyImages[p.bi];
       if (_bimg && _bimg.complete && _bimg.naturalWidth > 0) {
-        const _adj = IMG_ADJUST[p.bi] || { scale: 1, ox: 0, oy: 0 };
+        const _adj = CFG.IMAGE_ADJUST[p.bi] || { scale: 1, ox: 0, oy: 0 };
         const _s   = Math.max(
           (def.r * 2) / _bimg.naturalWidth,
           (def.r * 2) / _bimg.naturalHeight
@@ -268,7 +268,7 @@ function paintBody(x, y, angle, bi, glowT = 0) {
   // 絵文字 / テキスト or カスタム画像
   const _bimg = bodyImages[bi];
   if (_bimg && _bimg.complete && _bimg.naturalWidth > 0) {
-    const _adj = IMG_ADJUST[bi] || { scale: 1, ox: 0, oy: 0 };
+    const _adj = CFG.IMAGE_ADJUST[bi] || { scale: 1, ox: 0, oy: 0 };
     const _scale = Math.max((def.r * 2) / _bimg.naturalWidth, (def.r * 2) / _bimg.naturalHeight) * _adj.scale;
     const _dw = _bimg.naturalWidth  * _scale;
     const _dh = _bimg.naturalHeight * _scale;
@@ -359,7 +359,7 @@ function drawBodyBar() {
     ctx.strokeStyle = 'rgba(0,0,0,0.2)'; ctx.lineWidth = 0.8; ctx.stroke();
     const _bimg = bi !== undefined ? bodyImages[bi] : null;
     if (_bimg && _bimg.complete && _bimg.naturalWidth > 0) {
-      const _adj = (bi !== undefined && IMG_ADJUST[bi]) ? IMG_ADJUST[bi] : { scale: 1, ox: 0, oy: 0 };
+      const _adj = (bi !== undefined && CFG.IMAGE_ADJUST[bi]) ? CFG.IMAGE_ADJUST[bi] : { scale: 1, ox: 0, oy: 0 };
       const _ds  = r / CFG.BODIES[bi].r; // ゲームpx → 表示px 変換率
       const _scale = Math.max((r * 2) / _bimg.naturalWidth, (r * 2) / _bimg.naturalHeight) * _adj.scale;
       const _dw = _bimg.naturalWidth  * _scale;
