@@ -1248,7 +1248,12 @@ buildDebugPalette();
 buildLangSelector();
 applyLang();
 init();
-beginGame(); // [TEMP_AUTOSTART] ページ読み込み時のみスタート画面をスキップして即ゲーム開始
+// [TEMP_AUTOSTART] サイト生涯で1回だけスタート画面をスキップして即ゲーム開始。
+// 2回目以降・リトライ・リセット後はスタート画面を表示する。
+if (!localStorage.getItem('rollaxy_autostarted')) {
+  localStorage.setItem('rollaxy_autostarted', '1');
+  beginGame();
+}
 updateStartPlayername();
 updateNameHint();
 updateAutoshowBtn(); // game-skills.js のロード時点では choiceAutoShow 未定義のためここで呼ぶ
