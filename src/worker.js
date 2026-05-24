@@ -796,7 +796,7 @@ export default {
     if (ogpMatch && method === 'GET') {
       const id = ogpMatch[1];
       if (!ID_RE.test(id)) return new Response('Not found', { status: 404 });
-      return handleOgp(id, env);
+      return handleOgp(id, env, url);
     }
 
     return env.ASSETS.fetch(request);

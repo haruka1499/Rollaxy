@@ -15,12 +15,18 @@ function toBase64(buffer) {
 }
 
 async function loadFont(env) {
+  const url = `${SITE_URL}/games/rollaxy/fonts/SpaceMono-Regular.ttf`;
   try {
-    const res = await env.ASSETS.fetch(
-      new Request(`${SITE_URL}/games/rollaxy/fonts/SpaceMono-Regular.ttf`)
-    );
-    if (res.ok) return await res.arrayBuffer();
-  } catch (_) {}
+    const res = await env.ASSETS.fetch(new Request(url));
+    if (res.ok) {
+      const buf = await res.arrayBuffer();
+      console.log(`[ogp] font loaded: ${buf.byteLength} bytes`);
+      return buf;
+    }
+    console.warn(`[ogp] font load failed: ${url} → HTTP ${res.status}`);
+  } catch (err) {
+    console.warn(`[ogp] font load error: ${url} → ${err}`);
+  }
   return null;
 }
 
@@ -149,16 +155,27 @@ ${todayEl}
 </svg>`;
 }
 
-export async function handleOgp(id, env) {
+export async function handleOgp(id, env, url) {
+  // ── 診断モード ──
+  //   ?debug=1     → フォント/画像/レンダリングの状態を JSON で返す（キャッシュ無視）
+  //   ?format=svg  → 生 SVG を返す（ブラウザはシステムフォントで描画するため
+  //                  「SVG構造は正しいがフォント未ロード」かを切り分けられる）
+  //   ?nocache=1   → KV キャッシュをスキップして必ず再生成
+  const debug   = url?.searchParams.get('debug')  === '1';
+  const fmtSvg  = url?.searchParams.get('format') === 'svg';
+  const noCache = debug || fmtSvg || url?.searchParams.get('nocache') === '1';
+
   const cacheKey = `ogp:${id}`;
-  try {
-    const cached = await env.RANKING_CACHE.get(cacheKey, 'arrayBuffer');
-    if (cached) {
-      return new Response(cached, {
-        headers: { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=86400' },
-      });
-    }
-  } catch (_) {}
+  if (!noCache) {
+    try {
+      const cached = await env.RANKING_CACHE.get(cacheKey, 'arrayBuffer');
+      if (cached) {
+        return new Response(cached, {
+          headers: { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=86400' },
+        });
+      }
+    } catch (_) {}
+  }
 
   const row = await env.DB.prepare(
     `SELECT score, highest_body_tier, snapshot_payload FROM shares WHERE id=?`
@@ -186,23 +203,63 @@ export async function handleOgp(id, env) {
   ]);
 
   const svg = buildOgpSVG(row, rank, total, todayRank, todayTotal, fontBuffer, bodyImages, bodies);
+
+  // ── ?format=svg: 生 SVG を返す ──
+  if (fmtSvg) {
+    return new Response(svg, {
+      headers: { 'Content-Type': 'image/svg+xml; charset=utf-8', 'Cache-Control': 'no-store' },
+    });
+  }
+
   const resvgOpts = {
     fitTo: { mode: 'width', value: 1200 },
     ...(fontBuffer ? { font: { fontBuffers: [fontBuffer], loadSystemFonts: false } } : {}),
   };
 
-  let png;
+  let png, renderError = null;
   try {
     const resvg = await Resvg.async(svg, resvgOpts);
     png = resvg.render().asPng();
   } catch (err) {
+    renderError = String(err);
     console.error('resvg render failed:', err);
-    return new Response('Image generation failed', { status: 500 });
+    if (!debug) return new Response('Image generation failed', { status: 500 });
   }
 
-  try {
-    await env.RANKING_CACHE.put(cacheKey, png, { expirationTtl: 86400 });
-  } catch (_) {}
+  // ── ?debug=1: 診断 JSON を返す ──
+  if (debug) {
+    return new Response(JSON.stringify({
+      id,
+      score: row.score,
+      rank, total, todayRank, todayTotal,
+      font: {
+        loaded:    !!fontBuffer,
+        bytes:     fontBuffer ? fontBuffer.byteLength : 0,
+        fontFamily: fontBuffer ? 'SpaceMono' : 'monospace',
+        hint:      fontBuffer ? null
+          : 'フォント未ロード → Cloudflare Workers にシステムフォントが無いため全テキストが不可視になります。games/rollaxy/fonts/SpaceMono-Regular.ttf を配置してください。',
+      },
+      bodies: {
+        count:       bodies.length,
+        usedTiers:   [...new Set(bodies.map(b => Math.max(0, Math.min(11, b.tier))))],
+        imagesLoaded: Object.keys(bodyImages).length,
+      },
+      render: {
+        ok:        !renderError,
+        error:     renderError,
+        pngBytes:  png ? png.byteLength : 0,
+      },
+      svgLength: svg.length,
+    }, null, 2), {
+      headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' },
+    });
+  }
+
+  if (!noCache) {
+    try {
+      await env.RANKING_CACHE.put(cacheKey, png, { expirationTtl: 86400 });
+    } catch (_) {}
+  }
 
   return new Response(png, {
     headers: { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=86400' },
