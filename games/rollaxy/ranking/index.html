@@ -343,7 +343,7 @@ document.getElementById('back-btn').addEventListener('click', () => {
 // ── URL state ──
 const VALID_PERIODS = ['all', 'weekly', 'daily'];
 const params = new URLSearchParams(location.search);
-let period = VALID_PERIODS.includes(params.get('period')) ? params.get('period') : 'weekly';
+let period = VALID_PERIODS.includes(params.get('period')) ? params.get('period') : 'daily';
 
 // ── タブ ──
 function renderTabs() {
@@ -363,7 +363,7 @@ document.querySelectorAll('.rank-tab').forEach(btn => {
 });
 
 window.addEventListener('popstate', e => {
-  period = e.state?.period || 'weekly';
+  period = e.state?.period || 'daily';
   renderTabs();
   loadRanking();
 });
