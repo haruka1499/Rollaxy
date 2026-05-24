@@ -112,31 +112,43 @@ function buildOgpSVG(share, rank, total, todayRank, todayTotal, fontBuffer, body
   const allPct   = calcPct(rank, total);
   const todayPct = todayTotal > 0 ? calcPct(todayRank, todayTotal) : null;
 
-  const todayEl = todayPct != null
-    ? `  <text x="840" y="452" font-family="${fontFamily}" font-size="13" fill="#2b1a40" text-anchor="middle" letter-spacing="2">TODAY  TOP</text>
-  <text x="840" y="512" font-family="${fontFamily}" font-size="52" font-weight="bold" fill="#8866cc" text-anchor="middle">${todayPct}%</text>`
-    : '';
+  // Adjust main % size and position depending on whether today section is shown
+  const allPctY  = todayPct != null ? 388 : 430;
+  const allPctSz = todayPct != null ? 98  : 122;
+
+  const todayEl = todayPct != null ? `
+  <line x1="600" y1="432" x2="1080" y2="432" stroke="#150c28" stroke-width="1"/>
+  <rect x="575" y="444" width="530" height="118" rx="12" ry="12" fill="rgba(30,14,58,0.65)" stroke="rgba(100,60,180,0.32)" stroke-width="1.5"/>
+  <text x="840" y="479" font-family="${fontFamily}" font-size="11" fill="#5544aa" text-anchor="middle" letter-spacing="5">T O D A Y   T O P</text>
+  <text x="840" y="554" font-family="${fontFamily}" font-size="62" font-weight="bold" fill="#9966cc" text-anchor="middle">${todayPct}%</text>` : '';
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630">
   <rect width="1200" height="630" fill="#060412"/>
+  <rect x="0" y="0" width="480" height="630" fill="#0a0818"/>
   <circle cx="55"  cy="45"  r="1.5" fill="#fff" opacity="0.6"/>
   <circle cx="330" cy="28"  r="2"   fill="#fff" opacity="0.5"/>
   <circle cx="820" cy="75"  r="1.5" fill="#fff" opacity="0.5"/>
   <circle cx="1100" cy="38" r="1"   fill="#fff" opacity="0.4"/>
   <circle cx="930" cy="555" r="1.5" fill="#fff" opacity="0.6"/>
-  <rect x="0" y="0" width="480" height="630" fill="#0a0818"/>
+  <circle cx="1155" cy="480" r="1.2" fill="#fff" opacity="0.4"/>
+  <circle cx="700" cy="578" r="1"   fill="#fff" opacity="0.3"/>
+  <circle cx="512" cy="310" r="1"   fill="#fff" opacity="0.25"/>
   ${board}
   <line x1="480" y1="40" x2="480" y2="590" stroke="#7744bb" stroke-width="1" opacity="0.4"/>
   <!-- ── 右パネル ── -->
-  <text x="840" y="65" font-family="${fontFamily}" font-size="40" font-weight="bold" fill="#6633bb" text-anchor="middle" letter-spacing="8">ROLLAXY</text>
-  <text x="840" y="155" font-family="${fontFamily}" font-size="78" font-weight="bold" fill="#ffffff" text-anchor="middle">${scoreStr}</text>
-  <text x="840" y="180" font-family="${fontFamily}" font-size="15" fill="#44335a" text-anchor="middle" letter-spacing="2">pts</text>
-  <line x1="540" y1="202" x2="1140" y2="202" stroke="#170e2a" stroke-width="1"/>
-  <text x="840" y="245" font-family="${fontFamily}" font-size="18" fill="#443368" text-anchor="middle" letter-spacing="4">TOP</text>
-  <text x="840" y="385" font-family="${fontFamily}" font-size="120" font-weight="bold" fill="#cc88ff" text-anchor="middle">${allPct}%</text>
-  <line x1="540" y1="415" x2="1140" y2="415" stroke="#170e2a" stroke-width="1"/>
+  <text x="840" y="56" font-family="${fontFamily}" font-size="34" font-weight="bold" fill="#6633bb" text-anchor="middle" letter-spacing="10">ROLLAXY</text>
+  <line x1="555" y1="68" x2="1125" y2="68" stroke="#170e2a" stroke-width="1"/>
+  <!-- スコアカード -->
+  <rect x="555" y="80" width="570" height="148" rx="14" ry="14" fill="rgba(40,18,75,0.55)" stroke="rgba(120,68,200,0.38)" stroke-width="1.5"/>
+  <text x="840" y="118" font-family="${fontFamily}" font-size="11" fill="#5544aa" text-anchor="middle" letter-spacing="5">S C O R E</text>
+  <text x="840" y="196" font-family="${fontFamily}" font-size="76" font-weight="bold" fill="#ffffff" text-anchor="middle">${scoreStr}</text>
+  <text x="840" y="218" font-family="${fontFamily}" font-size="11" fill="#443368" text-anchor="middle" letter-spacing="3">p t s</text>
+  <!-- ランキングセクション -->
+  <line x1="600" y1="248" x2="1080" y2="248" stroke="#150c28" stroke-width="1"/>
+  <text x="840" y="280" font-family="${fontFamily}" font-size="12" fill="#443368" text-anchor="middle" letter-spacing="5">ALL  TIME  TOP</text>
+  <text x="840" y="${allPctY}" font-family="${fontFamily}" font-size="${allPctSz}" font-weight="bold" fill="#cc88ff" text-anchor="middle">${allPct}%</text>
 ${todayEl}
-  <text x="840" y="598" font-family="${fontFamily}" font-size="18" fill="#2e1a44" text-anchor="middle" letter-spacing="5">NOVORA GAME</text>
+  <text x="840" y="610" font-family="${fontFamily}" font-size="14" fill="#2e1a44" text-anchor="middle" letter-spacing="5">NOVORA GAME</text>
 </svg>`;
 }
 
