@@ -58,7 +58,7 @@ async function _createShare() {
       signal: controller.signal,
     });
     if (res.ok) {
-      const { id, rank, total } = await res.json();
+      const { id, rank, total, periods } = await res.json();
       _pendingShareId = id;
       addMyShareId(id, shareScore); // share_ids / best_share_id を localStorage に記録
       // OGP 画像をバックグラウンドで生成（fire-and-forget）
