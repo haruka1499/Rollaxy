@@ -4,7 +4,7 @@
   <!-- [TEMP_REDIRECT] ゲームが Rollaxy 1本のみのため、ゲーム一覧ページを直接リダイレクト。
        ゲームが増えてゲーム一覧ページを充実させる際はこの <script> ブロックを削除すること。
        grep 'TEMP_REDIRECT' で index.html / games/index.html の両方が見つかる。 -->
-  <script>window.location.replace('/games/rollaxy/');</script>
+  <script>if (!localStorage.getItem('novora_visited')) { localStorage.setItem('novora_visited', '1'); window.location.replace('/games/rollaxy/'); }</script>
   <!-- Google tag (gtag.js) -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-FFF4H3EVV8"></script>
   <script>
