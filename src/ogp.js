@@ -63,13 +63,14 @@ async function loadBodyImages(env, bodies) {
 // → 画像ロード失敗 / resvg が <image> を未サポートでも円が消えない防御的設計。
 // !! <defs> は shapes より必ず前に出力すること（SVG clipPath の参照前定義が必要）
 function buildOgpBoardCircles(bodies, bodyImages) {
-  const scale = Math.min(460 / 400, 590 / 700);
+  // キャンバス論理サイズ: W=400, H=772 / ゲームボード: BOX.L=18, BOX.R=382, BOX.T=240, BOX.B=760
+  const scale = Math.min(460 / 400, 590 / 772);
   const offX  = (460 - 400 * scale) / 2 + 10;
-  const offY  = (630 - 700 * scale) / 2;
+  const offY  = (630 - 772 * scale) / 2;
   const bx = (offX + 18 * scale).toFixed(1);
-  const by = (offY + 168 * scale).toFixed(1);
+  const by = (offY + 240 * scale).toFixed(1);
   const bw = ((382 - 18) * scale).toFixed(1);
-  const bh = ((688 - 168) * scale).toFixed(1);
+  const bh = ((760 - 240) * scale).toFixed(1);
 
   let defs   = '<defs>';
   let shapes = `<rect x="${bx}" y="${by}" width="${bw}" height="${bh}" fill="#0c0720" stroke="#7744bb" stroke-width="1.5"/>`;
