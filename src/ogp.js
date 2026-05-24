@@ -171,14 +171,37 @@ ${todayEl}
 </svg>`;
 }
 
+// resvg が投げるエラーを可能な限り読める文字列に変換する。
+// @cf-wasm/resvg はエラーメッセージを ArrayBuffer / Uint8Array で投げることがあり、
+// String(err) では "[object ArrayBuffer]" としか取れないため UTF-8 デコードを試みる。
+function describeError(err) {
+  try {
+    if (err instanceof ArrayBuffer) return new TextDecoder().decode(new Uint8Array(err));
+    if (ArrayBuffer.isView(err))    return new TextDecoder().decode(err);
+    if (err && typeof err === 'object') {
+      const parts = [];
+      if (err.message) parts.push(`message: ${err.message}`);
+      if (err.name)    parts.push(`name: ${err.name}`);
+      if (err.stack)   parts.push(`stack: ${err.stack}`);
+      if (parts.length) return parts.join(' | ');
+      try { return JSON.stringify(err); } catch (_) {}
+    }
+    return String(err);
+  } catch (e) {
+    return `describeError failed: ${e}`;
+  }
+}
+
 export async function handleOgp(id, env, url) {
   // ── 診断モード ──
   //   ?debug=1     → フォント/画像/レンダリングの状態を JSON で返す（キャッシュ無視）
   //   ?format=svg  → 生 SVG を返す（ブラウザはシステムフォントで描画するため
   //                  「SVG構造は正しいがフォント未ロード」かを切り分けられる）
   //   ?nocache=1   → KV キャッシュをスキップして必ず再生成
+  //   ?noimg=1     → 天体画像の埋め込みを省略（着色円のみ）→ 画像が原因か切り分け
   const debug   = url?.searchParams.get('debug')  === '1';
   const fmtSvg  = url?.searchParams.get('format') === 'svg';
+  const noImg   = url?.searchParams.get('noimg')  === '1';
   const noCache = debug || fmtSvg || url?.searchParams.get('nocache') === '1';
 
   const cacheKey = `ogp:${id}`;
@@ -215,7 +238,7 @@ export async function handleOgp(id, env, url) {
 
   const [fontBuffer, bodyImages] = await Promise.all([
     loadFont(env),
-    loadBodyImages(env, bodies),
+    noImg ? Promise.resolve({}) : loadBodyImages(env, bodies),
   ]);
 
   const svg = buildOgpSVG(row, rank, total, todayRank, todayTotal, fontBuffer, bodyImages, bodies);
@@ -232,13 +255,19 @@ export async function handleOgp(id, env, url) {
     ...(fontBuffer ? { font: { fontBuffers: [fontBuffer], loadSystemFonts: false } } : {}),
   };
 
-  let png, renderError = null;
+  // 各段階を分離して、どこで失敗したかを特定できるようにする。
+  let png, renderError = null, renderStage = null;
   try {
+    renderStage = 'Resvg.async';
     const resvg = await Resvg.async(svg, resvgOpts);
-    png = resvg.render().asPng();
+    renderStage = 'render';
+    const rendered = resvg.render();
+    renderStage = 'asPng';
+    png = rendered.asPng();
+    renderStage = 'done';
   } catch (err) {
-    renderError = String(err);
-    console.error('resvg render failed:', err);
+    renderError = describeError(err);
+    console.error(`[ogp] resvg failed at stage="${renderStage}":`, renderError);
     if (!debug) return new Response('Image generation failed', { status: 500 });
   }
 
@@ -259,9 +288,11 @@ export async function handleOgp(id, env, url) {
         count:       bodies.length,
         usedTiers:   [...new Set(bodies.map(b => Math.max(0, Math.min(11, b.tier))))],
         imagesLoaded: Object.keys(bodyImages).length,
+        skipped:     noImg,
       },
       render: {
         ok:        !renderError,
+        stage:     renderStage,
         error:     renderError,
         pngBytes:  png ? png.byteLength : 0,
       },
