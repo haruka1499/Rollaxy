@@ -75,6 +75,32 @@ function explodeBomb(pos) {
 }
 
 // ============================================================
+// 強制スキルバナー（ヘッダー中央の次の天体表示を差し替え）
+// ============================================================
+const _forcedInfoEl  = document.getElementById('forced-skill-info');
+const _forcedTitleEl = document.getElementById('forced-skill-title');
+const _forcedDescEl  = document.getElementById('forced-skill-desc');
+const _nextNormalEl  = document.getElementById('next-normal');
+
+function updateForcedSkillBanner() {
+  if (_forcedSkillActive && activeSkill) {
+    const cap = activeSkill.charAt(0).toUpperCase() + activeSkill.slice(1);
+    _forcedTitleEl.textContent   = T('forcedTitle' + cap);
+    _forcedTitleEl.dataset.skill = activeSkill;
+    _forcedDescEl.textContent    = T('forcedDesc'  + cap);
+    _nextNormalEl.style.display  = 'none';
+    _forcedInfoEl.classList.add('show');
+  } else {
+    _nextNormalEl.style.display = '';
+    _forcedInfoEl.classList.remove('show');
+  }
+}
+
+document.addEventListener('langchange', () => {
+  if (_forcedSkillActive) updateForcedSkillBanner();
+});
+
+// ============================================================
 // スキル共通管理
 // ============================================================
 
@@ -103,6 +129,7 @@ function resetSkillState() {
   skillSelectMode = false; skillSelectedId = null;
   skillConfirmEl.classList.remove('show');
   updateSkillButtons();
+  updateForcedSkillBanner();
 }
 
 // ── 初回タップ時のワンショットトースト ──
@@ -514,6 +541,7 @@ function activateForcedSkill(skill) {
   if (skillCharges[skill] !== Infinity) skillCharges[skill]++;
   _forcedSkillActive = true;
   _activateSkillDirect(skill);
+  updateForcedSkillBanner();
 }
 
 // 強制スキル使用完了時（upgrade/delete は confirmSkillAction、bomb は drop から呼ばれる）

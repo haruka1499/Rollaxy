@@ -59,6 +59,12 @@ const LANGS = {
     skillHintBomb:    '💣 次の投下に爆弾を使います。着地後に爆発！',
     skillHintUpgrade: '⬆ 天体を1つタップして1段階強化します',
     skillHintDelete:  '✕ 天体を1つタップして削除します',
+    forcedTitleBomb:    '爆弾モード',
+    forcedDescBomb:     '爆弾を落とせ！',
+    forcedTitleUpgrade: '進化モード',
+    forcedDescUpgrade:  '天体を進化させよ',
+    forcedTitleDelete:  '消去モード',
+    forcedDescDelete:   '削除する天体を選択せよ',
   },
   en: {
     name:        'English',
@@ -114,6 +120,12 @@ const LANGS = {
     skillHintBomb:    '💣 Bomb drops as your next body. Explodes on landing!',
     skillHintUpgrade: '⬆ Tap a body to upgrade it by 1 tier',
     skillHintDelete:  '✕ Tap a body to remove it',
+    forcedTitleBomb:    'Bomb Mode',
+    forcedDescBomb:     'Drop the bomb!',
+    forcedTitleUpgrade: 'Evolve Mode',
+    forcedDescUpgrade:  'Evolve a body!',
+    forcedTitleDelete:  'Erase Mode',
+    forcedDescDelete:   'Select a body to erase',
   },
   zh: {
     name:        '中文',
@@ -169,6 +181,12 @@ const LANGS = {
     skillHintBomb:    '💣 将炸弹作为下一个投放物使用，落地后爆炸！',
     skillHintUpgrade: '⬆ 点击一个天体将其升级一阶',
     skillHintDelete:  '✕ 点击一个天体将其删除',
+    forcedTitleBomb:    '炸弹模式',
+    forcedDescBomb:     '投下炸弹！',
+    forcedTitleUpgrade: '进化模式',
+    forcedDescUpgrade:  '让天体进化！',
+    forcedTitleDelete:  '消除模式',
+    forcedDescDelete:   '选择要删除的天体',
   },
 };
 

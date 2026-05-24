@@ -36,6 +36,26 @@ body { display: flex; flex-direction: column; align-items: center; }
 #hi-el    { font-size: 13px; opacity: 0.75; margin-top: 2px; }
 #next-wrap { font-size: 12px; text-align: center; line-height: 1.3; }
 #next-emoji { font-size: 28px; display: block; }
+#next-normal { line-height: 1.3; }
+#forced-skill-info {
+  display: none;
+  line-height: 1.4;
+  animation: forcedSkillIn 0.22s ease both;
+}
+#forced-skill-info.show { display: block; }
+#forced-skill-title {
+  display: block; font-size: 13px; font-weight: bold; letter-spacing: 0.04em;
+}
+#forced-skill-title[data-skill="bomb"]    { color: #ffcc44; }
+#forced-skill-title[data-skill="upgrade"] { color: #cc88ff; }
+#forced-skill-title[data-skill="delete"]  { color: #ff8888; }
+#forced-skill-desc {
+  display: block; font-size: 10px; color: rgba(255,255,255,0.65); margin-top: 2px;
+}
+@keyframes forcedSkillIn {
+  from { opacity: 0; transform: scale(0.85); }
+  to   { opacity: 1; transform: scale(1); }
+}
 
 /* 設定ボタン
    スマホ向け: border-radius: 8px（四角）にしてタップ判定を広く取る。
