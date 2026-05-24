@@ -263,10 +263,11 @@ function wakeAllBodies() {
 }
 
 function cancelSkillAction() {
-  if (tutorialActive || _forcedSkillActive) return; // 強制/チュートリアル中はキャンセル不可
-  // キャンセルは選択モードに戻る（スキル自体は継続）
+  if (tutorialActive) return; // チュートリアル中はキャンセル不可
+  // 強制スキル中も選び直しを許可（スキル自体はキャンセルできない）
   skillSelectedId = null;
   skillConfirmEl.classList.remove('show');
+  updateSkillButtons();
 }
 
 // ============================================================
