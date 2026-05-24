@@ -19,7 +19,9 @@ async function loadFont(env) {
   try {
     const res = await env.ASSETS.fetch(new Request(url));
     if (res.ok) {
-      const buf = await res.arrayBuffer();
+      // resvg の fontBuffers は Uint8Array[] を期待する。
+      // ArrayBuffer のまま渡すと WASM が解釈できずフォントバッファを例外として投げ返す。
+      const buf = new Uint8Array(await res.arrayBuffer());
       console.log(`[ogp] font loaded: ${buf.byteLength} bytes`);
       return buf;
     }
