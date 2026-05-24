@@ -325,15 +325,14 @@ function init() {
   _session5ChainCount = 0; _sessionEverClaimed = false; _sessionEverUsedSkill = false;
   updateSkillButtons();
   updateReminderHighlight();
-  // ゲームオーバー・設定オーバーレイを閉じ、スタート画面を表示
+  // ゲームオーバー・設定オーバーレイを閉じる（スタート画面は表示しない）
   overlay.classList.remove('show');         // 「ゲームオーバー時のオーバーレイ」
   document.getElementById('share-note')?.classList.remove('show');
   const _rankPctEl = document.getElementById('rank-pct-el');
   if (_rankPctEl) { _rankPctEl.style.display = 'none'; _rankPctEl.textContent = ''; }
   _restoreShareButton();
   settingsOverlay.classList.remove('show'); // 「設定を開いたとき」の画面
-  startOverlay.classList.add('show');       // 「スタート画面」
-  updateStartPlayername();                  // スタート画面のプレイヤー名を最新に
+  startOverlay.classList.remove('show');    // 念のため非表示を保証
   dropX = CFG.W / 2; canDrop = true;
   bmap = new Map(); mq = []; glowMap = new Map();
   if (dropTimer) clearTimeout(dropTimer);
@@ -373,6 +372,7 @@ function init() {
   Matter.Events.on(eng, 'afterUpdate',     scanNearby);       // 近距離ペアを補完スキャン
   Matter.Events.on(eng, 'afterUpdate',     flushMerges);      // スキャン結果を処理（登録順で後に実行）
   updateHUD();
+  beginGame(); // スタート画面をスキップして即ゲーム開始
 }
 
 // 出現する天体をランダム選択（0 〜 MAX_SPAWN の範囲）
@@ -955,6 +955,7 @@ canvas.addEventListener('mouseleave', () => { debugDragging = false; });
 canvas.addEventListener('contextmenu', e => { if (debugMode) e.preventDefault(); });
 canvas.addEventListener('click', e => {
   if (debugMode) return; // デバッグモード中は通常のクリック操作をスキップ
+  _tryUnlockAudio(); // 最初のクリックで音声を解除
   const lx = toLogicalX(e.clientX);
   if (skillSelectMode) { handleSelectTap(lx, toLogicalY(e.clientY)); return; }
   dropX = lx; drop();
@@ -967,6 +968,7 @@ canvas.addEventListener('touchmove', e => {
 
 canvas.addEventListener('touchend', e => {
   e.preventDefault();
+  _tryUnlockAudio(); // 最初のタップで音声を解除
   const lx = toLogicalX(e.changedTouches[0].clientX);
   const ly = toLogicalY(e.changedTouches[0].clientY);
   if (skillSelectMode) { handleSelectTap(lx, ly); return; }
@@ -986,19 +988,27 @@ retryBtn.addEventListener('touchend', e => {
   init();
 });
 
-startBtn.addEventListener('click',    () => beginGame());
-startBtn.addEventListener('touchend', e => { e.preventDefault(); beginGame(); });
+startBtn.addEventListener('click',    () => { _tryUnlockAudio(); beginGame(); });
+startBtn.addEventListener('touchend', e => { e.preventDefault(); _tryUnlockAudio(); beginGame(); });
 
 // ============================================================
 // 設定オーバーレイの開閉
 // openSettings: dead=true（ゲームオーバー中）は開かない
 // ============================================================
+// ユーザー操作のタイミングで一度だけ音声を解除（autoplay 制限対策）
+let _audioUnlocked = false;
+function _tryUnlockAudio() {
+  if (_audioUnlocked) return;
+  _audioUnlocked = true;
+  _unlockAudio();
+}
+
 function beginGame() {
   waiting = false;
   _gameStartTime = Date.now(); // ゲーム開始時刻（elapsed_ms 計算用）
   startOverlay.classList.remove('show');
   updateSkillButtons(); // waiting=false になったのでボタンの disabled を解除
-  _unlockAudio();       // ユーザー操作のタイミングで音声を起動し autoplay 制限を解除
+  // _unlockAudio() は最初のユーザー操作時に _tryUnlockAudio() 経由で呼ぶ
   // game_number: このブラウザで何回目のゲームか（初回=1）
   // is_returning は increment 前に確認する（初回は必ず 0 になるように）
   const _prevCount  = parseInt(localStorage.getItem('rollaxy_game_count') || '0', 10);
