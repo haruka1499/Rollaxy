@@ -332,7 +332,7 @@ function init() {
   if (_rankPctEl) { _rankPctEl.style.display = 'none'; _rankPctEl.textContent = ''; }
   _restoreShareButton();
   settingsOverlay.classList.remove('show'); // 「設定を開いたとき」の画面
-  startOverlay.classList.remove('show');    // 念のため非表示を保証
+  startOverlay.classList.add('show');        // スタート画面を表示
   dropX = CFG.W / 2; canDrop = true;
   bmap = new Map(); mq = []; glowMap = new Map();
   if (dropTimer) clearTimeout(dropTimer);
@@ -372,7 +372,6 @@ function init() {
   Matter.Events.on(eng, 'afterUpdate',     scanNearby);       // 近距離ペアを補完スキャン
   Matter.Events.on(eng, 'afterUpdate',     flushMerges);      // スキャン結果を処理（登録順で後に実行）
   updateHUD();
-  beginGame(); // スタート画面をスキップして即ゲーム開始
 }
 
 // 出現する天体をランダム選択（0 〜 MAX_SPAWN の範囲）
@@ -1249,6 +1248,7 @@ buildDebugPalette();
 buildLangSelector();
 applyLang();
 init();
+beginGame(); // [TEMP_AUTOSTART] ページ読み込み時のみスタート画面をスキップして即ゲーム開始
 updateStartPlayername();
 updateNameHint();
 updateAutoshowBtn(); // game-skills.js のロード時点では choiceAutoShow 未定義のためここで呼ぶ
