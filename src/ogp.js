@@ -172,21 +172,29 @@ ${todayEl}
 }
 
 // resvg が投げるエラーを可能な限り読める文字列に変換する。
-// @cf-wasm/resvg はエラーメッセージを ArrayBuffer / Uint8Array で投げることがあり、
-// String(err) では "[object ArrayBuffer]" としか取れないため UTF-8 デコードを試みる。
+// @cf-wasm/resvg は失敗時に WASM メモリ全体を ArrayBuffer として投げることがあり、
+// そのままデコードすると数MB のダンプになりログ上限(256KB)を溢れさせる。
+// → 先頭の一部だけをデコードし、バイト数も併記する（巨大なら memory-dump と判断できる）。
 function describeError(err) {
+  const CAP = 800;
   try {
-    if (err instanceof ArrayBuffer) return new TextDecoder().decode(new Uint8Array(err));
-    if (ArrayBuffer.isView(err))    return new TextDecoder().decode(err);
+    let buf = null;
+    if (err instanceof ArrayBuffer) buf = new Uint8Array(err);
+    else if (ArrayBuffer.isView(err)) buf = new Uint8Array(err.buffer, err.byteOffset, err.byteLength);
+    if (buf) {
+      const head = new TextDecoder('utf-8', { fatal: false }).decode(buf.subarray(0, CAP));
+      const printable = head.replace(/[^\x20-\x7E\n\r\t]/g, '·');
+      return `ArrayBuffer(${buf.byteLength}B) head="${printable}"`;
+    }
     if (err && typeof err === 'object') {
       const parts = [];
       if (err.message) parts.push(`message: ${err.message}`);
       if (err.name)    parts.push(`name: ${err.name}`);
-      if (err.stack)   parts.push(`stack: ${err.stack}`);
+      if (err.stack)   parts.push(`stack: ${String(err.stack).slice(0, CAP)}`);
       if (parts.length) return parts.join(' | ');
-      try { return JSON.stringify(err); } catch (_) {}
+      try { return JSON.stringify(err).slice(0, CAP); } catch (_) {}
     }
-    return String(err);
+    return String(err).slice(0, CAP);
   } catch (e) {
     return `describeError failed: ${e}`;
   }
