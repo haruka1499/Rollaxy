@@ -353,7 +353,14 @@
 
 <script src="/i18n.js"></script>
 <script>
-// ゲームに戻るボタンは常に /games/rollaxy/ へ直接遷移（history.back は使わない）
+// 「ゲームに戻る」: このタブを閉じて元のゲームタブに戻る。
+// 新しいタブで開かれた場合は window.close() が成功する。
+// 直接URLアクセス等で close() が効かない場合はゲームへ遷移するフォールバック。
+document.getElementById('back-btn').addEventListener('click', function(e) {
+  e.preventDefault();
+  window.close();
+  setTimeout(function() { window.location.href = '/games/rollaxy/'; }, 300);
+});
 </script>
 
 <script>
