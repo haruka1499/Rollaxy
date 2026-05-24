@@ -31,12 +31,15 @@ async function loadFont(env) {
 }
 
 async function loadBodyImages(env, bodies) {
+  // SVG サイズ予算: resvg(WASM) のメモリ限界を避けるため base64 合計を制限する。
+  // OGP 用画像が 64px 以下に最適化されるまでの暫定措置として
+  // 生データ合計 200KB 以内（≒ base64 で 270KB）に収める。
+  // 超過した tier は colored circle + highlight のフォールバックで描画される。
+  const MAX_TOTAL_RAW = 200 * 1024;
+
   const usedTiers = [...new Set(bodies.map(b => Math.max(0, Math.min(11, b.tier))))];
-  const pairs = await Promise.all(
+  const rawPairs = await Promise.all(
     usedTiers.map(async tier => {
-      // OGP 用サムネイル（256×256px、元画像の 1/10 以下のサイズ）を使用。
-      // 元画像（2〜3MB）を base64 埋め込みすると SVG が 25MB+ になり
-      // resvg(WASM) のメモリ限界を超えるため、専用の小サイズ版を使う。
       const url = `${SITE_URL}/games/rollaxy/images/ogp/${BODY_KEYS[tier]}.png`;
       try {
         const res = await env.ASSETS.fetch(new Request(url));
@@ -45,15 +48,27 @@ async function loadBodyImages(env, bodies) {
           return null;
         }
         const buf = await res.arrayBuffer();
-        return [tier, `data:image/png;base64,${toBase64(buf)}`];
+        return [tier, buf];
       } catch (err) {
         console.warn(`[ogp] image load error: ${url} → ${err}`);
         return null;
       }
     })
   );
-  const result = Object.fromEntries(pairs.filter(Boolean));
-  console.log(`[ogp] loadBodyImages: ${Object.keys(result).length}/${usedTiers.length} tiers loaded`);
+
+  // tier の大きい（画面上で目立つ）順に予算内で埋め込む
+  const sorted = rawPairs.filter(Boolean).sort((a, b) => b[0] - a[0]);
+  let totalBytes = 0;
+  const result = {};
+  for (const [tier, buf] of sorted) {
+    if (totalBytes + buf.byteLength > MAX_TOTAL_RAW) {
+      console.warn(`[ogp] skip tier ${tier} (${buf.byteLength}B) – budget exceeded`);
+      continue;
+    }
+    totalBytes += buf.byteLength;
+    result[tier] = `data:image/png;base64,${toBase64(buf)}`;
+  }
+  console.log(`[ogp] loadBodyImages: ${Object.keys(result).length}/${usedTiers.length} tiers embedded (${totalBytes}/${MAX_TOTAL_RAW} raw bytes)`);
   return result;
 }
 
