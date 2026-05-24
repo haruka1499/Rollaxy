@@ -80,13 +80,6 @@ function buildOgpBoardCircles(bodies, bodyImages) {
 
   let defs   = '<defs>';
 
-  // ── 画像は tier ごとに 1 回だけ <defs> に定義し <use> で参照する ──
-  // 天体数分だけ base64 を重複埋め込みすると SVG が数MB になり
-  // resvg(WASM) のメモリ限界を超えるため、この構造が必須。
-  for (const [tier, dataUrl] of Object.entries(bodyImages || {})) {
-    defs += `<image id="bimg-${tier}" href="${dataUrl}" preserveAspectRatio="xMidYMid slice"/>`;
-  }
-
   const bx = gx(BOX_L).toFixed(1);
   const by = gy(BOX_T).toFixed(1);
   const bw = ((BOX_R - BOX_L) * scale).toFixed(1);
@@ -115,10 +108,11 @@ function buildOgpBoardCircles(bodies, bodyImages) {
     const hy = (gy(b.y) - rNum * 0.3).toFixed(1);
     shapes += `<circle cx="${hx}" cy="${hy}" r="${hr}" fill="white" fill-opacity="0.22"/>`;
 
-    // ── ③ 画像オーバーレイ（defs の <image> を <use> で参照） ──
-    if (bodyImages?.[tier]) {
+    // ── ③ 画像オーバーレイ（インライン <image> で円形クリップして重ねる） ──
+    const dataUrl = bodyImages?.[tier];
+    if (dataUrl) {
       defs   += `<clipPath id="bc${i}"><circle cx="${cx}" cy="${cy}" r="${r}"/></clipPath>`;
-      shapes += `<g clip-path="url(#bc${i})"><use href="#bimg-${tier}" x="${lx}" y="${ly}" width="${d}" height="${d}"/></g>`;
+      shapes += `<g clip-path="url(#bc${i})"><image href="${dataUrl}" x="${lx}" y="${ly}" width="${d}" height="${d}" preserveAspectRatio="xMidYMid slice"/></g>`;
     }
   }
 
