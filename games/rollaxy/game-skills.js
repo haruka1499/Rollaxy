@@ -75,30 +75,107 @@ function explodeBomb(pos) {
 }
 
 // ============================================================
-// 強制スキルバナー（ヘッダー中央の次の天体表示を差し替え）
+// 強制スキルバナー（専用 canvas オーバーレイ）
 // ============================================================
-const _forcedInfoEl  = document.getElementById('forced-skill-info');
-const _forcedTitleEl = document.getElementById('forced-skill-title');
-const _forcedDescEl  = document.getElementById('forced-skill-desc');
-const _nextNormalEl  = document.getElementById('next-normal');
+const _fsCanvas = document.getElementById('forced-skill-canvas');
+const _fsCtx    = _fsCanvas.getContext('2d');
+const _FS_COLORS = { bomb: '#ffcc44', upgrade: '#cc88ff', delete: '#ff8888' };
+let _fsRafId  = null;
+let _fsActive = false;
+
+function _sizeFsCanvas() {
+  const outer = document.getElementById('canvas-outer');
+  const ow = outer.clientWidth  || CFG.W;
+  const oh = outer.clientHeight || CFG.H;
+  const s  = Math.min(ow / CFG.W, oh / CFG.H);
+  const ox = Math.floor((ow - CFG.W * s) / 2);
+  const barH   = Math.round(CFG.BAR_H * s);
+  const cssW   = Math.round(CFG.W * s);
+  const cssH   = Math.round(68 * s); // ヘッダー相当の高さ
+  _fsCanvas.style.left   = ox + 'px';
+  _fsCanvas.style.top    = barH + 'px';
+  _fsCanvas.style.width  = cssW + 'px';
+  _fsCanvas.style.height = cssH + 'px';
+}
+
+function _drawFsCanvas(t) {
+  const dpr = window.devicePixelRatio || 1;
+  const w   = _fsCanvas.offsetWidth;
+  const h   = _fsCanvas.offsetHeight;
+  if (!w || !h) return;
+  const pw = Math.round(w * dpr);
+  const ph = Math.round(h * dpr);
+  if (_fsCanvas.width !== pw || _fsCanvas.height !== ph) {
+    _fsCanvas.width  = pw;
+    _fsCanvas.height = ph;
+  }
+  const ctx   = _fsCtx;
+  const color = _FS_COLORS[activeSkill] || '#ffffff';
+  const pulse = 0.5 + 0.5 * Math.sin(t * 0.003);
+  ctx.clearRect(0, 0, pw, ph);
+  ctx.save();
+  ctx.scale(dpr, dpr);
+
+  const pad = 6, r = 10;
+  const bx = pad, by = pad, bw = w - pad * 2, bh = h - pad * 2;
+
+  // 背景
+  ctx.fillStyle = 'rgba(10, 4, 24, 0.93)';
+  ctx.beginPath(); ctx.roundRect(bx, by, bw, bh, r); ctx.fill();
+
+  // 縁のグロー（多重描画で強調）
+  const glow = 6 + 18 * pulse;
+  ctx.shadowColor = color; ctx.shadowBlur = glow;
+  ctx.strokeStyle = color; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.roundRect(bx, by, bw, bh, r); ctx.stroke();
+  ctx.shadowBlur = glow * 0.5;
+  ctx.beginPath(); ctx.roundRect(bx, by, bw, bh, r); ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  const cap   = activeSkill.charAt(0).toUpperCase() + activeSkill.slice(1);
+  const title = T('forcedTitle' + cap);
+  const desc  = T('forcedDesc'  + cap);
+  const titleSz = Math.round(h * 0.40);
+  const descSz  = Math.round(h * 0.24);
+
+  // タイトル
+  ctx.fillStyle = color;
+  ctx.shadowColor = color; ctx.shadowBlur = 8;
+  ctx.font = `bold ${titleSz}px -apple-system,'Helvetica Neue',Arial,sans-serif`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+  ctx.fillText(title, w / 2, h * 0.52);
+  ctx.shadowBlur = 0;
+
+  // 説明
+  ctx.fillStyle = 'rgba(255,255,255,0.82)';
+  ctx.font = `${descSz}px -apple-system,'Helvetica Neue',Arial,sans-serif`;
+  ctx.fillText(desc, w / 2, h * 0.84);
+
+  ctx.restore();
+}
+
+function _fsBannerLoop(t) {
+  if (!_fsActive) return;
+  _drawFsCanvas(t);
+  _fsRafId = requestAnimationFrame(_fsBannerLoop);
+}
 
 function updateForcedSkillBanner() {
   if (_forcedSkillActive && activeSkill) {
-    const cap = activeSkill.charAt(0).toUpperCase() + activeSkill.slice(1);
-    _forcedTitleEl.textContent   = T('forcedTitle' + cap);
-    _forcedTitleEl.dataset.skill = activeSkill;
-    _forcedDescEl.textContent    = T('forcedDesc'  + cap);
-    _nextNormalEl.style.display  = 'none';
-    _forcedInfoEl.classList.add('show');
+    _sizeFsCanvas();
+    _fsCanvas.style.display = 'block';
+    _fsActive = true;
+    if (!_fsRafId) _fsRafId = requestAnimationFrame(_fsBannerLoop);
   } else {
-    _nextNormalEl.style.display = '';
-    _forcedInfoEl.classList.remove('show');
+    _fsActive = false;
+    if (_fsRafId) { cancelAnimationFrame(_fsRafId); _fsRafId = null; }
+    _fsCtx.clearRect(0, 0, _fsCanvas.width, _fsCanvas.height);
+    _fsCanvas.style.display = 'none';
   }
 }
 
-document.addEventListener('langchange', () => {
-  if (_forcedSkillActive) updateForcedSkillBanner();
-});
+window.addEventListener('resize', () => { if (_fsActive) _sizeFsCanvas(); });
+document.addEventListener('langchange', () => { if (_fsActive) updateForcedSkillBanner(); });
 
 // ============================================================
 // スキル共通管理
