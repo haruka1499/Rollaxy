@@ -472,8 +472,15 @@ const _SL = {
 // GET /games/rollaxy/share/:id — シェアページ HTML
 // ============================================================
 function buildBoardSVG(bodies) {
-  const LW = 200, LH = 350, SCALE = 0.5;
-  const BOX_L = 18, BOX_T = 168, BOX_R = 382, BOX_B = 688;
+  const SCALE = 0.5;
+  // ゲームボード領域（新レイアウト座標。config.js の BOX と一致させること）
+  const BOX_L = 18, BOX_T = 240, BOX_R = 382, BOX_B = 760;
+  const M = 18; // 盤面外周の余白（ゲーム座標）
+  // viewBox を盤面領域＋余白に合わせて切り抜く（天体は絶対座標で描画される）
+  const vx = ((BOX_L - M) * SCALE);
+  const vy = ((BOX_T - M) * SCALE);
+  const vw = ((BOX_R - BOX_L + 2 * M) * SCALE);
+  const vh = ((BOX_B - BOX_T + 2 * M) * SCALE);
   let defs = '<defs>', circles = '', images = '';
   for (let i = 0; i < bodies.length; i++) {
     const b    = bodies[i];
@@ -496,9 +503,9 @@ function buildBoardSVG(bodies) {
   defs += '</defs>';
   const bx = (BOX_L * SCALE).toFixed(1), by = (BOX_T * SCALE).toFixed(1);
   const bw = ((BOX_R - BOX_L) * SCALE).toFixed(1), bh = ((BOX_B - BOX_T) * SCALE).toFixed(1);
-  return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${LW}" height="${LH}" viewBox="0 0 ${LW} ${LH}">
+  return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${vw.toFixed(1)}" height="${vh.toFixed(1)}" viewBox="${vx.toFixed(1)} ${vy.toFixed(1)} ${vw.toFixed(1)} ${vh.toFixed(1)}">
   ${defs}
-  <rect width="${LW}" height="${LH}" fill="#060412"/>
+  <rect x="${vx.toFixed(1)}" y="${vy.toFixed(1)}" width="${vw.toFixed(1)}" height="${vh.toFixed(1)}" fill="#060412"/>
   <rect x="${bx}" y="${by}" width="${bw}" height="${bh}" fill="#0c0720"/>
   <rect x="${bx}" y="${by}" width="${bw}" height="${bh}" fill="none" stroke="#7744bb" stroke-width="1.5"/>
   ${circles}${images}</svg>`;

@@ -63,14 +63,18 @@ async function loadBodyImages(env, bodies) {
 // → 画像ロード失敗 / resvg が <image> を未サポートでも円が消えない防御的設計。
 // !! <defs> は shapes より必ず前に出力すること（SVG clipPath の参照前定義が必要）
 function buildOgpBoardCircles(bodies, bodyImages) {
-  // キャンバス論理サイズ: W=400, H=772 / ゲームボード: BOX.L=18, BOX.R=382, BOX.T=240, BOX.B=760
-  const scale = Math.min(460 / 400, 590 / 772);
-  const offX  = (460 - 400 * scale) / 2 + 10;
-  const offY  = (630 - 772 * scale) / 2;
-  const bx = (offX + 18 * scale).toFixed(1);
-  const by = (offY + 240 * scale).toFixed(1);
-  const bw = ((382 - 18) * scale).toFixed(1);
-  const bh = ((760 - 240) * scale).toFixed(1);
+  // ゲームボード領域（新レイアウト座標。config.js の BOX と一致させること）
+  const BOX_L = 18, BOX_T = 240, BOX_R = 382, BOX_B = 760;
+  const M = 20; // 盤面外周の余白（ゲーム座標）
+  const regX = BOX_L - M, regY = BOX_T - M;
+  const regW = (BOX_R - BOX_L) + 2 * M;
+  const regH = (BOX_B - BOX_T) + 2 * M;
+  // 左パネル 480×630 に盤面領域を収めて中央寄せ（上の空白バー領域は切り捨てる）
+  const scale = Math.min(460 / regW, 600 / regH);
+  const offX  = (480 - regW * scale) / 2 - regX * scale;
+  const offY  = (630 - regH * scale) / 2 - regY * scale;
+  const gx = v => offX + v * scale; // ゲーム X → OGP X
+  const gy = v => offY + v * scale; // ゲーム Y → OGP Y
 
   let defs   = '<defs>';
 
@@ -81,19 +85,23 @@ function buildOgpBoardCircles(bodies, bodyImages) {
     defs += `<image id="bimg-${tier}" href="${dataUrl}" preserveAspectRatio="xMidYMid slice"/>`;
   }
 
+  const bx = gx(BOX_L).toFixed(1);
+  const by = gy(BOX_T).toFixed(1);
+  const bw = ((BOX_R - BOX_L) * scale).toFixed(1);
+  const bh = ((BOX_B - BOX_T) * scale).toFixed(1);
   let shapes = `<rect x="${bx}" y="${by}" width="${bw}" height="${bh}" fill="#0c0720" stroke="#7744bb" stroke-width="1.5"/>`;
 
   for (let i = 0; i < bodies.length; i++) {
     const b    = bodies[i];
     const tier = Math.max(0, Math.min(11, b.tier));
-    const cx   = (offX + b.x * scale).toFixed(1);
-    const cy   = (offY + b.y * scale).toFixed(1);
-    const r    = (BODY_RADII[tier] * scale).toFixed(1);
+    const cx   = gx(b.x).toFixed(1);
+    const cy   = gy(b.y).toFixed(1);
     const rNum = BODY_RADII[tier] * scale;
+    const r    = rNum.toFixed(1);
     const iadj = BODY_IMAGE_ADJUST[tier];
     const imgRad = rNum * iadj.scale;
-    const lx = (offX + b.x * scale - imgRad + rNum * iadj.dx).toFixed(1);
-    const ly = (offY + b.y * scale - imgRad + rNum * iadj.dy).toFixed(1);
+    const lx = (gx(b.x) - imgRad + rNum * iadj.dx).toFixed(1);
+    const ly = (gy(b.y) - imgRad + rNum * iadj.dy).toFixed(1);
     const d  = (imgRad * 2).toFixed(1);
 
     // ── ① ベース円（常に描く） ──
@@ -101,8 +109,8 @@ function buildOgpBoardCircles(bodies, bodyImages) {
 
     // ── ② ハイライト（立体感） ──
     const hr = (rNum * 0.32).toFixed(1);
-    const hx = (offX + b.x * scale - rNum * 0.27).toFixed(1);
-    const hy = (offY + b.y * scale - rNum * 0.3).toFixed(1);
+    const hx = (gx(b.x) - rNum * 0.27).toFixed(1);
+    const hy = (gy(b.y) - rNum * 0.3).toFixed(1);
     shapes += `<circle cx="${hx}" cy="${hy}" r="${hr}" fill="white" fill-opacity="0.22"/>`;
 
     // ── ③ 画像オーバーレイ（defs の <image> を <use> で参照） ──
