@@ -31,15 +31,12 @@ async function loadFont(env) {
 }
 
 async function loadBodyImages(env, bodies) {
-  // SVG サイズ予算: resvg(WASM) のメモリ限界を避けるため base64 合計を制限する。
-  // OGP 用画像が 64px 以下に最適化されるまでの暫定措置として
-  // 生データ合計 200KB 以内（≒ base64 で 270KB）に収める。
-  // 超過した tier は colored circle + highlight のフォールバックで描画される。
-  const MAX_TOTAL_RAW = 200 * 1024;
-
   const usedTiers = [...new Set(bodies.map(b => Math.max(0, Math.min(11, b.tier))))];
-  const rawPairs = await Promise.all(
+  const pairs = await Promise.all(
     usedTiers.map(async tier => {
+      // OGP 用サムネイル（256×256px）を使用。
+      // 画像は <defs> に tier ごと 1 回だけ定義し <use> で参照するため
+      // 天体数が多くても SVG サイズは tier 数分しか増えない。
       const url = `${SITE_URL}/games/rollaxy/images/ogp/${BODY_KEYS[tier]}.png`;
       try {
         const res = await env.ASSETS.fetch(new Request(url));
@@ -48,27 +45,15 @@ async function loadBodyImages(env, bodies) {
           return null;
         }
         const buf = await res.arrayBuffer();
-        return [tier, buf];
+        return [tier, `data:image/png;base64,${toBase64(buf)}`];
       } catch (err) {
         console.warn(`[ogp] image load error: ${url} → ${err}`);
         return null;
       }
     })
   );
-
-  // tier の大きい（画面上で目立つ）順に予算内で埋め込む
-  const sorted = rawPairs.filter(Boolean).sort((a, b) => b[0] - a[0]);
-  let totalBytes = 0;
-  const result = {};
-  for (const [tier, buf] of sorted) {
-    if (totalBytes + buf.byteLength > MAX_TOTAL_RAW) {
-      console.warn(`[ogp] skip tier ${tier} (${buf.byteLength}B) – budget exceeded`);
-      continue;
-    }
-    totalBytes += buf.byteLength;
-    result[tier] = `data:image/png;base64,${toBase64(buf)}`;
-  }
-  console.log(`[ogp] loadBodyImages: ${Object.keys(result).length}/${usedTiers.length} tiers embedded (${totalBytes}/${MAX_TOTAL_RAW} raw bytes)`);
+  const result = Object.fromEntries(pairs.filter(Boolean));
+  console.log(`[ogp] loadBodyImages: ${Object.keys(result).length}/${usedTiers.length} tiers loaded`);
   return result;
 }
 
@@ -88,6 +73,14 @@ function buildOgpBoardCircles(bodies, bodyImages) {
   const bh = ((760 - 240) * scale).toFixed(1);
 
   let defs   = '<defs>';
+
+  // ── 画像は tier ごとに 1 回だけ <defs> に定義し <use> で参照する ──
+  // 天体数分だけ base64 を重複埋め込みすると SVG が数MB になり
+  // resvg(WASM) のメモリ限界を超えるため、この構造が必須。
+  for (const [tier, dataUrl] of Object.entries(bodyImages || {})) {
+    defs += `<image id="bimg-${tier}" href="${dataUrl}" preserveAspectRatio="xMidYMid slice"/>`;
+  }
+
   let shapes = `<rect x="${bx}" y="${by}" width="${bw}" height="${bh}" fill="#0c0720" stroke="#7744bb" stroke-width="1.5"/>`;
 
   for (let i = 0; i < bodies.length; i++) {
@@ -106,17 +99,16 @@ function buildOgpBoardCircles(bodies, bodyImages) {
     // ── ① ベース円（常に描く） ──
     shapes += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${BODY_COLORS[tier]}" opacity="0.9"/>`;
 
-    // ── ② ハイライト（立体感・paintBody に合わせたスタイル） ──
+    // ── ② ハイライト（立体感） ──
     const hr = (rNum * 0.32).toFixed(1);
     const hx = (offX + b.x * scale - rNum * 0.27).toFixed(1);
     const hy = (offY + b.y * scale - rNum * 0.3).toFixed(1);
-    shapes += `<circle cx="${hx}" cy="${hy}" r="${hr}" fill="rgba(255,255,255,0.22)"/>`;
+    shapes += `<circle cx="${hx}" cy="${hy}" r="${hr}" fill="white" fill-opacity="0.22"/>`;
 
-    // ── ③ 画像オーバーレイ（ロードできた tier のみ） ──
-    const dataUrl = bodyImages?.[tier];
-    if (dataUrl) {
+    // ── ③ 画像オーバーレイ（defs の <image> を <use> で参照） ──
+    if (bodyImages?.[tier]) {
       defs   += `<clipPath id="bc${i}"><circle cx="${cx}" cy="${cy}" r="${r}"/></clipPath>`;
-      shapes += `<g clip-path="url(#bc${i})"><image href="${dataUrl}" x="${lx}" y="${ly}" width="${d}" height="${d}" preserveAspectRatio="xMidYMid slice"/></g>`;
+      shapes += `<g clip-path="url(#bc${i})"><use href="#bimg-${tier}" x="${lx}" y="${ly}" width="${d}" height="${d}"/></g>`;
     }
   }
 
