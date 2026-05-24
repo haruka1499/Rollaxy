@@ -118,7 +118,7 @@ function buildOgpSVG(share, rank, total, todayRank, todayTotal, fontBuffer, body
 
   const todayEl = todayPct != null ? `
   <line x1="600" y1="432" x2="1080" y2="432" stroke="#150c28" stroke-width="1"/>
-  <rect x="575" y="444" width="530" height="118" rx="12" ry="12" fill="rgba(30,14,58,0.65)" stroke="rgba(100,60,180,0.32)" stroke-width="1.5"/>
+  <rect x="575" y="444" width="530" height="118" rx="12" ry="12" fill="#1e0e3a" fill-opacity="0.65" stroke="#643cb4" stroke-opacity="0.32" stroke-width="1.5"/>
   <text x="840" y="479" font-family="${fontFamily}" font-size="11" fill="#5544aa" text-anchor="middle" letter-spacing="5">T O D A Y   T O P</text>
   <text x="840" y="554" font-family="${fontFamily}" font-size="62" font-weight="bold" fill="#9966cc" text-anchor="middle">${todayPct}%</text>` : '';
 
@@ -135,15 +135,12 @@ function buildOgpSVG(share, rank, total, todayRank, todayTotal, fontBuffer, body
   <circle cx="512" cy="310" r="1"   fill="#fff" opacity="0.25"/>
   ${board}
   <line x1="480" y1="40" x2="480" y2="590" stroke="#7744bb" stroke-width="1" opacity="0.4"/>
-  <!-- ── 右パネル ── -->
   <text x="840" y="56" font-family="${fontFamily}" font-size="34" font-weight="bold" fill="#6633bb" text-anchor="middle" letter-spacing="10">ROLLAXY</text>
   <line x1="555" y1="68" x2="1125" y2="68" stroke="#170e2a" stroke-width="1"/>
-  <!-- スコアカード -->
-  <rect x="555" y="80" width="570" height="148" rx="14" ry="14" fill="rgba(40,18,75,0.55)" stroke="rgba(120,68,200,0.38)" stroke-width="1.5"/>
+  <rect x="555" y="80" width="570" height="148" rx="14" ry="14" fill="#28124b" fill-opacity="0.55" stroke="#7844c8" stroke-opacity="0.38" stroke-width="1.5"/>
   <text x="840" y="118" font-family="${fontFamily}" font-size="11" fill="#5544aa" text-anchor="middle" letter-spacing="5">S C O R E</text>
   <text x="840" y="196" font-family="${fontFamily}" font-size="76" font-weight="bold" fill="#ffffff" text-anchor="middle">${scoreStr}</text>
   <text x="840" y="218" font-family="${fontFamily}" font-size="11" fill="#443368" text-anchor="middle" letter-spacing="3">p t s</text>
-  <!-- ランキングセクション -->
   <line x1="600" y1="248" x2="1080" y2="248" stroke="#150c28" stroke-width="1"/>
   <text x="840" y="280" font-family="${fontFamily}" font-size="12" fill="#443368" text-anchor="middle" letter-spacing="5">ALL  TIME  TOP</text>
   <text x="840" y="${allPctY}" font-family="${fontFamily}" font-size="${allPctSz}" font-weight="bold" fill="#cc88ff" text-anchor="middle">${allPct}%</text>
