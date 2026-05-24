@@ -494,11 +494,15 @@ function buildBoardSVG(bodies) {
     const lx = (b.x * SCALE - imgRn + rn * iadj.dx).toFixed(1);
     const ly = (b.y * SCALE - imgRn + rn * iadj.dy).toFixed(1);
     const d  = (imgRn * 2).toFixed(1);
+    // b.angle は Matter.js のラジアン値。旧データ（angle未記録）は 0 扱い
+    const angleDeg = ((b.angle ?? 0) * 180 / Math.PI).toFixed(2);
     // ① ベース円（画像ロード失敗時のフォールバック）
     circles += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${BODY_COLORS[tier]}" opacity="0.85"/>`;
     // ② 実際のゲーム画像をクリップして円形に貼る（ブラウザが PNG を直接読み込む）
-    defs    += `<clipPath id="c${i}"><circle cx="${cx}" cy="${cy}" r="${r}"/></clipPath>`;
-    images  += `<image href="/games/rollaxy/images/${BODY_KEYS[tier]}.png" x="${lx}" y="${ly}" width="${d}" height="${d}" clip-path="url(#c${i})" preserveAspectRatio="xMidYMid slice"/>`;
+    // <g> に clip-path + transform を同時付与することで、offset/scale 済み画像を
+    // 円の中心 (cx,cy) を軸に回転させる（clip-path は親座標系で固定されるため位置ずれなし）
+    defs   += `<clipPath id="c${i}"><circle cx="${cx}" cy="${cy}" r="${r}"/></clipPath>`;
+    images += `<g clip-path="url(#c${i})" transform="rotate(${angleDeg},${cx},${cy})"><image href="/games/rollaxy/images/${BODY_KEYS[tier]}.png" x="${lx}" y="${ly}" width="${d}" height="${d}" preserveAspectRatio="xMidYMid slice"/></g>`;
   }
   defs += '</defs>';
   const bx = (BOX_L * SCALE).toFixed(1), by = (BOX_T * SCALE).toFixed(1);

@@ -98,21 +98,26 @@ function buildOgpBoardCircles(bodies, bodyImages) {
     const lx = (gx(b.x) - imgRad + rNum * iadj.dx).toFixed(1);
     const ly = (gy(b.y) - imgRad + rNum * iadj.dy).toFixed(1);
     const d  = (imgRad * 2).toFixed(1);
+    // b.angle は Matter.js のラジアン値。旧データ（angle未記録）は 0 扱い
+    const angleDeg = ((b.angle ?? 0) * 180 / Math.PI).toFixed(2);
 
     // ── ① ベース円（常に描く） ──
     shapes += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${BODY_COLORS[tier]}" opacity="0.9"/>`;
 
-    // ── ② ハイライト（立体感） ──
+    // ── ② ハイライト（立体感）── 光源は固定なので回転させない
     const hr = (rNum * 0.32).toFixed(1);
     const hx = (gx(b.x) - rNum * 0.27).toFixed(1);
     const hy = (gy(b.y) - rNum * 0.3).toFixed(1);
     shapes += `<circle cx="${hx}" cy="${hy}" r="${hr}" fill="white" fill-opacity="0.22"/>`;
 
-    // ── ③ 画像オーバーレイ（インライン <image> で円形クリップして重ねる） ──
+    // ── ③ 画像オーバーレイ ──
+    // clip-path は親座標系で評価されるため、<g> ごと (cx,cy) 中心に回転しても
+    // 円クリップは固定されたまま。画像は offset/scale 済みの座標で配置後に
+    // 円の中心を軸として回転する（位置ずれなし）。
     const dataUrl = bodyImages?.[tier];
     if (dataUrl) {
       defs   += `<clipPath id="bc${i}"><circle cx="${cx}" cy="${cy}" r="${r}"/></clipPath>`;
-      shapes += `<g clip-path="url(#bc${i})"><image href="${dataUrl}" x="${lx}" y="${ly}" width="${d}" height="${d}" preserveAspectRatio="xMidYMid slice"/></g>`;
+      shapes += `<g clip-path="url(#bc${i})" transform="rotate(${angleDeg},${cx},${cy})"><image href="${dataUrl}" x="${lx}" y="${ly}" width="${d}" height="${d}" preserveAspectRatio="xMidYMid slice"/></g>`;
     }
   }
 
