@@ -137,10 +137,22 @@ function buildOgpSVG(share, rank, total, todayRank, todayTotal, fontBuffer, body
   const todayEl = todayPct != null ? `
   <line x1="600" y1="432" x2="1080" y2="432" stroke="#150c28" stroke-width="1"/>
   <rect x="575" y="444" width="530" height="118" rx="12" ry="12" fill="#1e0e3a" fill-opacity="0.65" stroke="#643cb4" stroke-opacity="0.32" stroke-width="1.5"/>
-  <text x="840" y="479" font-family="${fontFamily}" font-size="11" fill="#5544aa" text-anchor="middle" letter-spacing="5">T O D A Y   T O P</text>
-  <text x="840" y="554" font-family="${fontFamily}" font-size="62" font-weight="bold" fill="#9966cc" text-anchor="middle">${todayPct}%</text>` : '';
+  <text x="840" y="468" font-family="${fontFamily}" font-size="11" fill="#5544aa" text-anchor="middle" letter-spacing="5">T O D A Y</text>
+  <text x="830" y="522" font-family="${fontFamily}" font-size="38" font-weight="bold" fill="#aa88ff" text-anchor="end">TOP</text>
+  <text x="850" y="522" font-family="${fontFamily}" font-size="56" font-weight="bold" fill="url(#goldGrad)" filter="url(#goldGlow)" text-anchor="start">${todayPct}%</text>` : '';
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630">
+  <defs>
+    <linearGradient id="goldGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffe566"/>
+      <stop offset="50%" stop-color="#ffd700"/>
+      <stop offset="100%" stop-color="#c8940a"/>
+    </linearGradient>
+    <filter id="goldGlow" x="-25%" y="-40%" width="150%" height="180%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="8" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
   <rect width="1200" height="630" fill="#060412"/>
   <rect x="0" y="0" width="480" height="630" fill="#0a0818"/>
   <circle cx="55"  cy="45"  r="1.5" fill="#fff" opacity="0.6"/>
@@ -156,12 +168,12 @@ function buildOgpSVG(share, rank, total, todayRank, todayTotal, fontBuffer, body
   <text x="840" y="56" font-family="${fontFamily}" font-size="34" font-weight="bold" fill="#6633bb" text-anchor="middle" letter-spacing="10">ROLLAXY</text>
   <line x1="555" y1="68" x2="1125" y2="68" stroke="#170e2a" stroke-width="1"/>
   <rect x="555" y="80" width="570" height="148" rx="14" ry="14" fill="#28124b" fill-opacity="0.55" stroke="#7844c8" stroke-opacity="0.38" stroke-width="1.5"/>
-  <text x="840" y="118" font-family="${fontFamily}" font-size="11" fill="#5544aa" text-anchor="middle" letter-spacing="5">S C O R E</text>
-  <text x="840" y="196" font-family="${fontFamily}" font-size="76" font-weight="bold" fill="#ffffff" text-anchor="middle">${scoreStr}</text>
-  <text x="840" y="218" font-family="${fontFamily}" font-size="11" fill="#443368" text-anchor="middle" letter-spacing="3">p t s</text>
+  <text x="830" y="175" font-family="${fontFamily}" font-size="44" font-weight="bold" fill="#aa88ff" text-anchor="end">SCORE</text>
+  <text x="850" y="175" font-family="${fontFamily}" font-size="76" font-weight="bold" fill="url(#goldGrad)" filter="url(#goldGlow)" text-anchor="start">${scoreStr}</text>
   <line x1="600" y1="248" x2="1080" y2="248" stroke="#150c28" stroke-width="1"/>
-  <text x="840" y="280" font-family="${fontFamily}" font-size="12" fill="#443368" text-anchor="middle" letter-spacing="5">ALL  TIME  TOP</text>
-  <text x="840" y="${allPctY}" font-family="${fontFamily}" font-size="${allPctSz}" font-weight="bold" fill="#cc88ff" text-anchor="middle">${allPct}%</text>
+  <text x="840" y="278" font-family="${fontFamily}" font-size="12" fill="#443368" text-anchor="middle" letter-spacing="5">A L L   T I M E</text>
+  <text x="830" y="${allPctY}" font-family="${fontFamily}" font-size="44" font-weight="bold" fill="#aa88ff" text-anchor="end">TOP</text>
+  <text x="850" y="${allPctY}" font-family="${fontFamily}" font-size="${allPctSz}" font-weight="bold" fill="url(#goldGrad)" filter="url(#goldGlow)" text-anchor="start">${allPct}%</text>
 ${todayEl}
   <text x="840" y="610" font-family="${fontFamily}" font-size="14" fill="#2e1a44" text-anchor="middle" letter-spacing="5">NOVORA GAME</text>
 </svg>`;

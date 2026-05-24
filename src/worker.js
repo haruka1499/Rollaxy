@@ -552,12 +552,17 @@ async function handleSharePage(id, env) {
   <meta name="robots" content="noindex">
   <link rel="canonical" href="${shareUrl}">
   <link rel="icon" href="/favicon.ico">
-  <meta property="og:type"        content="website">
-  <meta property="og:url"         content="${shareUrl}">
-  <meta property="og:title"       content="${pageTitle}">
-  <meta property="og:description" content="${desc}">
-  <meta property="og:image"       content="${ogImage}">
-  <meta name="twitter:card"       content="summary_large_image">
+  <meta property="og:type"         content="website">
+  <meta property="og:url"          content="${shareUrl}">
+  <meta property="og:title"        content="${pageTitle}">
+  <meta property="og:description"  content="${desc}">
+  <meta property="og:image"        content="${ogImage}">
+  <meta property="og:image:width"  content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card"        content="summary_large_image">
+  <meta name="twitter:title"       content="${pageTitle}">
+  <meta name="twitter:description" content="${desc}">
+  <meta name="twitter:image"       content="${ogImage}">
   <link rel="stylesheet" href="/style.css">
   <style>
     .share-page{max-width:480px;margin:0 auto;padding:24px 16px 48px;text-align:center}
