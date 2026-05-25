@@ -728,24 +728,18 @@ function updateReminderHighlight() {
 // イベントリスナー（スキルボタン / 確認パネル / ルーレット / 連鎖報酬）
 // ============================================================
 
-// スキルボタン（click + touchend 両方登録）
-skillBombBtn.addEventListener('click',    () => setActiveSkill('bomb'));
-skillBombBtn.addEventListener('touchend', e => { e.preventDefault(); setActiveSkill('bomb'); });
-skillUpgradeBtn.addEventListener('click',    () => setActiveSkill('upgrade'));
-skillUpgradeBtn.addEventListener('touchend', e => { e.preventDefault(); setActiveSkill('upgrade'); });
-skillDeleteBtn.addEventListener('click',    () => setActiveSkill('delete'));
-skillDeleteBtn.addEventListener('touchend', e => { e.preventDefault(); setActiveSkill('delete'); });
+// スキルボタン
+on(skillBombBtn,    () => setActiveSkill('bomb'));
+on(skillUpgradeBtn, () => setActiveSkill('upgrade'));
+on(skillDeleteBtn,  () => setActiveSkill('delete'));
 
 // 確認パネルボタン
-confirmOkBtn.addEventListener('click',       () => confirmSkillAction());
-confirmOkBtn.addEventListener('touchend',    e => { e.preventDefault(); confirmSkillAction(); });
-confirmCancelBtn.addEventListener('click',    () => cancelSkillAction());
-confirmCancelBtn.addEventListener('touchend', e => { e.preventDefault(); cancelSkillAction(); });
+on(confirmOkBtn,     () => confirmSkillAction());
+on(confirmCancelBtn, () => cancelSkillAction());
 
 // 4連鎖ルーレット停止ボタン
 const rouletteStopBtn = document.getElementById('roulette-stop');
-rouletteStopBtn.addEventListener('click',    () => rltStop());
-rouletteStopBtn.addEventListener('touchend', e  => { e.preventDefault(); rltStop(); });
+on(rouletteStopBtn, () => rltStop());
 
 // Space キーでルーレット停止（PCショートカット）
 document.addEventListener('keydown', e => {
@@ -754,9 +748,7 @@ document.addEventListener('keydown', e => {
 
 // 連鎖報酬スキル選択ボタン
 document.querySelectorAll('.chain-reward-btn').forEach(btn => {
-  const pick = () => onChoicePicked(btn.dataset.skill);
-  btn.addEventListener('click',    pick);
-  btn.addEventListener('touchend', e => { e.preventDefault(); pick(); });
+  on(btn, () => onChoicePicked(btn.dataset.skill));
 });
 
 // スキルバーのクレームボタン（報酬待機中に表示）
@@ -769,5 +761,4 @@ const claimOpen = () => {
     showChainRewardPanel(true);
   }
 };
-skillClaimBtn.addEventListener('click',    claimOpen);
-skillClaimBtn.addEventListener('touchend', e => { e.preventDefault(); claimOpen(); });
+on(skillClaimBtn, claimOpen);

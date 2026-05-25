@@ -92,8 +92,7 @@ function _dismissNameHint() {
   if (startNameHint) startNameHint.style.display = 'none';
 }
 
-startNameHintOkBtn.addEventListener('click',    () => _dismissNameHint());
-startNameHintOkBtn.addEventListener('touchend', e => { e.preventDefault(); _dismissNameHint(); });
+on(startNameHintOkBtn, _dismissNameHint);
 
 function _openStartNameEditor() {
   if (startNameInput) {
@@ -119,14 +118,10 @@ function _saveStartName() {
   _dismissNameHint();
 }
 
-startNameEditBtn.addEventListener('click',    () => _openStartNameEditor());
-startNameEditBtn.addEventListener('touchend', e => { e.preventDefault(); _openStartNameEditor(); });
-startNameSaveBtn.addEventListener('click',    () => _saveStartName());
-startNameSaveBtn.addEventListener('touchend', e => { e.preventDefault(); _saveStartName(); });
-startNameCancelBtn.addEventListener('click',    () => _closeStartNameEditor());
-startNameCancelBtn.addEventListener('touchend', e => { e.preventDefault(); _closeStartNameEditor(); });
-startNameHint.addEventListener('click',    () => _openStartNameEditor());
-startNameHint.addEventListener('touchend', e => { e.preventDefault(); _openStartNameEditor(); });
+on(startNameEditBtn,   _openStartNameEditor);
+on(startNameSaveBtn,   _saveStartName);
+on(startNameCancelBtn, _closeStartNameEditor);
+on(startNameHint,      _openStartNameEditor);
 startNameInput.addEventListener('keydown', e => {
   if (e.key === 'Enter')  _saveStartName();
   if (e.key === 'Escape') _closeStartNameEditor();
@@ -262,57 +257,14 @@ function init() {
   resize();
 
   score = 0; dangerCnt = 0; dead = false; paused = false; waiting = true;
-  _pendingShareId = null;
-  _goPopEffects = [];
-  _goFlashIds.clear();
-  _goFlashStart = 0;
-  _dropCount = 0;
-  _clusterVanishCount = 0;
-  _mergeCount = 0;
-  _bodyMergeCount = [];
-  _savedBodyMerges = JSON.parse(localStorage.getItem('rollaxy_body_merges') || '[]');
-  _maxChainThisGame = 0;
-  _chainEventCount = 0;
-  _lastDropHadChain = false;
-  _consecutiveChainDrops = 0;
-  _chainCountsByLevel = [];
-  _savedChainCounts = JSON.parse(localStorage.getItem('rollaxy_chain_counts') || '[]');
-  _skillJustUsed = false;
-  _skillChainCountsByLevel = [];
-  _savedSkillChainCounts = JSON.parse(localStorage.getItem('rollaxy_skill_chain_counts') || '[]');
-  chainCount = 0;
-  clearTimeout(chainTimer);       chainTimer = null;
-  clearTimeout(chainResolveTimer); chainResolveTimer = null;
-  chainEl.classList.remove('show', 'chain-final');
-  // スキル状態リセット（所持数は config の初期値に戻す）
-  skillCharges = { ...CFG.SKILL_INIT_CHARGES };
-  activeSkill = null; bombMode = false;
-  if (bombBody) { Matter.Composite.remove(world, bombBody, true); bombBody = null; }
-  bombHit = false; clearTimeout(bombFuseTimer); bombFuseTimer = null; bombExplosion = null;
-  skillSelectMode = false; skillSelectedId = null;
-  skillConfirmEl.classList.remove('show');
-  chainRewardPending = false;
-  document.getElementById('chain-reward').classList.remove('show');
-  clearTimeout(choiceAutoTimer); choiceAutoTimer = null;
-  clearTimeout(choicePeekTimer); choicePeekTimer = null;
-  rltReset();
-  rouletteQueue.length = 0;
-  pendingChoiceRewards = 0;
-  updateRewardQueueInfo();
-  updateSkillBarRewardState();
-  // チュートリアル・強制使用・リマインダーをリセット
-  tutorialActive = false; tutorialTargetId = null; _forcedSkillActive = false;
-  hideTutorialPointer();
-  _session5ChainCount = 0; _sessionEverClaimed = false; _sessionEverUsedSkill = false;
-  updateSkillButtons();
-  updateReminderHighlight();
+  _resetStats();
   // ゲームオーバー・設定オーバーレイを閉じる（スタート画面は表示しない）
-  overlay.classList.remove('show');         // 「ゲームオーバー時のオーバーレイ」
+  hide(overlay);         // ゲームオーバーオーバーレイ
   document.getElementById('share-note')?.classList.remove('show');
   const _rankPctEl = document.getElementById('rank-pct-el');
   if (_rankPctEl) { _rankPctEl.style.display = 'none'; _rankPctEl.textContent = ''; }
   _restoreShareButton();
-  settingsOverlay.classList.remove('show'); // 「設定を開いたとき」の画面
+  hide(settingsOverlay); // 設定オーバーレイ
   startScreen.classList.remove('hidden');    // スタート画面を表示（#start-screen の .hidden を外す）
   dropX = CFG.W / 2; canDrop = true;
   bmap = new Map(); mq = []; glowMap = new Map();
@@ -320,6 +272,13 @@ function init() {
 
   curBi = rnd(); nxtBi = rnd();
 
+  _buildPhysicsWorld();
+  updateHUD();
+}
+
+// 物理エンジン・壁・衝突イベントを再構築する（init からのみ呼ばれる）。
+// bmap などの状態リセット後に呼ぶこと。
+function _buildPhysicsWorld() {
   if (eng) { Matter.Events.off(eng); Matter.Engine.clear(eng); }
   eng   = Matter.Engine.create({
     enableSleeping: true,
@@ -352,7 +311,56 @@ function init() {
   Matter.Events.on(eng, 'afterUpdate',     checkCustomSleep); // 振動検出による強制スリープ
   Matter.Events.on(eng, 'afterUpdate',     scanNearby);       // 近距離ペアを補完スキャン
   Matter.Events.on(eng, 'afterUpdate',     flushMerges);      // スキャン結果を処理（登録順で後に実行）
-  updateHUD();
+}
+
+// スコア・各種カウンタ・スキル・連鎖・チュートリアル状態をリセットする
+// （init からのみ呼ばれる）。コア状態フラグ（dead/paused/waiting/score）は
+// 呼び出し側 init() に残してある。
+function _resetStats() {
+  _pendingShareId = null;
+  _goPopEffects = [];
+  _goFlashIds.clear();
+  _goFlashStart = 0;
+  _dropCount = 0;
+  _clusterVanishCount = 0;
+  _mergeCount = 0;
+  _bodyMergeCount = [];
+  _savedBodyMerges = JSON.parse(localStorage.getItem('rollaxy_body_merges') || '[]');
+  _maxChainThisGame = 0;
+  _chainEventCount = 0;
+  _lastDropHadChain = false;
+  _consecutiveChainDrops = 0;
+  _chainCountsByLevel = [];
+  _savedChainCounts = JSON.parse(localStorage.getItem('rollaxy_chain_counts') || '[]');
+  _skillJustUsed = false;
+  _skillChainCountsByLevel = [];
+  _savedSkillChainCounts = JSON.parse(localStorage.getItem('rollaxy_skill_chain_counts') || '[]');
+  chainCount = 0;
+  clearTimeout(chainTimer);       chainTimer = null;
+  clearTimeout(chainResolveTimer); chainResolveTimer = null;
+  chainEl.classList.remove('show', 'chain-final');
+  // スキル状態リセット（所持数は config の初期値に戻す）
+  skillCharges = { ...CFG.SKILL_INIT_CHARGES };
+  activeSkill = null; bombMode = false;
+  if (bombBody) { Matter.Composite.remove(world, bombBody, true); bombBody = null; }
+  bombHit = false; clearTimeout(bombFuseTimer); bombFuseTimer = null; bombExplosion = null;
+  skillSelectMode = false; skillSelectedId = null;
+  hide(skillConfirmEl);
+  chainRewardPending = false;
+  document.getElementById('chain-reward').classList.remove('show');
+  clearTimeout(choiceAutoTimer); choiceAutoTimer = null;
+  clearTimeout(choicePeekTimer); choicePeekTimer = null;
+  rltReset();
+  rouletteQueue.length = 0;
+  pendingChoiceRewards = 0;
+  updateRewardQueueInfo();
+  updateSkillBarRewardState();
+  // チュートリアル・強制使用・リマインダーをリセット
+  tutorialActive = false; tutorialTargetId = null; _forcedSkillActive = false;
+  hideTutorialPointer();
+  _session5ChainCount = 0; _sessionEverClaimed = false; _sessionEverUsedSkill = false;
+  updateSkillButtons();
+  updateReminderHighlight();
 }
 
 // 出現する天体をランダム選択（0 〜 MAX_SPAWN の範囲）
@@ -808,7 +816,7 @@ function _startGameOverAnim() {
   _goFlashIds.clear(); // 点滅終了 → 消去アニメへ移行
   const ids = [...bmap.keys()];
   if (ids.length === 0) {
-    overlay.classList.add('show');
+    show(overlay);
     return;
   }
   // Fisher-Yates シャッフル
@@ -822,7 +830,7 @@ function _startGameOverAnim() {
       _popBody(id);
       if (idx === ids.length - 1) {
         // 最後の天体のポップアニメが終わる頃にオーバーレイを表示
-        setTimeout(() => overlay.classList.add('show'), POP_DUR_MS + 80);
+        setTimeout(() => show(overlay), POP_DUR_MS + 80);
       }
     }, Math.round(idx * interval));
   });
@@ -955,21 +963,14 @@ canvas.addEventListener('touchend', e => {
   dropX = lx; drop();
 }, { passive: false });
 
-// 各ボタンに click と touchend を両方登録（スマホの 300ms 遅延対策）
 // retry_click はここで発火（init() 内部ではなく）
 // → ページ初回ロード時の init() と区別するため
-retryBtn.addEventListener('click', () => {
-  logEvent('retry_click', { game_id: 'rollaxy', previous_score: score });
-  init();
-});
-retryBtn.addEventListener('touchend', e => {
-  e.preventDefault(); // touchend の後に click が重複発火しないよう preventDefault
+on(retryBtn, () => {
   logEvent('retry_click', { game_id: 'rollaxy', previous_score: score });
   init();
 });
 
-startBtn.addEventListener('click',    () => { _tryUnlockAudio(); beginGame(); });
-startBtn.addEventListener('touchend', e => { e.preventDefault(); _tryUnlockAudio(); beginGame(); });
+on(startBtn, () => { _tryUnlockAudio(); beginGame(); });
 
 // ============================================================
 // 設定オーバーレイの開閉
@@ -1027,80 +1028,8 @@ async function _fetchSessionToken() {
   }
 }
 
-function _showMenuPanel() {
-  menuPanel.style.display    = 'flex';
-  settingsPanel.style.display = 'none';
-}
-function _showSettingsPanel() {
-  // 設定サブパネルを開くタイミングで表示名フィールドを初期化
-  const dnInput  = document.getElementById('displayname-input');
-  const dnStatus = document.getElementById('displayname-status');
-  if (dnInput) {
-    dnInput.value       = getDisplayName();
-    dnInput.placeholder = T('displayNamePlaceholder');
-  }
-  if (dnStatus) dnStatus.textContent = '';
-  menuPanel.style.display    = 'none';
-  settingsPanel.style.display = 'flex';
-}
-
-function openSettings() {
-  if (dead) return; // ゲームオーバー中は設定を開かない（スタート待ち中は開いてよい）
-  paused = true;    // 物理を停止（待機中はすでに止まっているが、フラグとして立てる）
-  _showMenuPanel();
-  settingsOverlay.classList.add('show');
-}
-function closeSettings() {
-  paused = false;
-  settingsOverlay.classList.remove('show');
-  _showMenuPanel(); // 次回オープン時のためにメニューへリセット
-}
-
-settingsBtn.addEventListener('click',    () => paused ? closeSettings() : openSettings());
-settingsBtn.addEventListener('touchend', e => { e.preventDefault(); paused ? closeSettings() : openSettings(); });
-resumeBtn.addEventListener('click',    () => closeSettings());
-resumeBtn.addEventListener('touchend', e => { e.preventDefault(); closeSettings(); });
-menuSettingsBtn.addEventListener('click',    () => _showSettingsPanel());
-menuSettingsBtn.addEventListener('touchend', e => { e.preventDefault(); _showSettingsPanel(); });
-settingsBackBtn.addEventListener('click',    () => _showMenuPanel());
-settingsBackBtn.addEventListener('touchend', e => { e.preventDefault(); _showMenuPanel(); });
-resetBtn.addEventListener('click',    () => { closeSettings(); init(); });
-resetBtn.addEventListener('touchend', e => { e.preventDefault(); closeSettings(); init(); });
-
-// 表示名保存ボタン
-const displayNameSaveBtn = document.getElementById('displayname-save');
-if (displayNameSaveBtn) {
-  const doSaveName = () => {
-    const input  = document.getElementById('displayname-input');
-    const status = document.getElementById('displayname-status');
-    if (saveDisplayName(input.value)) {
-      input.value          = getDisplayName(); // trim 後の値を反映
-      updateStartPlayername();                 // スタート画面の名前表示も更新
-      syncDisplayNameToServer();               // players テーブルへ即時同期
-      status.textContent   = T('displayNameSaved');
-      status.dataset.ok    = '1';
-      setTimeout(() => { if (status) status.textContent = ''; }, 2000);
-    } else {
-      status.textContent   = T('displayNameEmpty');
-      status.dataset.ok    = '';
-    }
-  };
-  displayNameSaveBtn.addEventListener('click',    doSaveName);
-  displayNameSaveBtn.addEventListener('touchend', e => { e.preventDefault(); doSaveName(); });
-  document.getElementById('displayname-input')
-    ?.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); doSaveName(); } });
-}
-
-// 効果音スライダー
-const sfxVolSlider = document.getElementById('sfx-vol');
-const sfxValEl     = document.getElementById('sfx-val');
-sfxVolSlider.value = sfxVolume;
-sfxValEl.textContent = Math.round(sfxVolume * 100) + '%';
-sfxVolSlider.addEventListener('input', () => {
-  sfxVolume = parseFloat(sfxVolSlider.value);
-  sfxValEl.textContent = Math.round(sfxVolume * 100) + '%';
-  localStorage.setItem('rollaxy_sfx_vol', sfxVolume);
-});
+// 設定オーバーレイ UI（メニュー/設定パネル・表示名保存・音量スライダー）は
+// game-ui.js に分離（game.js の後にロード）。openSettings/closeSettings 等を提供。
 
 window.addEventListener('resize', resize);
 
