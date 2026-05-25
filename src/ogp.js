@@ -121,6 +121,14 @@ function buildOgpBoardCircles(bodies, bodyImages) {
     const dataUrl = bodyImages?.[tier];
     if (dataUrl) {
       // tier ごとに 1 回だけ画像本体を定義（width/height は tier 固定なので使い回せる）。
+      // 【絶対に守ること / 過去2回ここでハマった】
+      //   - width/height は必ず <image> 側に書く。<use> 側に書いても <image> には
+      //     効かず（SVGの<use>のwidth/heightは<svg>/<symbol>参照時のみ有効）画像が崩れる。
+      //   - <use> は x/y（位置）だけを担う。
+      //   - インライン <image> に戻さないこと。天体数だけ base64 が重複し SVG が数MB に
+      //     膨張して resvg が render 時に OOM（unreachable）でクラッシュする。
+      // 経緯: 3140f54 で<use>化→04e4d13 で「画像が崩れる」を理由にインライン復帰(OOM再発)
+      //       →f17b6c1 で width/height を<image>側に置き直して両立。
       if (!tierImgAdded.has(tier)) {
         tierImgAdded.add(tier);
         defs += `<image id="bimg${tier}" href="${dataUrl}" width="${d}" height="${d}" preserveAspectRatio="xMidYMid slice"/>`;
