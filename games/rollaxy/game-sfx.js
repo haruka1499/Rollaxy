@@ -38,6 +38,35 @@ function playMergeSound(chain) {
   snd.play().catch(() => { snd._busy = false; });
 }
 
+// ── 追加効果音（単発再生） ──
+function _makeSfx(path) {
+  const a = new Audio(path);
+  a.preload = 'auto';
+  return a;
+}
+
+const _sfxSkillSelect  = _makeSfx('sounds/スキル選択音.wav');
+const _sfxBack         = _makeSfx('sounds/戻るときの音全般.wav');
+const _sfxUpgrade      = _makeSfx('sounds/指定アップグレード.wav');
+const _sfxDelete       = _makeSfx('sounds/指定削除の音.wav');
+const _sfxDecision     = _makeSfx('sounds/決定音全般.wav');
+const _sfxExplosion    = _makeSfx('sounds/爆発音.wav');
+const _sfxNotification = _makeSfx('sounds/通知系の音.wav');
+
+function _playSfx(snd) {
+  snd.volume = Math.max(0, Math.min(1, sfxVolume));
+  snd.currentTime = 0;
+  snd.play().catch(() => {});
+}
+
+function playSkillSelectSound()  { _playSfx(_sfxSkillSelect); }
+function playBackSound()         { _playSfx(_sfxBack); }
+function playUpgradeSound()      { _playSfx(_sfxUpgrade); }
+function playDeleteSound()       { _playSfx(_sfxDelete); }
+function playDecisionSound()     { _playSfx(_sfxDecision); }
+function playExplosionSound()    { _playSfx(_sfxExplosion); }
+function playNotificationSound() { _playSfx(_sfxNotification); }
+
 // スタートボタン押下（ユーザー操作）のタイミングで pool[0] を無音で一瞬再生する。
 // これによりブラウザの autoplay 制限が解除され、以降 rAF ループ内からも play() が通る。
 function _unlockAudio() {

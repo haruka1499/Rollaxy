@@ -44,9 +44,9 @@ function closeSettings() {
 }
 
 on(settingsBtn,     () => paused ? closeSettings() : openSettings());
-on(resumeBtn,       () => closeSettings());
+on(resumeBtn,       () => { playBackSound(); closeSettings(); });
 on(menuSettingsBtn, () => _showSettingsPanel());
-on(settingsBackBtn, () => _showMenuPanel());
+on(settingsBackBtn, () => { playBackSound(); _showMenuPanel(); });
 on(resetBtn,        () => { closeSettings(); init(); });
 
 // 表示名保存ボタン

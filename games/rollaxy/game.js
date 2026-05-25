@@ -1060,11 +1060,12 @@ canvas.addEventListener('touchend', e => {
 // retry_click はここで発火（init() 内部ではなく）
 // → ページ初回ロード時の init() と区別するため
 on(retryBtn, () => {
+  playDecisionSound();
   logEvent('retry_click', { game_id: 'rollaxy', previous_score: score });
   init();
 });
 
-on(startBtn, () => { _tryUnlockAudio(); beginGame(); });
+on(startBtn, () => { _tryUnlockAudio(); playDecisionSound(); beginGame(); });
 
 // ── モード切替トグル（スタート画面） ──
 // ボタン文言を現在のモード/ステージで更新する。

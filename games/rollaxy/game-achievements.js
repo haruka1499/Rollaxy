@@ -89,6 +89,7 @@ function _showNextToast() {
   el.classList.remove('ach-toast-out');
   void el.offsetWidth;
   el.classList.add('ach-toast-in');
+  playNotificationSound();
 
   // キューが3件以上残っている場合は表示時間を短縮
   const duration = queueRem >= 3 ? 2500 : 4500;

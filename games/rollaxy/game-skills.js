@@ -40,6 +40,7 @@ function startBombFuse() {
 
 // 爆発処理: SAFE_BI 未満の天体を効果範囲内で消去
 function explodeBomb(pos) {
+  playExplosionSound();
   bombExplosion = { x: pos.x, y: pos.y, startTime: Date.now(), duration: 500 };
 
   const toRemove = [];    // bi < SAFE_BI  → 即消滅
@@ -250,6 +251,7 @@ function setActiveSkill(skill) {
   if (activeSkill === skill) { resetSkillState(); return; } // トグルオフ
 
   // 既存スキルをキャンセルしてから新スキルを有効化
+  playSkillSelectSound();
   skillConfirmEl.classList.remove('show');
   activeSkill = skill;
   bombMode = (skill === 'bomb');
@@ -313,6 +315,7 @@ function confirmSkillAction() {
   if (!d) { resetSkillState(); return; }
 
   if (activeSkill === 'upgrade') {
+    playUpgradeSound();
     const ni = d.bi + 1;
     bmap.delete(skillSelectedId); glowMap.delete(skillSelectedId);
     Matter.Composite.remove(world, d.body, true);
@@ -322,6 +325,7 @@ function confirmSkillAction() {
     if (skillCharges.upgrade !== Infinity) skillCharges.upgrade--;
     _skillJustUsed = true; // スキル（強化）が適用された
   } else if (activeSkill === 'delete') {
+    playDeleteSound();
     bmap.delete(skillSelectedId); glowMap.delete(skillSelectedId);
     Matter.Composite.remove(world, d.body, true);
     if (skillCharges.delete !== Infinity) skillCharges.delete--;
@@ -369,6 +373,7 @@ function wakeAllBodies() {
 function cancelSkillAction() {
   if (tutorialActive) return; // チュートリアル中はキャンセル不可
   // 強制スキル中も選び直しを許可（スキル自体はキャンセルできない）
+  playBackSound();
   skillSelectedId = null;
   skillConfirmEl.classList.remove('show');
   updateSkillButtons();
@@ -547,6 +552,7 @@ function closeChoicePanel() {
 // スキル選択完了時の処理
 function onChoicePicked(skill) {
   if (pendingChoiceRewards <= 0) return;
+  playDecisionSound();
   if (skillCharges[skill] !== Infinity) skillCharges[skill]++;
   updateSkillButtons();
   pendingChoiceRewards--;
