@@ -84,6 +84,50 @@
   <a id="start-games-link" href="/games/" data-i18n="gamesLink">🎮 ゲーム一覧</a>
 </div>
 
+<!-- ホーム画面専用設定オーバーレイ（#start-screen より上の z-index） -->
+<div id="home-settings-overlay">
+  <!-- 設定パネル -->
+  <div id="home-settings-panel">
+    <h2 data-i18n="settings">設定</h2>
+    <div id="home-sfx-row">
+      <span data-i18n="sfxVolume">効果音</span>
+      <input type="range" id="home-sfx-vol" min="0" max="1" step="0.05" value="0.8">
+      <span id="home-sfx-val">80%</span>
+    </div>
+    <div id="home-lang-wrap">
+      <div id="home-lang-label">Language</div>
+      <div id="home-lang-row"></div>
+    </div>
+    <div id="home-displayname-wrap">
+      <div id="home-displayname-label-row"><span data-i18n="displayNameLabel">表示名</span></div>
+      <div id="home-displayname-edit-row">
+        <input id="home-displayname-input" type="text" maxlength="15" placeholder="15文字以内（日本語OK）">
+        <button id="home-displayname-save" data-i18n="displayNameSave">保存</button>
+      </div>
+      <div id="home-displayname-status"></div>
+    </div>
+    <button id="home-credits-btn" data-i18n="credits">クレジット</button>
+    <button id="home-settings-close" data-i18n="settingsBack">← 戻る</button>
+  </div>
+  <!-- クレジットサブパネル -->
+  <div id="home-credits-panel">
+    <h2 data-i18n="creditsTitle">クレジット</h2>
+    <div class="credits-block">
+      <div class="credits-head" data-i18n="creditsSfxHead">効果音素材</div>
+      <ul class="credits-list">
+        <li>効果音ラボ</li>
+        <li>Pixabay</li>
+      </ul>
+      <p class="credits-note" data-i18n="creditsSfxNote">各サービスの利用規約に基づき効果音素材を使用しています。</p>
+    </div>
+    <div class="credits-block">
+      <div class="credits-head" data-i18n="creditsImgHead">画像・ビジュアル素材</div>
+      <p class="credits-note" data-i18n="creditsImgNote">一部画像・ビジュアル素材の制作には ChatGPT を使用しています。</p>
+    </div>
+    <button id="home-credits-back" data-i18n="settingsBack">← 戻る</button>
+  </div>
+</div>
+
 <!--
   ゲームエリア（#canvas-outer）
   - <canvas> が物理演算・描画を担う。論理サイズ 400×772px を CSS transform で画面にフィット。

@@ -45,15 +45,12 @@ function _showCreditsPanel() {
 function openSettings() {
   if (dead) return; // ゲームオーバー中は設定を開かない（スタート待ち中は開いてよい）
   paused = true;    // 物理を停止（待機中はすでに止まっているが、フラグとして立てる）
-  // スタート画面が手前にある場合は一時的に隠す（z-index: 1000 > settings-overlay: 12）
-  if (waiting) startScreen.classList.add('under-settings');
   _showMenuPanel();
   show(settingsOverlay);
 }
 function closeSettings() {
   paused = false;
   hide(settingsOverlay);
-  startScreen.classList.remove('under-settings'); // スタート画面を復元
   _showMenuPanel(); // 次回オープン時のためにメニューへリセット
 }
 
@@ -103,7 +100,7 @@ on(homeMenuBtn, () => {
 
 on(homeMenuSettings, () => {
   _closeHomeMenu();
-  openSettings();
+  openHomeSettings();
 });
 
 // パネル外タップで閉じる（touchend と click の両方に対応）
@@ -112,6 +109,112 @@ document.addEventListener('click', e => {
     _closeHomeMenu();
   }
 }, { capture: false });
+
+// ============================================================
+// ホーム画面専用設定オーバーレイ
+// ゲーム中の #settings-overlay とは独立した別オーバーレイ。
+// z-index: 1001 で #start-screen (1000) の上に表示される。
+// ============================================================
+const homeSettingsOverlay = document.getElementById('home-settings-overlay');
+const homeSettingsPanelEl = document.getElementById('home-settings-panel');
+const homeCreditsPanelEl  = document.getElementById('home-credits-panel');
+const homeSettingsClose   = document.getElementById('home-settings-close');
+const homeCreditsBtn2     = document.getElementById('home-credits-btn');
+const homeCreditsBack     = document.getElementById('home-credits-back');
+
+function _showHomeSettingsPanel() {
+  homeSettingsPanelEl.style.display = 'flex';
+  homeCreditsPanelEl.style.display  = 'none';
+}
+function _showHomeCreditsPanel() {
+  homeSettingsPanelEl.style.display = 'none';
+  homeCreditsPanelEl.style.display  = 'flex';
+}
+
+function openHomeSettings() {
+  _tryUnlockAudio();
+  // スライダーを現在値で初期化
+  const hSlider = document.getElementById('home-sfx-vol');
+  const hVal    = document.getElementById('home-sfx-val');
+  if (hSlider) { hSlider.value = sfxVolume; }
+  if (hVal)    { hVal.textContent = Math.round(sfxVolume * 100) + '%'; }
+  // 表示名フィールドを初期化
+  const dnInput  = document.getElementById('home-displayname-input');
+  const dnStatus = document.getElementById('home-displayname-status');
+  if (dnInput)  { dnInput.value = getDisplayName(); dnInput.placeholder = T('displayNamePlaceholder'); }
+  if (dnStatus) { dnStatus.textContent = ''; }
+  _showHomeSettingsPanel();
+  homeSettingsOverlay.classList.add('show');
+}
+function closeHomeSettings() {
+  homeSettingsOverlay.classList.remove('show');
+  _showHomeSettingsPanel(); // 次回のためにリセット
+}
+
+on(homeSettingsClose, () => { playBackSound(); closeHomeSettings(); });
+on(homeCreditsBtn2,   () => _showHomeCreditsPanel());
+on(homeCreditsBack,   () => { playBackSound(); _showHomeSettingsPanel(); });
+
+// ── 効果音スライダー（ゲーム内スライダーと sfxVolume を共有）
+const homeSfxSlider = document.getElementById('home-sfx-vol');
+const homeSfxValEl  = document.getElementById('home-sfx-val');
+homeSfxSlider.addEventListener('input', () => {
+  sfxVolume = parseFloat(homeSfxSlider.value);
+  homeSfxValEl.textContent = Math.round(sfxVolume * 100) + '%';
+  localStorage.setItem(STORAGE_KEYS.SFX_VOL, sfxVolume);
+  // ゲーム内スライダーにも反映
+  if (sfxVolSlider) { sfxVolSlider.value = sfxVolume; sfxValEl.textContent = homeSfxValEl.textContent; }
+});
+
+// ── 言語ボタン（ゲーム内セレクターと同じ LANGS/setLang を使用）
+function _buildHomeLangSelector() {
+  const row = document.getElementById('home-lang-row');
+  if (!row) return;
+  row.innerHTML = '';
+  for (const code of LANG_ORDER) {
+    const btn = document.createElement('button');
+    btn.className    = 'lang-btn';
+    btn.dataset.lang = code;
+    btn.textContent  = LANGS[code].name;
+    if (code === currentLang) btn.classList.add('active');
+    btn.addEventListener('click',    () => setLang(code));
+    btn.addEventListener('touchend', e => { e.preventDefault(); setLang(code); }, { passive: false });
+    row.appendChild(btn);
+  }
+}
+_buildHomeLangSelector();
+
+// 言語変更時にホーム設定の言語ボタンとplaceholderも更新
+document.addEventListener('langchange', () => {
+  document.querySelectorAll('#home-lang-row .lang-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.lang === currentLang);
+  });
+  const dnInput = document.getElementById('home-displayname-input');
+  if (dnInput) dnInput.placeholder = T('displayNamePlaceholder');
+});
+
+// ── 表示名保存
+const homeDisplayNameSaveBtn = document.getElementById('home-displayname-save');
+if (homeDisplayNameSaveBtn) {
+  const doSaveHomeName = () => {
+    const input  = document.getElementById('home-displayname-input');
+    const status = document.getElementById('home-displayname-status');
+    if (saveDisplayName(input.value)) {
+      input.value = getDisplayName();
+      updateStartPlayername();
+      syncDisplayNameToServer();
+      status.textContent = T('displayNameSaved');
+      status.dataset.ok  = '1';
+      setTimeout(() => { if (status) status.textContent = ''; }, 2000);
+    } else {
+      status.textContent = T('displayNameEmpty');
+      status.dataset.ok  = '';
+    }
+  };
+  on(homeDisplayNameSaveBtn, doSaveHomeName);
+  document.getElementById('home-displayname-input')
+    ?.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); doSaveHomeName(); } });
+}
 
 // 効果音スライダー
 const sfxVolSlider = document.getElementById('sfx-vol');
