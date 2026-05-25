@@ -78,18 +78,18 @@ function updateStartPlayername() {
 function updateNameHint() {
   if (!startNameHint) return;
   if (localStorage.getItem('novora_hint_shown')) {
-    startNameHint.style.display = 'none';
+    hide(startNameHint);
     return;
   }
   const msgEl = document.getElementById('start-name-hint-msg');
   if (msgEl) msgEl.textContent = T('startNameHint');
   if (startNameHintOkBtn) startNameHintOkBtn.textContent = T('startNameHintOk');
-  startNameHint.style.display = '';
+  show(startNameHint);
 }
 
 function _dismissNameHint() {
   localStorage.setItem('novora_hint_shown', '1');
-  if (startNameHint) startNameHint.style.display = 'none';
+  if (startNameHint) hide(startNameHint);
 }
 
 on(startNameHintOkBtn, _dismissNameHint);
@@ -262,7 +262,7 @@ function init() {
   hide(overlay);         // ゲームオーバーオーバーレイ
   document.getElementById('share-note')?.classList.remove('show');
   const _rankPctEl = document.getElementById('rank-pct-el');
-  if (_rankPctEl) { _rankPctEl.style.display = 'none'; _rankPctEl.textContent = ''; }
+  if (_rankPctEl) { hide(_rankPctEl); _rankPctEl.textContent = ''; }
   _restoreShareButton();
   hide(settingsOverlay); // 設定オーバーレイ
   startScreen.classList.remove('hidden');    // スタート画面を表示（#start-screen の .hidden を外す）
@@ -738,7 +738,7 @@ function doGameOver() {
   resetSkillState(); // スキル状態をクリア
   finalEl.textContent = score;
   const isHi = score > hiScore;
-  newHiEl.style.display = isHi ? 'block' : 'none';
+  toggleShow(newHiEl, isHi);
   if (isHi) {
     hiScore = score;
     localStorage.setItem('rollaxy_hi', score);

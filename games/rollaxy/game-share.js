@@ -81,7 +81,7 @@ async function _createShare() {
           const pctEl  = document.getElementById('rank-pct-el');
           if (pctEl) {
             pctEl.textContent = T('rankPct')(pctStr);
-            pctEl.style.display = '';
+            show(pctEl);
           }
         }
       }

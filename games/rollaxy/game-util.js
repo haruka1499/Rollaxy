@@ -15,7 +15,14 @@ function on(el, fn) {
 }
 
 // CSS .show クラスによる表示切替ヘルパー。
-// アニメーション付きオーバーレイ（#overlay, #settings-overlay 等）に使う。
-// style.display を直接操作している要素（設定サブパネル等）には使わないこと。
+// 【表示制御の規約】可視性の真実は .show クラスが持ち、display の値は CSS の
+// `要素 { display: none }` / `要素.show { display: ... }` ルールが持つ。
+// JS は class の付け外しのみ行い、style.display は直接操作しない。
+// 新規 UI の表示/非表示は必ずこのヘルパー経由で実装すること。
+// 注意: HTML の inline style="display:..." は .show より優先されるため、
+// このヘルパーで制御する要素には inline display を付けないこと。
 const show = el => el.classList.add('show');
 const hide = el => el.classList.remove('show');
+// 条件付き表示切替。on が真なら show、偽なら hide。
+// 例: toggleShow(newHiEl, score > hiScore)
+const toggleShow = (el, on) => el.classList.toggle('show', !!on);

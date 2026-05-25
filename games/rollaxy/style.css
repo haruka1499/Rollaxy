@@ -86,13 +86,16 @@ canvas { position: absolute; top: 0; left: 0; transform-origin: top left; }
 #overlay.show { display: flex; }
 #overlay h2 { font-size: 38px; font-weight: bold; }
 #overlay .result { font-size: 20px; }
-#new-hi { color: #ffd700; font-size: 17px; }
+#new-hi { display: none; color: #ffd700; font-size: 17px; }
+#new-hi.show { display: block; }
 #rank-pct-el {
+  display: none;
   font-size: 15px;
   color: #cc88ff;
   letter-spacing: 0.04em;
   animation: rankPctFadeIn 0.6s ease both;
 }
+#rank-pct-el.show { display: block; }
 @keyframes rankPctFadeIn {
   from { opacity: 0; transform: translateY(6px); }
   to   { opacity: 1; transform: translateY(0); }
@@ -244,11 +247,13 @@ canvas { position: absolute; top: 0; left: 0; transform-origin: top left; }
 
 /* クレームボタン（報酬受け取りボタン）*/
 #skill-claim {
+  display: none;
   flex: 1;
   background: rgba(255,200,0,0.15);
   border-color: rgba(255,200,0,0.55);
   animation: claimPulse 1.6s ease-in-out infinite;
 }
+#skill-claim.show { display: flex; }
 #skill-claim .skill-count { background: rgba(255,180,0,0.35); }
 @keyframes claimPulse {
   0%, 100% { box-shadow: 0 0 0 rgba(255,180,0,0); }
@@ -673,7 +678,7 @@ canvas { position: absolute; top: 0; left: 0; transform-origin: top left; }
 #start-name-save-btn   { background: rgba(124,92,252,0.65); color: #fff; }
 #start-name-cancel-btn { background: rgba(255,255,255,0.1); color: #aaa; }
 #start-name-hint {
-  display: flex; align-items: center; gap: 8px;
+  display: none; align-items: center; gap: 8px;
   width: 100%;
   background: rgba(255,216,110,0.1);
   border: 1px solid rgba(255,216,110,0.35);
@@ -681,6 +686,7 @@ canvas { position: absolute; top: 0; left: 0; transform-origin: top left; }
   padding: 6px 10px;
   font-size: 11px; color: #ffd86e;
 }
+#start-name-hint.show { display: flex; }
 #start-name-hint-msg { flex: 1; text-align: left; }
 #start-name-hint-ok {
   flex-shrink: 0;
@@ -994,12 +1000,13 @@ canvas { position: absolute; top: 0; left: 0; transform-origin: top left; }
   min-width: 0;
 }
 
-/* セクション内容（折り畳み時は display:none） */
+/* セクション内容（折り畳み時は display:none、.show で展開） */
 .ach-section-body {
   display: none;
   flex-direction: column; gap: 6px;
   padding: 8px 0 2px;
 }
+.ach-section-body.show { display: flex; }
 
 /* 実績カード */
 .ach-card {

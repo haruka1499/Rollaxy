@@ -331,13 +331,12 @@ function _renderAchBody() {
 
     // 開閉トグル
     let open = false;
-    const toggle = () => {
+    const toggleSection = () => {
       open = !open;
-      content.style.display = open ? 'flex' : 'none';
+      toggleShow(content, open);
       hdr.querySelector('.ach-cat-arrow').textContent = open ? '▼' : '▶';
     };
-    hdr.addEventListener('click',    toggle);
-    hdr.addEventListener('touchend', e => { e.preventDefault(); toggle(); });
+    on(hdr, toggleSection);
 
     section.appendChild(hdr);
     section.appendChild(content);

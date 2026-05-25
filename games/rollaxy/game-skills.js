@@ -583,10 +583,10 @@ function updateSkillBarRewardState() {
   if (pendingChoiceRewards > 0) {
     skillBar.classList.add('reward-pending');
     claimCount.textContent = pendingChoiceRewards;
-    claimBtn.style.display = '';
+    show(claimBtn);
   } else {
     skillBar.classList.remove('reward-pending');
-    claimBtn.style.display = 'none';
+    hide(claimBtn);
   }
 }
 
