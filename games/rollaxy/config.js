@@ -82,6 +82,28 @@ const CFG = {
     CHAIN_WINDOW_MS: 800,
   },
 
+  // ============================================================
+  // ゲームモード（拡張用の土台）
+  // ============================================================
+  // type: 'endless' = ゲームオーバーまで（従来の通常モード）
+  //       'stage'   = goal スコア到達でクリア（デフォルト）
+  // unlockLevel: 解禁に必要なプレイヤーレベル（将来用。0 = 常時解禁）
+  // 新モードを追加する場合はここに足し、必要なら game.js の checkGoal/doStageClear を拡張する。
+  // ランキング送信は endless のみ（stage はローカル進行のみ。game.js doGameOver 参照）。
+  MODES: [
+    { id: 'stage',   type: 'stage',   nameJa: 'ステージ',   nameEn: 'Stage',   nameZh: '关卡', unlockLevel: 0 },
+    { id: 'endless', type: 'endless', nameJa: 'エンドレス', nameEn: 'Endless', nameZh: '无尽', unlockLevel: 0 },
+  ],
+  DEFAULT_MODE: 'stage',
+
+  // ステージ定義（stage モード用）。id = "ワールド-ステージ"。goal = クリアに必要なスコア。
+  // 将来はワールド追加・特殊ルール（出現天体制限など）をここに足して拡張する。
+  STAGES: [
+    { id: '1-1', goal:  3000, unlockLevel: 0 },
+    { id: '1-2', goal:  6000, unlockLevel: 0 },
+    { id: '1-3', goal: 10000, unlockLevel: 0 },
+  ],
+
   // スキル初期所持数（デバッグ・バランス調整用）
   // Infinity を指定すると無制限
   SKILL_INIT_CHARGES: {
@@ -178,8 +200,10 @@ const STORAGE_KEYS = {
   MAX_TIER:           'rollaxy_max_tier',
   CLUSTER_VANISH:     'rollaxy_cluster_vanish',
   CLUSTER_COUNT:      'rollaxy_cluster_count',
-  AUTOSTARTED:        'rollaxy_autostarted',
   ACH:                'rollaxy_ach',
+  LAST_MODE:          'rollaxy_last_mode',     // 最後に選んだモードID
+  STAGE_CLEARED:      'rollaxy_stage_cleared',  // クリア済みステージID配列(JSON)
+  PLAYER_LEVEL:       'rollaxy_player_level',   // プレイヤーレベル（将来のモード解禁用）
   SKILL_HINT_BOMB:    'rollaxy_skill_hint_bomb',
   SKILL_HINT_UPGRADE: 'rollaxy_skill_hint_upgrade',
   SKILL_HINT_DELETE:  'rollaxy_skill_hint_delete',

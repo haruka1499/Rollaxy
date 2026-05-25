@@ -45,6 +45,8 @@ const nextEmoEl   = document.getElementById('next-emoji');
 const finalEl     = document.getElementById('final-score');
 const newHiEl     = document.getElementById('new-hi');
 const retryBtn    = document.getElementById('retry-btn');
+const _overlayTitleEl = overlay.querySelector('h2'); // ゲームオーバー/クリアのタイトル出し分け用
+const modeToggleBtn   = document.getElementById('mode-toggle-btn'); // スタート画面のモード切替
 
 // 「設定ボタン」= #settings-btn / 「設定を開いたとき」= #settings-overlay
 const settingsBtn     = document.getElementById('settings-btn');
@@ -205,6 +207,44 @@ let debugDragging = false; // 左ボタン押しっぱなし中
 let hiScore = +(localStorage.getItem(STORAGE_KEYS.HI_SCORE) || localStorage.getItem(STORAGE_KEYS.LEGACY_HI) || 0);
 hiEl.textContent = `${T('best')}: ${hiScore}`;
 
+// ============================================================
+// GAME MODE — モード/ステージの状態と土台（config.js の MODES/STAGES と連動）
+// ============================================================
+// currentModeId: 'stage'(デフォルト) | 'endless'。currentStageId は stage モード時のみ使用。
+// 最後に選んだモードを localStorage から復元（無効値・未解禁ならデフォルトへフォールバック）。
+let currentModeId  = localStorage.getItem(STORAGE_KEYS.LAST_MODE) || CFG.DEFAULT_MODE;
+if (!CFG.MODES.some(m => m.id === currentModeId)) currentModeId = CFG.DEFAULT_MODE;
+let currentStageId = CFG.STAGES[0]?.id ?? null; // 足場段階は先頭ステージ固定（選択UIは将来）
+let _endIsClear    = false; // 直近の終了がステージクリアか（オーバーレイ表示の出し分け用）
+
+const curMode  = () => CFG.MODES.find(m => m.id === currentModeId) || CFG.MODES[0];
+const curStage = () => CFG.STAGES.find(s => s.id === currentStageId) || null;
+
+// プレイヤーレベル（将来のモード/ステージ解禁用のスタブ。今は常に 0）。
+function getPlayerLevel() {
+  return parseInt(localStorage.getItem(STORAGE_KEYS.PLAYER_LEVEL) || '0', 10) || 0;
+}
+// 解禁判定の唯一の入口。将来はここにレベル/前ステージクリア条件を足すだけで拡張できる。
+function isUnlocked(item) {
+  return (item?.unlockLevel ?? 0) <= getPlayerLevel();
+}
+// 現在言語でモード名を取得（achievements と同じ nameJa/En/Zh 規約）。
+function modeName(m) {
+  const cap = (typeof currentLang === 'string' ? currentLang : 'ja').replace(/^./, c => c.toUpperCase());
+  return m[`name${cap}`] || m.nameJa;
+}
+// クリア済みステージ集合の読み書き（rollaxy_stage_cleared に JSON 配列で保存）。
+function loadClearedStages() {
+  try { return new Set(JSON.parse(localStorage.getItem(STORAGE_KEYS.STAGE_CLEARED) || '[]')); }
+  catch (_) { return new Set(); }
+}
+function markStageCleared(id) {
+  if (!id) return;
+  const set = loadClearedStages();
+  set.add(id);
+  localStorage.setItem(STORAGE_KEYS.STAGE_CLEARED, JSON.stringify([...set]));
+}
+
 // 共有 URL（doGameOver で非同期生成し shareToX で使う）
 let _pendingShareId = null;
 
@@ -257,15 +297,19 @@ function init() {
   resize();
 
   score = 0; dangerCnt = 0; dead = false; paused = false; waiting = true;
+  _endIsClear = false; // クリア表示フラグをリセット
   _resetStats();
   // ゲームオーバー・設定オーバーレイを閉じる（スタート画面は表示しない）
   hide(overlay);         // ゲームオーバーオーバーレイ
+  if (_overlayTitleEl) _overlayTitleEl.textContent = T('gameOver'); // タイトルを既定へ戻す
   document.getElementById('share-note')?.classList.remove('show');
   const _rankPctEl = document.getElementById('rank-pct-el');
   if (_rankPctEl) { hide(_rankPctEl); _rankPctEl.textContent = ''; }
+  shareBtn.classList.remove('is-hidden'); // stage モードで隠した場合に備え戻す
   _restoreShareButton();
   hide(settingsOverlay); // 設定オーバーレイ
   startScreen.classList.remove('hidden');    // スタート画面を表示（#start-screen の .hidden を外す）
+  updateModeToggle();    // スタート画面のモード切替ボタン文言を更新
   dropX = CFG.W / 2; canDrop = true;
   bmap = new Map(); mq = []; glowMap = new Map();
   if (dropTimer) clearTimeout(dropTimer);
@@ -723,6 +767,25 @@ function checkDanger() {
   if (dangerCnt >= CFG.RULES.DANGER_F) doGameOver();
 }
 
+// stage モードのクリア判定。goal スコア到達で doStageClear。
+// endless モードや終了済み(dead)では何もしない。
+function checkGoal() {
+  if (dead) return;
+  const m = curMode();
+  if (!m || m.type !== 'stage') return;
+  const st = curStage();
+  if (st && score >= st.goal) doStageClear();
+}
+
+// ステージクリア。クリア済みを記録し、終了フロー(doGameOver)を再利用して
+// オーバーレイを表示する（_endIsClear でタイトルを「クリア」に出し分け）。
+function doStageClear() {
+  if (dead) return;
+  _endIsClear = true;
+  markStageCleared(currentStageId);
+  doGameOver();
+}
+
 function doGameOver() {
   dead = true;
   if (dropTimer) clearTimeout(dropTimer);
@@ -737,7 +800,10 @@ function doGameOver() {
   closeChoicePanel(); // updateSkillBarRewardState を内部で呼ぶ（pendingChoiceRewards=0 が先に必要）
   resetSkillState(); // スキル状態をクリア
   finalEl.textContent = score;
-  const isHi = score > hiScore;
+  // オーバーレイのタイトルをクリア/ゲームオーバーで出し分け（既定は data-i18n="gameOver"）。
+  if (_overlayTitleEl) _overlayTitleEl.textContent = _endIsClear ? T('stageClear') : T('gameOver');
+  // 自己ベスト更新は endless のみ（stage はクリア基準なので best 表示を出さない）。
+  const isHi = !_endIsClear && score > hiScore;
   toggleShow(newHiEl, isHi);
   if (isHi) {
     hiScore = score;
@@ -789,6 +855,9 @@ function doGameOver() {
   } catch (_) {}
   logEvent('game_over', {
     game_id:      'rollaxy',
+    mode:         currentModeId,
+    stage:        curMode()?.type === 'stage' ? currentStageId : null,
+    cleared:      _endIsClear ? 1 : 0,
     score,
     highest_tier: _highestTier,
     drop_count:   _dropCount,
@@ -796,12 +865,18 @@ function doGameOver() {
     is_new_best:  isHi ? 1 : 0,
     lang:         typeof currentLang !== 'undefined' ? currentLang : 'ja',
   });
-  // share API を即座に非同期呼び出し（アニメーション中に裏で通信）
+  // ランキング送信は endless モードのみ（stage スコアで endless リーダーボードを汚さない）。
+  // stage モードではシェアボタンを隠し、_createShare() も呼ばない。
   _pendingShareId = null;
-  shareBtn.disabled = true;
-  shareBtn.textContent = T('sharePreparing');
-  shareBtn.classList.add('loading');
-  _createShare();
+  if (curMode()?.type === 'endless') {
+    shareBtn.classList.remove('is-hidden');
+    shareBtn.disabled = true;
+    shareBtn.textContent = T('sharePreparing');
+    shareBtn.classList.add('loading');
+    _createShare();
+  } else {
+    shareBtn.classList.add('is-hidden');
+  }
   // アウトした天体を特定して点滅強調 → GO_FLASH_MS 後に通常の消去アニメを開始
   _goFlashIds.clear();
   for (const [id, d] of bmap.entries()) {
@@ -855,7 +930,12 @@ function _popBody(id) {
 // HUD — ヘッダーのスコアと「次の天体が表示されているところ」を更新
 // ============================================================
 function updateHUD() {
-  scoreEl.textContent = `${T('score')}: ${score}`;
+  const _m = curMode();
+  if (_m && _m.type === 'stage' && curStage()) {
+    scoreEl.textContent = `${T('score')}: ${score} / ${curStage().goal}`; // stage: 目標併記
+  } else {
+    scoreEl.textContent = `${T('score')}: ${score}`;
+  }
   achCheckScore(score);
   const _ni = bodyImages[nxtBi];
   if (_ni && _ni.complete && _ni.naturalWidth > 0) {
@@ -881,6 +961,7 @@ function loop(t) {
     }
     // flushMerges は afterUpdate イベントで各サブステップ後に処理される
     checkDanger();
+    checkGoal(); // stage モードのクリア判定（endless では何もしない）
   }
   draw();
   if (tutorialActive) updateTutorialPointerEl();
@@ -985,6 +1066,32 @@ on(retryBtn, () => {
 
 on(startBtn, () => { _tryUnlockAudio(); beginGame(); });
 
+// ── モード切替トグル（スタート画面） ──
+// ボタン文言を現在のモード/ステージで更新する。
+function updateModeToggle() {
+  if (!modeToggleBtn) return;
+  const m = curMode();
+  if (m.type === 'stage') {
+    const s = curStage();
+    modeToggleBtn.textContent = s
+      ? `${modeName(m)} ${s.id} ・ ${T('goalLabel')} ${s.goal}`
+      : modeName(m);
+  } else {
+    modeToggleBtn.textContent = modeName(m);
+  }
+}
+// 解禁済みモードを順に切り替える（足場では stage ⇄ endless）。
+on(modeToggleBtn, () => {
+  const unlocked = CFG.MODES.filter(isUnlocked);
+  if (unlocked.length < 2) return;
+  const idx = unlocked.findIndex(m => m.id === currentModeId);
+  currentModeId = unlocked[(idx + 1) % unlocked.length].id;
+  if (curMode().type === 'stage' && !currentStageId) currentStageId = CFG.STAGES[0]?.id ?? null;
+  localStorage.setItem(STORAGE_KEYS.LAST_MODE, currentModeId);
+  updateModeToggle();
+  updateHUD(); // HUD の goal 表示を同期
+});
+
 // ============================================================
 // 設定オーバーレイの開閉
 // openSettings: dead=true（ゲームオーバー中）は開かない
@@ -997,7 +1104,16 @@ function _tryUnlockAudio() {
   _unlockAudio();
 }
 
-function beginGame() {
+function beginGame(modeId = currentModeId, stageId = currentStageId) {
+  // モード/ステージを確定して記録（未解禁・無効ならデフォルトへフォールバック）。
+  const m = CFG.MODES.find(x => x.id === modeId && isUnlocked(x)) || curMode();
+  currentModeId = m.id;
+  if (m.type === 'stage') {
+    const s = CFG.STAGES.find(x => x.id === stageId && isUnlocked(x)) || CFG.STAGES[0];
+    currentStageId = s?.id ?? null;
+  }
+  localStorage.setItem(STORAGE_KEYS.LAST_MODE, currentModeId);
+
   waiting = false;
   _gameStartTime = Date.now(); // ゲーム開始時刻（elapsed_ms 計算用）
   startScreen.classList.add('hidden');       // スタート画面をフェードアウト
@@ -1010,6 +1126,8 @@ function beginGame() {
   localStorage.setItem(STORAGE_KEYS.GAME_COUNT, String(_gameCount));
   logEvent('game_start', {
     game_id:          'rollaxy',
+    mode:             currentModeId,
+    stage:            m.type === 'stage' ? currentStageId : null,
     lang:             typeof currentLang !== 'undefined' ? currentLang : 'ja',
     game_number:      _gameCount,           // 通算プレイ回数（リテンション分析用）
     is_returning:     _prevCount > 0 ? 1 : 0, // 初回=0、2回目以降=1
@@ -1069,8 +1187,9 @@ function buildLangSelector() {
 
 // lang.js の applyLang() が発火する langchange を受けてスコア等の動的文字列を再描画
 document.addEventListener('langchange', () => {
-  scoreEl.textContent = `${T('score')}: ${score ?? 0}`;
+  updateHUD(); // モード対応のスコア/目標表示を再描画
   hiEl.textContent    = `${T('best')}: ${hiScore}`;
+  updateModeToggle(); // モード名を新言語で再描画
   updateRewardQueueInfo();
   updateAutoshowBtn();
   updateNameHint();
@@ -1171,12 +1290,7 @@ buildDebugPalette();
 buildLangSelector();
 applyLang();
 init();
-// [TEMP_AUTOSTART] サイト生涯で1回だけスタート画面をスキップして即ゲーム開始。
-// 2回目以降・リトライ・リセット後はスタート画面を表示する。
-if (!localStorage.getItem(STORAGE_KEYS.AUTOSTARTED)) {
-  localStorage.setItem(STORAGE_KEYS.AUTOSTARTED, '1');
-  beginGame();
-}
+// 初回アクセスでも必ずスタート画面を表示する（自動開始しない）。
 updateStartPlayername();
 updateNameHint();
 updateAutoshowBtn(); // game-skills.js のロード時点では choiceAutoShow 未定義のためここで呼ぶ

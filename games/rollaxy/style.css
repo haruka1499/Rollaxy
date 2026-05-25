@@ -633,6 +633,18 @@ canvas { position: absolute; top: 0; left: 0; transform-origin: top left; }
   border-color: rgba(160,120,255,0.8);
   box-shadow: 0 0 8px rgba(140,100,255,0.4);
 }
+/* モード選択トグル（スタート画面・拡張用の土台） */
+#mode-toggle-btn {
+  padding: 8px 20px; font-size: 14px; font-weight: bold;
+  border-radius: 20px; cursor: pointer;
+  border: 1px solid rgba(124,92,252,0.5);
+  background: rgba(124,92,252,0.15); color: #cbb6ff;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s, border-color 0.15s;
+}
+/* モードに応じて要素を隠す汎用クラス（例: stageモードでシェアボタンを非表示） */
+.is-hidden { display: none !important; }
+
 /* スタート画面のプレイヤー名エリア */
 #start-playername {
   background: rgba(124,92,252,0.15);
