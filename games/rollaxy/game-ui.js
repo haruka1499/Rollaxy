@@ -80,5 +80,5 @@ sfxValEl.textContent = Math.round(sfxVolume * 100) + '%';
 sfxVolSlider.addEventListener('input', () => {
   sfxVolume = parseFloat(sfxVolSlider.value);
   sfxValEl.textContent = Math.round(sfxVolume * 100) + '%';
-  localStorage.setItem('rollaxy_sfx_vol', sfxVolume);
+  localStorage.setItem(STORAGE_KEYS.SFX_VOL, sfxVolume);
 });

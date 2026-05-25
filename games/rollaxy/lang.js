@@ -197,7 +197,7 @@ const LANG_ORDER = ['ja', 'en', 'zh'];
 // 明示的な保存がない初回アクセス時は navigator.language から自動検出する。
 // 自動検出結果は localStorage に書かない（設定画面での明示操作と区別するため）。
 function _detectLang() {
-  const stored = localStorage.getItem('novora_lang') || localStorage.getItem('rollaxy_lang');
+  const stored = localStorage.getItem(STORAGE_KEYS.LANG) || localStorage.getItem(STORAGE_KEYS.LEGACY_LANG);
   if (stored && LANGS[stored]) return stored;
   const nav = (navigator.language || navigator.userLanguage || '').toLowerCase();
   for (const code of LANG_ORDER) {
@@ -217,8 +217,8 @@ function T(key) {
 function setLang(code) {
   if (!LANGS[code]) return;
   currentLang = code;
-  localStorage.setItem('novora_lang', code);
-  localStorage.removeItem('rollaxy_lang'); // 旧キーを削除
+  localStorage.setItem(STORAGE_KEYS.LANG, code);
+  localStorage.removeItem(STORAGE_KEYS.LEGACY_LANG); // 旧キーを削除
   document.documentElement.lang = code;
   applyLang();
 }

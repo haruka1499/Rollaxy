@@ -211,9 +211,9 @@ function resetSkillState() {
 
 // ── 初回タップ時のワンショットトースト ──
 const _SKILL_HINT_KEYS = {
-  bomb:    'rollaxy_skill_hint_bomb',
-  upgrade: 'rollaxy_skill_hint_upgrade',
-  delete:  'rollaxy_skill_hint_delete',
+  bomb:    STORAGE_KEYS.SKILL_HINT_BOMB,
+  upgrade: STORAGE_KEYS.SKILL_HINT_UPGRADE,
+  delete:  STORAGE_KEYS.SKILL_HINT_DELETE,
 };
 const _SKILL_HINT_LANG_KEYS = {
   bomb:    'skillHintBomb',
@@ -440,7 +440,7 @@ function rltFinish() {
 
     if (!tutorialDone) {
       // 初回チュートリアル: upgradeを強制使用させる
-      localStorage.setItem('rollaxy_tutorial_done', '1');
+      localStorage.setItem(STORAGE_KEYS.TUTORIAL_DONE, '1');
       tutorialDone = true;
       startTutorialForcedUpgrade();
     } else {

@@ -77,7 +77,7 @@ function updateStartPlayername() {
 // 初回訪問ヒントの表示・テキスト更新（langchange 時にも呼ぶ）
 function updateNameHint() {
   if (!startNameHint) return;
-  if (localStorage.getItem('novora_hint_shown')) {
+  if (localStorage.getItem(STORAGE_KEYS.HINT_SHOWN)) {
     hide(startNameHint);
     return;
   }
@@ -88,7 +88,7 @@ function updateNameHint() {
 }
 
 function _dismissNameHint() {
-  localStorage.setItem('novora_hint_shown', '1');
+  localStorage.setItem(STORAGE_KEYS.HINT_SHOWN, '1');
   if (startNameHint) hide(startNameHint);
 }
 
@@ -182,7 +182,7 @@ let choiceAutoTimer = null;  // 自動非表示タイマー
 let choicePeekTimer = null;  // 短時間ピーク演出タイマー
 
 // ---- チュートリアル / 強制スキル使用 ----
-let tutorialDone = !!localStorage.getItem('rollaxy_tutorial_done');
+let tutorialDone = !!localStorage.getItem(STORAGE_KEYS.TUTORIAL_DONE);
 let tutorialActive = false;     // チュートリアル強制使用モード中
 let tutorialTargetId = null;    // ポインターが指す天体ID
 let _forcedSkillActive = false; // 4連鎖後の強制即時使用待ち中
@@ -202,7 +202,7 @@ let debugBi      = 0;     // パレットで選択中の天体インデックス
 let debugDragging = false; // 左ボタン押しっぱなし中
 
 // korokoro_hi は旧キー名。rollaxy_hi に移行済みなら旧キーは無視される。
-let hiScore = +(localStorage.getItem('rollaxy_hi') || localStorage.getItem('korokoro_hi') || 0);
+let hiScore = +(localStorage.getItem(STORAGE_KEYS.HI_SCORE) || localStorage.getItem(STORAGE_KEYS.LEGACY_HI) || 0);
 hiEl.textContent = `${T('best')}: ${hiScore}`;
 
 // 共有 URL（doGameOver で非同期生成し shareToX で使う）
@@ -325,16 +325,16 @@ function _resetStats() {
   _clusterVanishCount = 0;
   _mergeCount = 0;
   _bodyMergeCount = [];
-  _savedBodyMerges = JSON.parse(localStorage.getItem('rollaxy_body_merges') || '[]');
+  _savedBodyMerges = JSON.parse(localStorage.getItem(STORAGE_KEYS.BODY_MERGES) || '[]');
   _maxChainThisGame = 0;
   _chainEventCount = 0;
   _lastDropHadChain = false;
   _consecutiveChainDrops = 0;
   _chainCountsByLevel = [];
-  _savedChainCounts = JSON.parse(localStorage.getItem('rollaxy_chain_counts') || '[]');
+  _savedChainCounts = JSON.parse(localStorage.getItem(STORAGE_KEYS.CHAIN_COUNTS) || '[]');
   _skillJustUsed = false;
   _skillChainCountsByLevel = [];
-  _savedSkillChainCounts = JSON.parse(localStorage.getItem('rollaxy_skill_chain_counts') || '[]');
+  _savedSkillChainCounts = JSON.parse(localStorage.getItem(STORAGE_KEYS.SKILL_CHAIN_COUNTS) || '[]');
   chainCount = 0;
   clearTimeout(chainTimer);       chainTimer = null;
   clearTimeout(chainResolveTimer); chainResolveTimer = null;
@@ -525,7 +525,7 @@ function triggerChain() {
     _chainEventCount++;
     _lastDropHadChain = true;
     achCheckTotalChains(
-      parseInt(localStorage.getItem('rollaxy_total_chains') || '0', 10) + _chainEventCount
+      parseInt(localStorage.getItem(STORAGE_KEYS.TOTAL_CHAINS) || '0', 10) + _chainEventCount
     );
     // 5連鎖以上なら各レベル(5〜finalCount)の累計カウントをインクリメントしてチェック
     if (finalCount >= 5) {
@@ -586,7 +586,7 @@ function flushMerges() {
     anyMerged = true;
     _mergeCount++;
     achCheckMergeCount(
-      parseInt(localStorage.getItem('rollaxy_total_merges') || '0', 10) + _mergeCount
+      parseInt(localStorage.getItem(STORAGE_KEYS.TOTAL_MERGES) || '0', 10) + _mergeCount
     );
     if (m.bi >= 1 && m.bi <= 8) {
       _bodyMergeCount[m.bi] = (_bodyMergeCount[m.bi] || 0) + 1;
@@ -741,8 +741,8 @@ function doGameOver() {
   toggleShow(newHiEl, isHi);
   if (isHi) {
     hiScore = score;
-    localStorage.setItem('rollaxy_hi', score);
-    localStorage.removeItem('korokoro_hi'); // 旧キーを削除（移行完了）
+    localStorage.setItem(STORAGE_KEYS.HI_SCORE, score);
+    localStorage.removeItem(STORAGE_KEYS.LEGACY_HI); // 旧キーを削除（移行完了）
     hiEl.textContent = `${T('best')}: ${hiScore}`;
   }
   // GA4 game_over イベント
@@ -752,39 +752,39 @@ function doGameOver() {
   const _elapsedSec = Math.round((Date.now() - _gameStartTime) / 1000);
   // ── プレイ統計を localStorage に蓄積 ──
   try {
-    const _gc = parseInt(localStorage.getItem('rollaxy_game_count') || '0', 10);
-    localStorage.setItem('rollaxy_total_sec',
-      String((parseInt(localStorage.getItem('rollaxy_total_sec')   || '0', 10)) + _elapsedSec));
-    localStorage.setItem('rollaxy_total_score',
-      String((parseInt(localStorage.getItem('rollaxy_total_score') || '0', 10)) + score));
-    localStorage.setItem('rollaxy_total_drops',
-      String((parseInt(localStorage.getItem('rollaxy_total_drops') || '0', 10)) + _dropCount));
-    localStorage.setItem('rollaxy_total_merges',
-      String((parseInt(localStorage.getItem('rollaxy_total_merges') || '0', 10)) + _mergeCount));
+    const _gc = parseInt(localStorage.getItem(STORAGE_KEYS.GAME_COUNT) || '0', 10);
+    localStorage.setItem(STORAGE_KEYS.TOTAL_SEC,
+      String((parseInt(localStorage.getItem(STORAGE_KEYS.TOTAL_SEC)   || '0', 10)) + _elapsedSec));
+    localStorage.setItem(STORAGE_KEYS.TOTAL_SCORE,
+      String((parseInt(localStorage.getItem(STORAGE_KEYS.TOTAL_SCORE) || '0', 10)) + score));
+    localStorage.setItem(STORAGE_KEYS.TOTAL_DROPS,
+      String((parseInt(localStorage.getItem(STORAGE_KEYS.TOTAL_DROPS) || '0', 10)) + _dropCount));
+    localStorage.setItem(STORAGE_KEYS.TOTAL_MERGES,
+      String((parseInt(localStorage.getItem(STORAGE_KEYS.TOTAL_MERGES) || '0', 10)) + _mergeCount));
     for (let _bi = 1; _bi <= 8; _bi++) {
       if (_bodyMergeCount[_bi]) _savedBodyMerges[_bi] = (_savedBodyMerges[_bi] || 0) + _bodyMergeCount[_bi];
     }
-    localStorage.setItem('rollaxy_body_merges', JSON.stringify(_savedBodyMerges));
-    localStorage.setItem('rollaxy_total_chains',
-      String((parseInt(localStorage.getItem('rollaxy_total_chains') || '0', 10)) + _chainEventCount));
+    localStorage.setItem(STORAGE_KEYS.BODY_MERGES, JSON.stringify(_savedBodyMerges));
+    localStorage.setItem(STORAGE_KEYS.TOTAL_CHAINS,
+      String((parseInt(localStorage.getItem(STORAGE_KEYS.TOTAL_CHAINS) || '0', 10)) + _chainEventCount));
     for (let _lvl = 5; _lvl <= 15; _lvl++) {
       if (_chainCountsByLevel[_lvl]) _savedChainCounts[_lvl] = (_savedChainCounts[_lvl] || 0) + _chainCountsByLevel[_lvl];
     }
-    localStorage.setItem('rollaxy_chain_counts', JSON.stringify(_savedChainCounts));
+    localStorage.setItem(STORAGE_KEYS.CHAIN_COUNTS, JSON.stringify(_savedChainCounts));
     for (let _lvl = 5; _lvl <= 10; _lvl++) {
       if (_skillChainCountsByLevel[_lvl]) _savedSkillChainCounts[_lvl] = (_savedSkillChainCounts[_lvl] || 0) + _skillChainCountsByLevel[_lvl];
     }
-    localStorage.setItem('rollaxy_skill_chain_counts', JSON.stringify(_savedSkillChainCounts));
-    const _prevMaxTier = parseInt(localStorage.getItem('rollaxy_max_tier') || '0', 10);
-    if (_highestTier > _prevMaxTier) localStorage.setItem('rollaxy_max_tier', String(_highestTier));
+    localStorage.setItem(STORAGE_KEYS.SKILL_CHAIN_COUNTS, JSON.stringify(_savedSkillChainCounts));
+    const _prevMaxTier = parseInt(localStorage.getItem(STORAGE_KEYS.MAX_TIER) || '0', 10);
+    if (_highestTier > _prevMaxTier) localStorage.setItem(STORAGE_KEYS.MAX_TIER, String(_highestTier));
     if (_clusterVanishCount > 0) {
-      localStorage.setItem('rollaxy_cluster_vanish',
-        String((parseInt(localStorage.getItem('rollaxy_cluster_vanish') || '0', 10)) + _clusterVanishCount));
+      localStorage.setItem(STORAGE_KEYS.CLUSTER_VANISH,
+        String((parseInt(localStorage.getItem(STORAGE_KEYS.CLUSTER_VANISH) || '0', 10)) + _clusterVanishCount));
     }
     // 銀河団（tier 11）到達ゲームをカウント
     if (_highestTier >= 11) {
-      localStorage.setItem('rollaxy_cluster_count',
-        String((parseInt(localStorage.getItem('rollaxy_cluster_count') || '0', 10)) + 1));
+      localStorage.setItem(STORAGE_KEYS.CLUSTER_COUNT,
+        String((parseInt(localStorage.getItem(STORAGE_KEYS.CLUSTER_COUNT) || '0', 10)) + 1));
     }
   } catch (_) {}
   logEvent('game_over', {
@@ -1005,15 +1005,15 @@ function beginGame() {
   // _unlockAudio() は最初のユーザー操作時に _tryUnlockAudio() 経由で呼ぶ
   // game_number: このブラウザで何回目のゲームか（初回=1）
   // is_returning は increment 前に確認する（初回は必ず 0 になるように）
-  const _prevCount  = parseInt(localStorage.getItem('rollaxy_game_count') || '0', 10);
+  const _prevCount  = parseInt(localStorage.getItem(STORAGE_KEYS.GAME_COUNT) || '0', 10);
   const _gameCount  = _prevCount + 1;
-  localStorage.setItem('rollaxy_game_count', String(_gameCount));
+  localStorage.setItem(STORAGE_KEYS.GAME_COUNT, String(_gameCount));
   logEvent('game_start', {
     game_id:          'rollaxy',
     lang:             typeof currentLang !== 'undefined' ? currentLang : 'ja',
     game_number:      _gameCount,           // 通算プレイ回数（リテンション分析用）
     is_returning:     _prevCount > 0 ? 1 : 0, // 初回=0、2回目以降=1
-    has_display_name: localStorage.getItem('novora_name_set') ? 1 : 0,
+    has_display_name: localStorage.getItem(STORAGE_KEYS.NAME_SET) ? 1 : 0,
   });
   _fetchSessionToken(); // セッショントークンをバックグラウンドで取得（ゲーム開始はブロックしない）
 
@@ -1089,7 +1089,7 @@ const dbgCountEl = document.getElementById('debug-count');
 
 // デバッグ: ゲームデータを全リセットしてリロード
 document.getElementById('debug-reset-btn').addEventListener('click', () => {
-  const keep = new Set(['novora_lang', 'novora_displayname', 'rollaxy_sfx_vol']);
+  const keep = new Set([STORAGE_KEYS.LANG, STORAGE_KEYS.DISPLAY_NAME, STORAGE_KEYS.SFX_VOL]);
   Object.keys(localStorage)
     .filter(k => !keep.has(k))
     .forEach(k => localStorage.removeItem(k));
@@ -1173,8 +1173,8 @@ applyLang();
 init();
 // [TEMP_AUTOSTART] サイト生涯で1回だけスタート画面をスキップして即ゲーム開始。
 // 2回目以降・リトライ・リセット後はスタート画面を表示する。
-if (!localStorage.getItem('rollaxy_autostarted')) {
-  localStorage.setItem('rollaxy_autostarted', '1');
+if (!localStorage.getItem(STORAGE_KEYS.AUTOSTARTED)) {
+  localStorage.setItem(STORAGE_KEYS.AUTOSTARTED, '1');
   beginGame();
 }
 updateStartPlayername();

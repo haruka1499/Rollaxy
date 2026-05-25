@@ -37,12 +37,12 @@ if (typeof gtag === 'function') {
 const _ID_CHARS_LOWER = 'abcdefghijklmnopqrstuvwxyz0123456789';
 
 function getPlayerId() {
-  let id = localStorage.getItem('novora_player_id');
+  let id = localStorage.getItem(STORAGE_KEYS.PLAYER_ID);
   if (!id) {
     const rand = Array.from(crypto.getRandomValues(new Uint8Array(12)),
       b => _ID_CHARS_LOWER[b % _ID_CHARS_LOWER.length]).join('');
     id = `guest_${rand}`;
-    localStorage.setItem('novora_player_id', id);
+    localStorage.setItem(STORAGE_KEYS.PLAYER_ID, id);
   }
   return id;
 }
@@ -53,14 +53,14 @@ const DISPLAY_NAME_MAX = 15;
 const _GUEST_PREFIX = { ja: 'ゲスト_', en: 'guest_', zh: '访客_' };
 
 function getDisplayName() {
-  let name = localStorage.getItem('novora_display_name');
+  let name = localStorage.getItem(STORAGE_KEYS.DISPLAY_NAME);
   if (!name) {
     // 初回: 言語に合わせたプレフィックス + player_id サフィックス先頭6文字
     const pid    = getPlayerId();
     const suffix = pid.includes('_') ? pid.split('_').slice(1).join('').slice(0, 6) : pid.slice(0, 6);
     const prefix = _GUEST_PREFIX[typeof currentLang !== 'undefined' ? currentLang : 'en'] ?? 'guest_';
     name = prefix + suffix;
-    localStorage.setItem('novora_display_name', name);
+    localStorage.setItem(STORAGE_KEYS.DISPLAY_NAME, name);
   }
   return name;
 }
@@ -68,8 +68,8 @@ function getDisplayName() {
 function saveDisplayName(rawName) {
   const name = rawName.replace(/[<>"&]/g, '').trim().slice(0, DISPLAY_NAME_MAX);
   if (name.length === 0) return false;
-  localStorage.setItem('novora_display_name', name);
-  localStorage.setItem('novora_name_set', '1');
+  localStorage.setItem(STORAGE_KEYS.DISPLAY_NAME, name);
+  localStorage.setItem(STORAGE_KEYS.NAME_SET, '1');
   return true;
 }
 
@@ -95,12 +95,12 @@ function getGuestCode() {
 // 自分のシェアID一覧を localStorage に追記（最大50件）
 // ベストスコア更新時は best_share_id / best_score も更新
 function addMyShareId(shareId, currentScore) {
-  const ids = JSON.parse(localStorage.getItem('novora_share_ids') || '[]');
+  const ids = JSON.parse(localStorage.getItem(STORAGE_KEYS.SHARE_IDS) || '[]');
   if (!ids.includes(shareId)) ids.push(shareId);
-  localStorage.setItem('novora_share_ids', JSON.stringify(ids.slice(-50)));
-  const best = Number(localStorage.getItem('novora_best_score') || 0);
+  localStorage.setItem(STORAGE_KEYS.SHARE_IDS, JSON.stringify(ids.slice(-50)));
+  const best = Number(localStorage.getItem(STORAGE_KEYS.BEST_SCORE) || 0);
   if (currentScore >= best) {
-    localStorage.setItem('novora_best_score', String(currentScore));
-    localStorage.setItem('novora_best_share_id', shareId);
+    localStorage.setItem(STORAGE_KEYS.BEST_SCORE, String(currentScore));
+    localStorage.setItem(STORAGE_KEYS.BEST_SHARE_ID, shareId);
   }
 }

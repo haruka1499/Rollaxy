@@ -16,11 +16,11 @@ for (const cat of ACH_CATS) for (const it of cat.items) _achById.set(it.id, it);
 
 // ── 永続化 ──
 function _loadAch() {
-  try { return new Set(JSON.parse(localStorage.getItem('rollaxy_ach') || '[]')); }
+  try { return new Set(JSON.parse(localStorage.getItem(STORAGE_KEYS.ACH) || '[]')); }
   catch (_) { return new Set(); }
 }
 function _saveAch() {
-  try { localStorage.setItem('rollaxy_ach', JSON.stringify([..._unlocked])); }
+  try { localStorage.setItem(STORAGE_KEYS.ACH, JSON.stringify([..._unlocked])); }
   catch (_) {}
 }
 let _unlocked = _loadAch();

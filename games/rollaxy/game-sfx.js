@@ -6,7 +6,7 @@
 // 代わりに _busy フラグで使用中を管理し、ended / play失敗で解放する。
 // WAV ファイルは冒頭無音を削除済みのため currentTime seek は不要。
 // ============================================================
-let sfxVolume = parseFloat(localStorage.getItem('rollaxy_sfx_vol') ?? String(CFG.SOUND.DEFAULT_VOL));
+let sfxVolume = parseFloat(localStorage.getItem(STORAGE_KEYS.SFX_VOL) ?? String(CFG.SOUND.DEFAULT_VOL));
 if (!isFinite(sfxVolume) || sfxVolume < 0 || sfxVolume > 1) sfxVolume = CFG.SOUND.DEFAULT_VOL;
 
 const _sfxPool = Array.from({ length: 16 }, () => {

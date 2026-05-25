@@ -140,3 +140,51 @@ const CFG = {
     /* 11: 銀河団         */ { scale: 1.05, ox:  0.0, oy:  0.0 },
   ],
 };
+
+// ============================================================
+// STORAGE_KEYS — localStorage キーの一元管理
+// ============================================================
+// 【prefix 命名規則】将来の一括削除を見据えて2系統に分ける。
+//   novora_  … サイト横断・アカウント系。ゲームをまたいで保持する。
+//              個別ゲームの「リセット」では削除しない。
+//   rollaxy_ … このゲーム専用。ゲームデータの一括リセット対象。
+//
+// 【重要】ここの値（キー文字列）は既存データ破壊を避けるため変更しないこと。
+// 新規キーは必ずここに定義し、上記 prefix 規則に従って命名する。
+const STORAGE_KEYS = {
+  // ── novora_ : サイト横断・アカウント系（リセットで保持） ──
+  HINT_SHOWN:    'novora_hint_shown',
+  NAME_SET:      'novora_name_set',
+  PLAYER_ID:     'novora_player_id',
+  DISPLAY_NAME:  'novora_display_name',
+  SHARE_IDS:     'novora_share_ids',
+  BEST_SCORE:    'novora_best_score',
+  BEST_SHARE_ID: 'novora_best_share_id',
+  LANG:          'novora_lang',
+
+  // ── rollaxy_ : このゲーム専用（リセット対象） ──
+  SFX_VOL:            'rollaxy_sfx_vol',
+  TUTORIAL_DONE:      'rollaxy_tutorial_done',
+  HI_SCORE:           'rollaxy_hi',
+  BODY_MERGES:        'rollaxy_body_merges',
+  CHAIN_COUNTS:       'rollaxy_chain_counts',
+  SKILL_CHAIN_COUNTS: 'rollaxy_skill_chain_counts',
+  TOTAL_CHAINS:       'rollaxy_total_chains',
+  TOTAL_MERGES:       'rollaxy_total_merges',
+  GAME_COUNT:         'rollaxy_game_count',
+  TOTAL_SEC:          'rollaxy_total_sec',
+  TOTAL_SCORE:        'rollaxy_total_score',
+  TOTAL_DROPS:        'rollaxy_total_drops',
+  MAX_TIER:           'rollaxy_max_tier',
+  CLUSTER_VANISH:     'rollaxy_cluster_vanish',
+  CLUSTER_COUNT:      'rollaxy_cluster_count',
+  AUTOSTARTED:        'rollaxy_autostarted',
+  ACH:                'rollaxy_ach',
+  SKILL_HINT_BOMB:    'rollaxy_skill_hint_bomb',
+  SKILL_HINT_UPGRADE: 'rollaxy_skill_hint_upgrade',
+  SKILL_HINT_DELETE:  'rollaxy_skill_hint_delete',
+
+  // ── レガシー（移行済み・読み取り/削除のみ。新規利用しない） ──
+  LEGACY_HI:   'korokoro_hi',
+  LEGACY_LANG: 'rollaxy_lang',
+};
