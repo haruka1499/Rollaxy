@@ -79,6 +79,10 @@ function buildOgpBoardCircles(bodies, bodyImages) {
   const gy = v => offY + v * scale; // ゲーム Y → OGP Y
 
   let defs   = '<defs>';
+  // 天体画像は tier ごとに 1 回だけ <defs> に定義し、各天体は <use> で参照する。
+  // 直接 <image> をインラインすると base64 PNG が天体数だけ重複し、SVG が
+  // 数MB に膨張して resvg が render 時にメモリ不足でトラップする（unreachable）。
+  const tierImgAdded = new Set();
 
   const bx = gx(BOX_L).toFixed(1);
   const by = gy(BOX_T).toFixed(1);
@@ -116,8 +120,14 @@ function buildOgpBoardCircles(bodies, bodyImages) {
     // 円の中心を軸として回転する（位置ずれなし）。
     const dataUrl = bodyImages?.[tier];
     if (dataUrl) {
+      // tier ごとに 1 回だけ画像本体を定義（width/height は tier 固定なので使い回せる）。
+      if (!tierImgAdded.has(tier)) {
+        tierImgAdded.add(tier);
+        defs += `<image id="bimg${tier}" href="${dataUrl}" width="${d}" height="${d}" preserveAspectRatio="xMidYMid slice"/>`;
+      }
+      // クリップは天体ごとに位置が異なるため個別定義。画像は <use> で位置(lx,ly)へ配置。
       defs   += `<clipPath id="bc${i}"><circle cx="${cx}" cy="${cy}" r="${r}"/></clipPath>`;
-      shapes += `<g clip-path="url(#bc${i})" transform="rotate(${angleDeg},${cx},${cy})"><image href="${dataUrl}" x="${lx}" y="${ly}" width="${d}" height="${d}" preserveAspectRatio="xMidYMid slice"/></g>`;
+      shapes += `<g clip-path="url(#bc${i})" transform="rotate(${angleDeg},${cx},${cy})"><use href="#bimg${tier}" x="${lx}" y="${ly}"/></g>`;
     }
   }
 
