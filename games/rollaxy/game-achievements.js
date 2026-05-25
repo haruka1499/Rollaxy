@@ -364,23 +364,16 @@ _syncFromServer();
   const menuBtn    = document.getElementById('menu-ach-btn');
   const overlayBtn = document.getElementById('overlay-ach-btn');
 
-  const _bind = (el, fn) => {
-    if (!el) return;
-    el.addEventListener('click',    fn);
-    el.addEventListener('touchend', e => { e.preventDefault(); fn(); });
-  };
-
-  _bind(backBtn,    closeAchievements);
-  _bind(startBtn,   openAchievements);
-  _bind(menuBtn,    openAchievements);
-  _bind(overlayBtn, openAchievements);
+  // click+touchend の二重登録は共通ユーティリティ on()（game-util.js）に統一。
+  // on() は要素が null だと落ちるため、存在する場合のみバインドする。
+  if (backBtn)    on(backBtn,    () => closeAchievements());
+  if (startBtn)   on(startBtn,   () => openAchievements());
+  if (menuBtn)    on(menuBtn,    () => openAchievements());
+  if (overlayBtn) on(overlayBtn, () => openAchievements());
 
   // トーストをタップ/クリックで即スキップ（次の実績へ）
   const toastEl = document.getElementById('ach-toast');
-  if (toastEl) {
-    toastEl.addEventListener('click',    () => { if (_toastBusy) _dismissToast(); });
-    toastEl.addEventListener('touchend', e => { e.preventDefault(); if (_toastBusy) _dismissToast(); });
-  }
+  if (toastEl) on(toastEl, () => { if (_toastBusy) _dismissToast(); });
 })();
 
 // 言語切替時にオーバーレイが開いていたら再描画

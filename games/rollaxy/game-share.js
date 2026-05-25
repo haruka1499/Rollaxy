@@ -147,5 +147,4 @@ function shareToX() {
   window.open(tweetUrl, '_blank');
 }
 
-shareBtn.addEventListener('click',    () => shareToX());
-shareBtn.addEventListener('touchend', e => { e.preventDefault(); shareToX(); });
+on(shareBtn, () => shareToX());
