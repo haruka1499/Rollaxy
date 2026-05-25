@@ -11,6 +11,7 @@ const _I18N = {
     navGames:    'ゲーム',
     navAbout:    'About',
     navPrivacy:  'Privacy',
+    navCredits:  'Credits',
     navRanking:  'ランキング',
     navProfile:  '👤 プロフィール',
     scoreUnit:   '点',
@@ -54,18 +55,13 @@ const _I18N = {
     profilePlayBtn:     '▶ Rollaxy をプレイ',
     profileRankBtn:     '🏆 ランキング',
     profileBackBtn:     '▶ ゲームに戻る',
-    // ── クレジット ──
-    creditsLabel:       'クレジット',
-    creditsSfxHead:     '効果音素材',
-    creditsSfxNote:     '各サービスの利用規約に基づき効果音素材を使用しています。',
-    creditsImgHead:     '画像・ビジュアル素材',
-    creditsImgNote:     '一部画像・ビジュアル素材の制作には ChatGPT を使用しています。',
   },
   en: {
     // ── Nav ──
     navGames:    'Games',
     navAbout:    'About',
     navPrivacy:  'Privacy',
+    navCredits:  'Credits',
     navRanking:  'Ranking',
     navProfile:  '👤 Profile',
     scoreUnit:   'pts',
@@ -109,18 +105,13 @@ const _I18N = {
     profilePlayBtn:     '▶ Play Rollaxy',
     profileRankBtn:     '🏆 Ranking',
     profileBackBtn:     '▶ Back to Game',
-    // ── Credits ──
-    creditsLabel:       'Credits',
-    creditsSfxHead:     'Sound Effects',
-    creditsSfxNote:     'Used under the respective terms of service.',
-    creditsImgHead:     'Images & Visuals',
-    creditsImgNote:     'Some visuals were created using ChatGPT.',
   },
   zh: {
     // ── 导航 ──
     navGames:    '游戏',
     navAbout:    'About',
     navPrivacy:  'Privacy',
+    navCredits:  'Credits',
     navRanking:  '排行榜',
     navProfile:  '👤 个人资料',
     scoreUnit:   '分',
@@ -164,12 +155,6 @@ const _I18N = {
     profilePlayBtn:     '▶ 开始游戏',
     profileRankBtn:     '🏆 排行榜',
     profileBackBtn:     '▶ 返回游戏',
-    // ── 制作人员 ──
-    creditsLabel:       '制作人员',
-    creditsSfxHead:     '音效素材',
-    creditsSfxNote:     '依据各服务条款使用。',
-    creditsImgHead:     '图像·视觉素材',
-    creditsImgNote:     '部分素材使用了 ChatGPT 制作。',
   },
 };
 
