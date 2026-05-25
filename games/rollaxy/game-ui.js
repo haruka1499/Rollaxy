@@ -14,9 +14,14 @@
 //           updateStartPlayername(), syncDisplayNameToServer()
 // buildLangSelector() はブート時（game.js 末尾）に呼ばれるため game.js に残してある。
 
+const creditsPanel      = document.getElementById('credits-panel');
+const settingsCreditsBtn = document.getElementById('settings-credits-btn');
+const creditsBackBtn    = document.getElementById('credits-back-btn');
+
 function _showMenuPanel() {
   menuPanel.style.display    = 'flex';
   settingsPanel.style.display = 'none';
+  creditsPanel.style.display  = 'none';
 }
 function _showSettingsPanel() {
   // 設定サブパネルを開くタイミングで表示名フィールドを初期化
@@ -29,25 +34,36 @@ function _showSettingsPanel() {
   if (dnStatus) dnStatus.textContent = '';
   menuPanel.style.display    = 'none';
   settingsPanel.style.display = 'flex';
+  creditsPanel.style.display  = 'none';
+}
+function _showCreditsPanel() {
+  menuPanel.style.display    = 'none';
+  settingsPanel.style.display = 'none';
+  creditsPanel.style.display  = 'flex';
 }
 
 function openSettings() {
   if (dead) return; // ゲームオーバー中は設定を開かない（スタート待ち中は開いてよい）
   paused = true;    // 物理を停止（待機中はすでに止まっているが、フラグとして立てる）
+  // スタート画面が手前にある場合は一時的に隠す（z-index: 1000 > settings-overlay: 12）
+  if (waiting) startScreen.classList.add('under-settings');
   _showMenuPanel();
   show(settingsOverlay);
 }
 function closeSettings() {
   paused = false;
   hide(settingsOverlay);
+  startScreen.classList.remove('under-settings'); // スタート画面を復元
   _showMenuPanel(); // 次回オープン時のためにメニューへリセット
 }
 
-on(settingsBtn,     () => paused ? closeSettings() : openSettings());
-on(resumeBtn,       () => { playBackSound(); closeSettings(); });
-on(menuSettingsBtn, () => _showSettingsPanel());
-on(settingsBackBtn, () => { playBackSound(); _showMenuPanel(); });
-on(resetBtn,        () => { closeSettings(); init(); });
+on(settingsBtn,       () => paused ? closeSettings() : openSettings());
+on(resumeBtn,         () => { playBackSound(); closeSettings(); });
+on(menuSettingsBtn,   () => _showSettingsPanel());
+on(settingsBackBtn,   () => { playBackSound(); _showMenuPanel(); });
+on(settingsCreditsBtn,() => _showCreditsPanel());
+on(creditsBackBtn,    () => { playBackSound(); _showSettingsPanel(); });
+on(resetBtn,          () => { closeSettings(); init(); });
 
 // 表示名保存ボタン
 const displayNameSaveBtn = document.getElementById('displayname-save');

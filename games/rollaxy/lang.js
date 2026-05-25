@@ -69,6 +69,12 @@ const LANGS = {
     forcedDescUpgrade:  '天体を進化させよ',
     forcedTitleDelete:  '消去モード',
     forcedDescDelete:   '削除する天体を選択せよ',
+    credits:            'クレジット',
+    creditsTitle:       'クレジット',
+    creditsSfxHead:     '効果音素材',
+    creditsSfxNote:     '各サービスの利用規約に基づき効果音素材を使用しています。',
+    creditsImgHead:     '画像・ビジュアル素材',
+    creditsImgNote:     '一部画像・ビジュアル素材の制作には ChatGPT を使用しています。',
   },
   en: {
     name:        'English',
@@ -134,6 +140,12 @@ const LANGS = {
     forcedDescUpgrade:  'Evolve a body!',
     forcedTitleDelete:  'Erase Mode',
     forcedDescDelete:   'Select a body to erase',
+    credits:            'Credits',
+    creditsTitle:       'Credits',
+    creditsSfxHead:     'Sound Effects',
+    creditsSfxNote:     'Used under the respective terms of service.',
+    creditsImgHead:     'Images & Visuals',
+    creditsImgNote:     'Some visuals were created using ChatGPT.',
   },
   zh: {
     name:        '中文',
@@ -199,6 +211,12 @@ const LANGS = {
     forcedDescUpgrade:  '让天体进化！',
     forcedTitleDelete:  '消除模式',
     forcedDescDelete:   '选择要删除的天体',
+    credits:            '制作人员',
+    creditsTitle:       '制作人员',
+    creditsSfxHead:     '音效素材',
+    creditsSfxNote:     '依据各服务条款使用。',
+    creditsImgHead:     '图像·视觉素材',
+    creditsImgNote:     '部分素材使用了 ChatGPT 制作。',
   },
 };
 

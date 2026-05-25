@@ -136,6 +136,47 @@ main {
   padding: 2px 8px;
 }
 
+/* ── Credits ── */
+.credits-section {
+  margin-top: 48px;
+}
+.credits-card {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
+}
+.credits-item {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  padding: 18px 20px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.credits-item-head {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent2);
+}
+.credits-item-list {
+  list-style: none; padding: 0; margin: 0;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.credits-item-list li {
+  font-size: 0.9rem;
+  color: var(--text);
+}
+.credits-item-list li::before {
+  content: '• ';
+  color: var(--accent2);
+}
+.credits-item-note {
+  font-size: 0.8rem;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
 /* ── Footer ── */
 .site-footer {
   text-align: center;
