@@ -911,6 +911,19 @@ function resize() {
   // 実績トーストを天体バーと同じ高さに
   const _toastEl = document.getElementById('ach-toast');
   if (_toastEl) _toastEl.style.height = _barH + 'px';
+  // 再フィットした時点のビューポート寸法を記録（_onViewportResize の判定用）
+  _lastFitW = window.innerWidth; _lastFitH = window.innerHeight;
+}
+
+// アドレスバー開閉は「幅そのまま・高さだけ」変化させて resize を連発する。
+// 幅が同一かつ高さ変化が閾値以下なら再フィットせず、最後のスケールを維持して
+// canvas のガタつきを防ぐ。回転・PCリサイズ（幅変化）や大きな高さ変化のときだけ
+// resize() を呼ぶ。初回フィットは init() が resize() を直接呼ぶ。
+let _lastFitW = 0, _lastFitH = 0;
+function _onViewportResize() {
+  const w = window.innerWidth, h = window.innerHeight;
+  if (w === _lastFitW && Math.abs(h - _lastFitH) <= CFG.RESIZE_IGNORE_DH) return;
+  resize();
 }
 
 // ============================================================
@@ -1031,7 +1044,7 @@ async function _fetchSessionToken() {
 // 設定オーバーレイ UI（メニュー/設定パネル・表示名保存・音量スライダー）は
 // game-ui.js に分離（game.js の後にロード）。openSettings/closeSettings 等を提供。
 
-window.addEventListener('resize', resize);
+window.addEventListener('resize', _onViewportResize);
 
 // ============================================================
 // LANG — 言語セレクターの構築と langchange イベントへの対応
