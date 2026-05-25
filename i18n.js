@@ -208,10 +208,10 @@ function applyGlobalLang() {
 }
 
 // ナビの #site-lang-selector に JP/EN ボタンを生成
+// nav.js が先に読み込まれて既にボタンを構築済みの場合はスキップ
 function buildSiteLangSelector() {
   const el = document.getElementById('site-lang-selector');
-  if (!el) return;
-  el.innerHTML = '';
+  if (!el || el.children.length > 0) return; // nav.js 構築済みなら何もしない
   for (const code of _LANG_ORDER) {
     const btn = document.createElement('button');
     btn.className    = 'site-lang-btn';
