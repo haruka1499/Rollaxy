@@ -72,6 +72,31 @@ if (displayNameSaveBtn) {
     ?.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); doSaveName(); } });
 }
 
+// ============================================================
+// ホーム画面 右上メニュー（設定 / プロフィール / ゲーム一覧）
+// ============================================================
+const homeMenuBtn      = document.getElementById('home-menu-btn');
+const homeMenuPanel    = document.getElementById('home-menu-panel');
+const homeMenuSettings = document.getElementById('home-menu-settings');
+
+function _closeHomeMenu() { hide(homeMenuPanel); }
+
+on(homeMenuBtn, () => {
+  homeMenuPanel.classList.contains('show') ? _closeHomeMenu() : show(homeMenuPanel);
+});
+
+on(homeMenuSettings, () => {
+  _closeHomeMenu();
+  openSettings();
+});
+
+// パネル外タップで閉じる（touchend と click の両方に対応）
+document.addEventListener('click', e => {
+  if (!homeMenuBtn.contains(e.target) && !homeMenuPanel.contains(e.target)) {
+    _closeHomeMenu();
+  }
+}, { capture: false });
+
 // 効果音スライダー
 const sfxVolSlider = document.getElementById('sfx-vol');
 const sfxValEl     = document.getElementById('sfx-val');

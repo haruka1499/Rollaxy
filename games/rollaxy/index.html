@@ -53,6 +53,13 @@
   beginGame() で .hidden クラスを付与してフェードアウト。init() で .hidden を外してフェードイン。
 -->
 <div id="start-screen">
+  <!-- 右上メニュー（ホーム画面専用） -->
+  <button id="home-menu-btn" aria-label="Menu"><span></span><span></span><span></span></button>
+  <div id="home-menu-panel">
+    <button id="home-menu-settings" data-i18n="settings">設定</button>
+    <a id="home-menu-profile" href="/profile/" data-i18n="profileLink" target="_blank" rel="noopener">👤 プロフィール</a>
+    <a id="home-menu-games" href="/games/" data-i18n="gamesLink">🎮 ゲーム一覧</a>
+  </div>
   <h2 data-i18n="title">ころころ宇宙</h2>
   <div id="start-playername">
     <div id="start-name-view">

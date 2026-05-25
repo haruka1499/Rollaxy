@@ -321,6 +321,46 @@ canvas { position: absolute; top: 0; left: 0; transform-origin: top left; }
 }
 #start-screen h2 { font-size: 36px; font-weight: bold; }
 
+/* ── ホーム画面 右上メニュー ── */
+#home-menu-btn {
+  position: absolute; top: 14px; right: 14px;
+  width: 38px; height: 38px; border-radius: 8px; border: none;
+  background: rgba(140,100,255,0.22);
+  cursor: pointer; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 5px;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s;
+  z-index: 1;
+}
+#home-menu-btn span {
+  display: block; width: 18px; height: 2px;
+  background: #fff; border-radius: 1px;
+}
+#home-menu-panel {
+  display: none; position: absolute; top: 58px; right: 14px;
+  background: rgba(10,5,28,0.97);
+  border: 1px solid rgba(140,100,255,0.35);
+  border-radius: 12px; padding: 8px;
+  min-width: 160px;
+  flex-direction: column; gap: 4px;
+  z-index: 1;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+  text-align: left;
+}
+#home-menu-panel.show { display: flex; }
+#home-menu-settings,
+#home-menu-profile,
+#home-menu-games {
+  display: block; width: 100%;
+  padding: 10px 14px; border-radius: 8px;
+  font-size: 14px; font-weight: 600;
+  color: #ccc; text-decoration: none;
+  background: transparent; border: none;
+  cursor: pointer; text-align: left;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s, color 0.15s;
+}
+
 /* ============================================================
    4連鎖ルーレット
    ============================================================ */
@@ -879,7 +919,11 @@ canvas { position: absolute; top: 0; left: 0; transform-origin: top left; }
 
 /* ── ② マウス専用ホバーエフェクト ── */
 @media (hover: hover) {
-  #settings-btn:hover           { background: rgba(140,100,255,0.45); }
+  #settings-btn:hover,
+  #home-menu-btn:hover          { background: rgba(140,100,255,0.45); }
+  #home-menu-settings:hover,
+  #home-menu-profile:hover,
+  #home-menu-games:hover        { background: rgba(255,255,255,0.08); color: #fff; }
   #ranking-link:hover           { background: rgba(124,92,252,0.35); border-color: rgba(124,92,252,0.8); }
   #skill-claim:hover            { background: rgba(255,200,0,0.28); border-color: rgba(255,200,0,0.9); }
   .chain-reward-btn:hover       { background: rgba(255,200,0,0.25); border-color: rgba(255,200,0,0.7); }
@@ -1120,7 +1164,11 @@ canvas { position: absolute; top: 0; left: 0; transform-origin: top left; }
 /* ── ③ タッチデバイス向けタップ領域拡大 ── */
 @media (pointer: coarse) {
   /* スキルボタン・設定ボタンは最低 48px の高さ（Apple HIG 推奨） */
-  #settings-btn        { width: 44px; height: 44px; }
+  #settings-btn,
+  #home-menu-btn       { width: 44px; height: 44px; }
+  #home-menu-settings,
+  #home-menu-profile,
+  #home-menu-games     { padding: 13px 14px; }
   #skill-claim         { min-height: 48px; }
   .chain-reward-btn    { min-height: 52px; padding: 14px 16px; }
   #autoshow-btn        { min-height: 48px; }
