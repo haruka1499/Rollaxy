@@ -1087,6 +1087,8 @@ canvas { position: absolute; top: 0; left: 0; transform-origin: top left; }
   overflow: hidden;
 }
 #achievement-overlay.show { display: flex; }
+/* ホーム画面（#start-screen z-index:1000）より上に表示するとき */
+#achievement-overlay.above-start { z-index: 1001; }
 
 #ach-header {
   display: flex; align-items: center; gap: 8px;

@@ -348,11 +348,15 @@ function _renderAchBody() {
 // ── オーバーレイ開閉 ──
 function openAchievements() {
   _renderAchBody();
-  document.getElementById('achievement-overlay').classList.add('show');
+  const overlay = document.getElementById('achievement-overlay');
+  overlay.classList.add('show');
+  // ホーム画面（#start-screen z-index:1000）から開いた場合は上に表示
+  if (waiting) overlay.classList.add('above-start');
 }
 
 function closeAchievements() {
-  document.getElementById('achievement-overlay').classList.remove('show');
+  const overlay = document.getElementById('achievement-overlay');
+  overlay.classList.remove('show', 'above-start');
 }
 
 // ページ読み込み時にサーバーから解除済み実績を取得してマージ（バックグラウンド）
