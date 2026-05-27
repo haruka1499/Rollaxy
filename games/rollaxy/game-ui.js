@@ -226,3 +226,44 @@ sfxVolSlider.addEventListener('input', () => {
   sfxValEl.textContent = Math.round(sfxVolume * 100) + '%';
   localStorage.setItem(STORAGE_KEYS.SFX_VOL, sfxVolume);
 });
+
+// ============================================================
+// ホームカルーセル スワイプ検出（モバイル）
+// 水平スワイプ ≥50px かつ縦より横優勢な場合にパネル切替。
+// touch-action: pan-y は各 .home-panel に設定済みで縦スクロールも機能する。
+// ============================================================
+(function() {
+  const wrap = document.getElementById('start-screen');
+  if (!wrap) return;
+  const _TAB = ['research', 'play', 'cosmos'];
+  let _sx = 0, _sy = 0, _captured = false;
+
+  wrap.addEventListener('touchstart', e => {
+    _sx = e.touches[0].clientX;
+    _sy = e.touches[0].clientY;
+    _captured = false;
+  }, { passive: true });
+
+  wrap.addEventListener('touchmove', e => {
+    if (_captured) return;
+    const dx = Math.abs(e.touches[0].clientX - _sx);
+    const dy = Math.abs(e.touches[0].clientY - _sy);
+    if (dx > 10 && dx > dy) _captured = true;
+  }, { passive: true });
+
+  wrap.addEventListener('touchend', e => {
+    if (!_captured) return;
+    // デスクトップ(3列表示)ではスワイプ不要
+    if (window.matchMedia('(min-width: 760px)').matches) return;
+    const dx = e.changedTouches[0].clientX - _sx;
+    if (Math.abs(dx) < 50) return;
+    const cur = typeof _carouselIdx !== 'undefined' ? _carouselIdx : 1;
+    if (dx < 0 && cur < 2) {
+      playDecisionSound();
+      showHomeTab(_TAB[cur + 1]);
+    } else if (dx > 0 && cur > 0) {
+      playDecisionSound();
+      showHomeTab(_TAB[cur - 1]);
+    }
+  }, { passive: true });
+})();

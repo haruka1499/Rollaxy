@@ -113,8 +113,8 @@ const CFG = {
     { id: '1-2', goalScore: 100, timeLimit: 60, unlockLevel: 0,
       descJa: '60 秒以内に 100 点を取ろう', descEn: 'Score 100 points within 60 seconds', descZh: '在 60 秒内达到 100 分' },
     { id: '1-3',
-      requireSkillCount: { skill: 'upgrade', count: 5 },
-      initSkills: { upgrade: 5 },
+      requireAllSkills: { bomb: 1, upgrade: 1, delete: 1 },
+      initSkills: { bomb: 1, upgrade: 1, delete: 1 },
       presetBodies: [
         {"bi":0,"x":62,"y":748},{"bi":6,"x":117,"y":699},{"bi":7,"x":246,"y":691},
         {"bi":3,"x":349,"y":727},{"bi":3,"x":51,"y":633},{"bi":4,"x":168,"y":611},
@@ -123,36 +123,12 @@ const CFG = {
         {"bi":4,"x":288,"y":523},{"bi":5,"x":85,"y":556},{"bi":6,"x":186,"y":510},
       ],
       unlockLevel: 0,
-      descJa: '強化スキルを 5 回使おう（スキル5個付き）', descEn: 'Use the Upgrade skill 5 times (5 charges given)', descZh: '使用强化技能 5 次（附赠5个技能）' },
-    { id: '1-4',
-      requireSkillCount: { skill: 'bomb', count: 5 },
-      initSkills: { bomb: 5 },
-      presetBodies: [
-        {"bi":0,"x":62,"y":748},{"bi":6,"x":117,"y":699},{"bi":7,"x":246,"y":691},
-        {"bi":3,"x":349,"y":727},{"bi":3,"x":51,"y":633},{"bi":4,"x":168,"y":611},
-        {"bi":1,"x":36,"y":736},{"bi":1,"x":364,"y":679},{"bi":1,"x":101,"y":623},
-        {"bi":5,"x":331,"y":605},{"bi":3,"x":249,"y":588},{"bi":1,"x":364,"y":544},
-        {"bi":4,"x":288,"y":523},{"bi":5,"x":85,"y":556},{"bi":6,"x":186,"y":510},
-      ],
-      unlockLevel: 0,
-      descJa: '爆弾スキルを 5 回使おう（スキル5個付き）', descEn: 'Use the Bomb skill 5 times (5 charges given)', descZh: '使用炸弹技能 5 次（附赠5个技能）' },
-    { id: '1-5',
-      requireSkillCount: { skill: 'delete', count: 5 },
-      initSkills: { delete: 5 },
-      presetBodies: [
-        {"bi":0,"x":62,"y":748},{"bi":6,"x":117,"y":699},{"bi":7,"x":246,"y":691},
-        {"bi":3,"x":349,"y":727},{"bi":3,"x":51,"y":633},{"bi":4,"x":168,"y":611},
-        {"bi":1,"x":36,"y":736},{"bi":1,"x":364,"y":679},{"bi":1,"x":101,"y":623},
-        {"bi":5,"x":331,"y":605},{"bi":3,"x":249,"y":588},{"bi":1,"x":364,"y":544},
-        {"bi":4,"x":288,"y":523},{"bi":5,"x":85,"y":556},{"bi":6,"x":186,"y":510},
-      ],
-      unlockLevel: 0,
-      descJa: '削除スキルを 5 回使おう（スキル5個付き）', descEn: 'Use the Delete skill 5 times (5 charges given)', descZh: '使用删除技能 5 次（附赠5个技能）' },
-    { id: '1-6', goalScore: 150, timeLimit: 60, unlockLevel: 0,
+      descJa: '3種のスキルを 1 回ずつ使おう（各1個付き）', descEn: 'Use each skill once (1 of each given)', descZh: '每种技能各使用 1 次（各附赠1个）' },
+    { id: '1-4', goalScore: 150, timeLimit: 60, unlockLevel: 0,
       descJa: '60 秒以内に 150 点を取ろう', descEn: 'Score 150 points within 60 seconds', descZh: '在 60 秒内达到 150 分' },
-    { id: '1-7', requireTier: 9, unlockLevel: 0,
+    { id: '1-5', requireTier: 9, unlockLevel: 0,
       descJa: 'ブラックホールを作ろう（時間制限なし）', descEn: 'Create a Black Hole (no time limit)', descZh: '制造一个黑洞（无时间限制）' },
-    { id: '1-8', goalScore: 500, timeLimit: 120, requireAnySkill: 1, unlockLevel: 0,
+    { id: '1-6', goalScore: 500, timeLimit: 120, requireAnySkill: 1, unlockLevel: 0,
       descJa: 'スキルを使い、120 秒で 500 点', descEn: 'Use skills and score 500 in 120s', descZh: '使用技能，120 秒内达到 500 分' },
   ],
 
@@ -205,10 +181,8 @@ const CFG = {
     // プレイ報酬の計算（係数構造。将来アップグレード倍率なども掛けられるよう拡張可能）。
     // stardust = floor((score*PER_SCORE + chainEvents*PER_CHAIN) * modeMult)
     REWARD: {
-      STARDUST_PER_SCORE: 0.20, // スコア1点あたり星屑
-      STARDUST_PER_CHAIN: 3,    // 連鎖（2連鎖以上の確定）1回あたり星屑
-      ENERGY_PER_SCORE:   0.08, // スコア1点あたり恒星エネルギー
-      ENERGY_PER_CHAIN:   1,    // 連鎖1回あたり恒星エネルギー
+      STARDUST_PER_SCORE: 0.10, // スコア1点あたり星屑（連鎖倍率込みのスコアに適用）
+      ENERGY_PER_SCORE:   0.05, // スコア1点あたり恒星エネルギー
       // モード別倍率（チュートリアルは導入なので控えめ）
       MODE_MULT: { time: 1.0, endless: 1.0, tutorial: 0.3 },
     },
@@ -219,10 +193,13 @@ const CFG = {
       BASE_COST:   100, // Lv1→2 のコスト（星屑）
       GROWTH:      1.40, // レベルごとのコスト倍率
     },
-    // 恒星：レベル → 恒星エネルギー/秒。rate = ENERGY_BASE + (level-1)*ENERGY_PER_LEVEL。
+    // 恒星：物質生成器が質量(mass)を生産し、質量の 2/3 乗に比例してエネルギーを生成。
+    // 質量生成レート: rate = MASS_BASE + (level-1)*MASS_PER_LEVEL  [質量/秒]
+    // エネルギー生成レート: energy/sec = ENERGY_K * mass^(2/3)
     STAR: {
-      ENERGY_BASE:      0.5, // Lv1 の恒星エネルギー/秒
-      ENERGY_PER_LEVEL: 0.5, // レベルごとの増分
+      MASS_BASE:      1.0,   // Lv1 の質量生成レート (質量/秒)
+      MASS_PER_LEVEL: 1.0,   // レベルごとの増分 (質量/秒)
+      ENERGY_K:       0.003, // エネルギー変換係数 (energy/sec = K * mass^(2/3))
       // 恒星の見た目tier。各 bi(BODIES index) に到達する最小レベル。
       // 例: Lv1=宇宙塵(0) … Lv64=ブラックホール(9)。
       TIER_LEVELS: [1, 4, 8, 13, 19, 26, 34, 43, 53, 64, 76, 89],
@@ -348,6 +325,7 @@ const STORAGE_KEYS = {
   META_ENERGY:        'rollaxy_stellar_energy',    // 所持恒星エネルギー
   META_GEN_LEVEL:     'rollaxy_generator_level',   // 物質生成器レベル
   META_LAST_SAVED:    'rollaxy_meta_last_saved',   // 放置蓄積の基準時刻 (ms)
+  META_MASS:          'rollaxy_meta_mass',         // 蓄積質量
   META_CIV_LEVEL:     'rollaxy_civ_level',         // 文明レベル
   META_RESEARCH:      'rollaxy_research',           // 所持研究ID配列(JSON)
 

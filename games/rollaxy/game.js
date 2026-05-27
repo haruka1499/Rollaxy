@@ -133,6 +133,68 @@ startNameInput.addEventListener('keydown', e => {
 const chainEl = document.getElementById('chain-display');
 
 // ============================================================
+// スキル使用通知（game-skills.js から呼ぶ）
+// スキル連鎖判定ウィンドウを開く
+// ============================================================
+function notifySkillUsed() {
+  _skillJustUsed = true;
+  _skillChainBonus = true;
+  clearTimeout(_skillChainBonusTimer);
+  _skillChainBonusTimer = setTimeout(() => {
+    _skillChainBonus = false;
+    _skillChainBonusTimer = null;
+  }, CFG.RULES.CHAIN_WINDOW_MS);
+}
+
+// ============================================================
+// 連鎖スコア演出: 連鎖終了時にベーススコア × 各ステップ倍率を高速再現
+// ============================================================
+function _playChainScoreAnim(baseSc, finalCount, isSkill) {
+  const el = document.getElementById('chain-score-anim');
+  if (!el || baseSc <= 0) return;
+
+  // 最大6ステップ表示（連鎖数が多い場合は後半6連鎖分のみ）
+  const startN = Math.max(2, finalCount - 5);
+
+  el.classList.remove('csa-show');
+  void el.offsetWidth;
+  el.classList.add('csa-show');
+
+  let n = startN;
+  const tick = () => {
+    const cm   = _chainMultiplier(n);
+    const tm   = +(cm * (isSkill ? 2 : 1)).toFixed(4);
+    const multStr = isSkill ? `×${cm.toFixed(1)} ×2` : `×${cm.toFixed(1)}`;
+    const isFinal = n === finalCount;
+    if (isFinal) {
+      const result = Math.floor(baseSc * tm);
+      el.innerHTML =
+        `<span class="csa-base">${baseSc}</span>`
+        + `<span class="csa-mult csa-final${isSkill ? ' csa-skill' : ''}">${multStr}</span>`
+        + `<span class="csa-eq"> = +${result}</span>`;
+      setTimeout(() => el.classList.remove('csa-show'), 1500);
+    } else {
+      el.innerHTML =
+        `<span class="csa-base">${baseSc}</span>`
+        + `<span class="csa-mult${isSkill ? ' csa-skill' : ''}">${multStr}</span>`;
+      n++;
+      setTimeout(tick, 75);
+    }
+  };
+  tick();
+}
+
+// リソースバー（星屑・エネルギー保有量）の表示/非表示
+function showResourceBar() {
+  const el = document.getElementById('resource-bar');
+  if (el) el.style.display = 'flex';
+}
+function hideResourceBar() {
+  const el = document.getElementById('resource-bar');
+  if (el) el.style.display = 'none';
+}
+
+// ============================================================
 // 天体カスタム画像（絵文字の代わりに PNG を使う天体）
 // bodyImages[bi] に Image オブジェクトをセットすると、その bi の天体に画像が使われる
 // ============================================================
@@ -162,6 +224,28 @@ let glowMap; // Map<bodyId, {endTime, duration}> — 「合成時に少し光る
 let chainCount;       // 連鎖カウント（1回目の合成で1、以降ウィンドウ内に続けば加算）
 let chainTimer;       // 700ms 連鎖ウィンドウタイマー（新しい合成で clearTimeout される）
 let chainResolveTimer; // 750ms 演出+報酬タイマー（新しい合成で cancel されてはいけない）
+
+// ---- 連鎖倍率スコア ----
+let _chainBaseScore      = 0;    // 連鎖中のベーススコア蓄積バッファ
+let _isSkillChain        = false; // スキル起点の連鎖か（終了時に×2）
+let _skillChainBonus     = false; // スキル使用後800ms以内か（triggerChain で判定）
+let _skillChainBonusTimer = null; // _skillChainBonus の自動解除タイマー
+
+// フィボナッチ倍率シーケンス: SEQ[0]=chain2ボーナス(0.1), SEQ[1]=chain3(0.2), SEQ[n]=SEQ[n-1]+SEQ[n-2]
+const _CHAIN_BONUS_SEQ = (() => {
+  const seq = [0.1, 0.2];
+  while (seq.length < 30) {
+    const l = seq.length;
+    seq.push(+(seq[l - 1] + seq[l - 2]).toFixed(6));
+  }
+  return seq;
+})();
+// chain n の倍率: n<=1→×1.0, n=2→×1.1, n=6→×1.8, n=7→×2.3 ...
+function _chainMultiplier(n) {
+  if (n <= 1) return 1.0;
+  const bonus = _CHAIN_BONUS_SEQ[Math.min(n - 2, _CHAIN_BONUS_SEQ.length - 1)];
+  return +(1 + bonus).toFixed(4);
+}
 
 // ---- スキル状態 ----
 let activeSkill;    // null | 'bomb' | 'upgrade' | 'delete'
@@ -277,6 +361,11 @@ function isObjectiveMet(st) {
     const { skill, count } = st.requireSkillCount;
     if ((_skillUsedCounts[skill] || 0) < count) return false;
   }
+  if (st.requireAllSkills != null) {
+    for (const [skill, count] of Object.entries(st.requireAllSkills)) {
+      if ((_skillUsedCounts[skill] || 0) < count) return false;
+    }
+  }
   return true;
 }
 // 現在ステージの目標説明（現在言語）。
@@ -285,6 +374,11 @@ function stageDesc(st) {
   const cap = (typeof currentLang === 'string' ? currentLang : 'ja').replace(/^./, c => c.toUpperCase());
   return st[`desc${cap}`] || st.descJa || '';
 }
+// スキルアイコン文字列（チュートリアルHUD進捗表示用）
+function _skillIcon(skill) {
+  return skill === 'bomb' ? '💣' : skill === 'upgrade' ? '⬆️' : '✕';
+}
+
 // スキル使用を記録（チュートリアル目標判定用）。game.js/game-skills.js から呼ぶ。
 function noteSkillUsed(type) {
   if (!type) return;
@@ -336,7 +430,7 @@ let _goPopEffects  = [];   // { x, y, bi, startTime }
 let _goFlashIds    = new Set(); // 点滅強調するアウト天体のID
 let _goFlashStart  = 0;         // 点滅開始時刻 (Date.now())
 let _autoReturnTid = null;      // チュートリアルクリア後の自動ホーム返却タイマーID
-let _pendingReward = null;      // クリア時に取得した報酬 {stardust,energy}。init() でパーティクルに使用
+let _pendingReward = null;      // クリア時に取得した報酬 {stardust}。init() でパーティクルに使用
 
 // チュートリアルクリア時のオーバーレイボタンを切り替える。
 // 「ホームに戻る」＋「次へ進む」を表示し、通常の「もう一度」等を隠す。
@@ -365,8 +459,9 @@ function _showTutorialClearButtons(isTutClear) {
     if (rankLink) rankLink.style.display = 'none';
     if (achBtn)   achBtn.style.display   = 'none';
   } else {
-    // 通常終了: 各ボタンを元に戻す
-    if (retryBtn)  { retryBtn.textContent = T('retry'); retryBtn.style.display = ''; }
+    // 通常終了: タイムアタック時間切れはホームに戻る、それ以外はもう一度
+    const _btnLabel = (_endReason === 'timeup') ? T('backToHome') : T('retry');
+    if (retryBtn)  { retryBtn.textContent = _btnLabel; retryBtn.style.display = ''; }
     if (nextBtn)   nextBtn.style.display  = 'none';
     if (rankLink)  rankLink.style.display = '';
     if (achBtn)    achBtn.style.display   = '';
@@ -417,10 +512,17 @@ function init() {
   _restoreShareButton();
   hide(settingsOverlay); // 設定オーバーレイ
   startScreen.classList.remove('hidden');    // スタート画面を表示（#start-screen の .hidden を外す）
+  showResourceBar(); // リソースバーをホーム画面で表示
   // ホーム下部バーを表示し、チュートリアル進捗に応じてボタンを解禁、プレイタブに戻す
   document.getElementById('home-nav')?.classList.add('show');
   updateHomeNav();
   showHomeTab('play');
+  // デスクトップ: 3パネル常時表示のため両パネルのtickを起動。モバイル: 1回描画のみ。
+  if (typeof ensureDesktopTicks === 'function') ensureDesktopTicks();
+  else {
+    if (typeof renderCosmos   === 'function') renderCosmos();
+    if (typeof renderResearch === 'function') renderResearch();
+  }
   updateModeToggle();    // プレイパネルのモード/ステージ表記を更新
   updateStageObjective(); // プレイ中バナーを隠す（waiting=true のため）
   dropX = CFG.W / 2; canDrop = true;
@@ -432,12 +534,6 @@ function init() {
   _buildPhysicsWorld();
   updateHUD();
 
-  // チュートリアルクリア直後のホーム復帰時：報酬パーティクルを飛ばす
-  if (_pendingReward && typeof flyRewardParticles === 'function') {
-    const _pr = _pendingReward;
-    _pendingReward = null;
-    setTimeout(() => flyRewardParticles(_pr.stardust, _pr.energy), 350);
-  }
 }
 
 // 物理エンジン・壁・衝突イベントを再構築する（init からのみ呼ばれる）。
@@ -508,6 +604,11 @@ function _resetStats() {
   clearTimeout(chainTimer);       chainTimer = null;
   clearTimeout(chainResolveTimer); chainResolveTimer = null;
   chainEl.classList.remove('show', 'chain-final');
+  _chainBaseScore = 0; _isSkillChain = false;
+  _skillChainBonus = false;
+  clearTimeout(_skillChainBonusTimer); _skillChainBonusTimer = null;
+  const _csaElR = document.getElementById('chain-score-anim');
+  if (_csaElR) _csaElR.classList.remove('csa-show');
   // スキル状態リセット（所持数は config の初期値＋研究ボーナス）
   skillCharges = { ...CFG.SKILL_INIT_CHARGES };
   const _skillBonus = _metaMod('skillCharge', 0);
@@ -563,7 +664,7 @@ function spawn(x, y, bi) {
 // DROP — プレイヤーが「天体」（または爆弾）を落とす
 // ============================================================
 function drop() {
-  if (!canDrop || dead || waiting || chainTimer !== null || chainResolveTimer !== null) return;
+  if (!canDrop || dead || waiting || chainTimer !== null || chainResolveTimer !== null || rouletteActive) return;
   if (skillSelectMode) return;
   _noteInput(); // 案内ポインターのアイドル判定をリセット
   // chainRewardPending 中（5連鎖報酬パネル表示中）もドロップ可能にする
@@ -581,6 +682,8 @@ function drop() {
   }
   _lastDropHadChain = false;
   _skillJustUsed = false; // ドロップ境界を超えたらスキル連鎖は無効
+  _skillChainBonus = false; // 手動ドロップ後はスキル連鎖ウィンドウを閉じる
+  clearTimeout(_skillChainBonusTimer); _skillChainBonusTimer = null;
 
   if (bombMode) {
     // 爆弾を投下（curBi は変えない）
@@ -671,49 +774,64 @@ function onColl(evt) {
 // 2連鎖以上になったら #chain-display に「N連鎖！」を表示する。
 // ============================================================
 function triggerChain() {
-  // chainTimer（700ms窓）だけをキャンセル。
-  // chainResolveTimer は触らない → 確定済み連鎖の報酬が上書きされない。
+  // chainTimer（連鎖ウィンドウ）だけをキャンセル。chainResolveTimer は独立。
   clearTimeout(chainTimer);
   chainTimer = null;
-  chainCount++;
-  if (chainCount > _maxChainThisGame) {
-    _maxChainThisGame = chainCount;
+
+  // スキル連鎖判定: スキル使用後800ms以内の連鎖開始（chainCount=0時）
+  // スキルを「1連鎖目」として先行カウントし、この合成を2連鎖目にする
+  if (_skillChainBonus && chainCount === 0) {
+    _isSkillChain = true;
+    chainCount = 1;
+    clearTimeout(_skillChainBonusTimer);
+    _skillChainBonus = false;
+    _skillChainBonusTimer = null;
   }
+
+  chainCount++;
+  if (chainCount > _maxChainThisGame) _maxChainThisGame = chainCount;
   playMergeSound(chainCount);
 
+  // 2連鎖以上: 連鎖数と現在の倍率を表示
   if (chainCount >= 2) {
-    chainEl.textContent = T('chain')(chainCount);
+    const _cm = _chainMultiplier(chainCount);
+    const _multStr = _isSkillChain
+      ? `×${_cm.toFixed(1)} ×2`
+      : `×${(_cm).toFixed(1)}`;
+    chainEl.innerHTML = `${T('chain')(chainCount)}<span class="chain-mult${_isSkillChain ? ' chain-skill' : ''}">${_multStr}</span>`;
     chainEl.classList.remove('show', 'chain-final');
     void chainEl.offsetWidth;
     chainEl.classList.add('show');
   }
 
-  // 700ms 以内に次の合成が来なければ連鎖終了
+  // 連鎖ウィンドウ: 800ms 以内に次の合成が来なければ連鎖終了
   chainTimer = setTimeout(() => {
-    // ── この時点で finalCount を確定スナップショットとして取得 ──
-    // 以降 chainCount がどう変わっても finalCount は変わらない
     const finalCount = chainCount;
     chainCount = 0;
-    chainTimer = null; // 700ms窓は終了
+    chainTimer = null;
 
-    if (finalCount < 2) return;
+    // 1連鎖: バッファスコアをそのまま加算（倍率なし・演出なし）
+    if (finalCount <= 1) {
+      score += _chainBaseScore;
+      _chainBaseScore = 0;
+      _isSkillChain = false;
+      updateHUD();
+      return;
+    }
 
     _chainEventCount++;
     _lastDropHadChain = true;
     achCheckTotalChains(
       parseInt(localStorage.getItem(STORAGE_KEYS.TOTAL_CHAINS) || '0', 10) + _chainEventCount
     );
-    // 5連鎖以上なら各レベル(5〜finalCount)の累計カウントをインクリメントしてチェック
     if (finalCount >= 5) {
       for (let _lvl = 5; _lvl <= Math.min(finalCount, 15); _lvl++) {
         _chainCountsByLevel[_lvl] = (_chainCountsByLevel[_lvl] || 0) + 1;
         achCheckChainByLevel(_lvl, (_savedChainCounts[_lvl] || 0) + _chainCountsByLevel[_lvl]);
       }
     }
-    // スキル使用後の連鎖チェック（ドロップをまたがない場合のみ有効）
     if (_skillJustUsed) {
       achCheckSkillChain(finalCount);
-      // スキル経由の連鎖レベル別累計チェック（5〜10）
       if (finalCount >= 5) {
         for (let _lvl = 5; _lvl <= Math.min(finalCount, 10); _lvl++) {
           _skillChainCountsByLevel[_lvl] = (_skillChainCountsByLevel[_lvl] || 0) + 1;
@@ -723,17 +841,30 @@ function triggerChain() {
       _skillJustUsed = false;
     }
 
-    // ぽん！演出（chainResolveTimer が非null の間はドロップをブロック）
+    // スコア確定（フィボナッチ倍率 × スキル連鎖2倍）
+    const baseSc    = _chainBaseScore;
+    const isSkill   = _isSkillChain;
+    const finalMult = _chainMultiplier(finalCount) * (isSkill ? 2 : 1);
+    score += Math.floor(baseSc * finalMult);
+    _chainBaseScore = 0;
+    _isSkillChain   = false;
+    updateHUD();
+    checkGoal();
+
+    // スコア倍率演出（ベース×各ステップ高速再現）
+    _playChainScoreAnim(baseSc, finalCount, isSkill);
+
+    // 連鎖終了表示（「N連鎖！ ×M.M」）
+    const _fm = _chainMultiplier(finalCount);
+    const _fStr = isSkill ? `×${_fm.toFixed(1)} ×2` : `×${_fm.toFixed(1)}`;
     chainEl.classList.remove('show', 'chain-final');
     void chainEl.offsetWidth;
-    chainEl.textContent = T('chain')(finalCount);
+    chainEl.innerHTML = `${T('chain')(finalCount)}<span class="chain-mult${isSkill ? ' chain-skill' : ''}">${_fStr}</span>`;
     chainEl.classList.add('chain-final');
 
-    // chainResolveTimer は新しい合成の clearTimeout(chainTimer) に影響されない独立タイマー
     chainResolveTimer = setTimeout(() => {
       chainResolveTimer = null;
       chainEl.classList.remove('chain-final');
-      // finalCount はクロージャに閉じた不変値なので競合しない
       if      (finalCount === 4) enqueueRoulette();
       else if (finalCount >= 5) enqueueChoice();
     }, 280);
@@ -774,8 +905,8 @@ function flushMerges() {
     Matter.Composite.remove(world, m.bB, true);
 
     if (m.vanish) {
-      // 銀河団同士は消滅：ボーナススコアのみ加算（研究スコア倍率を適用）
-      score += Math.round(CFG.BODIES[m.bi].s * 2 * _metaMod('scoreMult', 1));
+      // 銀河団同士は消滅：ボーナススコアを連鎖バッファへ（研究スコア倍率を適用）
+      _chainBaseScore += Math.round(CFG.BODIES[m.bi].s * 2 * _metaMod('scoreMult', 1));
       _clusterVanishCount++;
       triggerChain();
       updateHUD();
@@ -784,7 +915,7 @@ function flushMerges() {
 
     const ni = m.bi + 1;
     if (ni > _maxTierThisGame) _maxTierThisGame = ni; // requireTier 判定用
-    score += Math.round(CFG.BODIES[ni].s * _metaMod('scoreMult', 1)); // 研究スコア倍率を適用
+    _chainBaseScore += Math.round(CFG.BODIES[ni].s * _metaMod('scoreMult', 1)); // 連鎖バッファへ
 
     // 同座標スポーン防止: 微小オフセットを加える
     const ox = (Math.random() - 0.5) * 0.5;
@@ -940,6 +1071,9 @@ function doGameOver() {
   // 連鎖演出タイマーをすべて止める（ゲームオーバー後に報酬が発生しないよう）
   clearTimeout(chainTimer);       chainTimer = null;
   clearTimeout(chainResolveTimer); chainResolveTimer = null;
+  _chainBaseScore = 0; _isSkillChain = false;
+  const _csaElGO = document.getElementById('chain-score-anim');
+  if (_csaElGO) _csaElGO.classList.remove('csa-show');
   rouletteQueue.length = 0; // キュー済みルーレットも破棄
   pendingChoiceRewards = 0; // 未受け取り報酬を破棄（スキルバーの「受け取る」ボタンを消す）
   tutorialActive = false; tutorialTargetId = null; _forcedSkillActive = false;
@@ -953,12 +1087,10 @@ function doGameOver() {
   // typeof ガードで game-meta.js 未ロードでも安全。
   const _rwEl = document.getElementById('reward-el');
   if (typeof grantPlayReward === 'function') {
-    const _rw = grantPlayReward(score, _chainEventCount, curMode().type);
-    if (_rwEl) _rwEl.textContent = `${T('rewardGained')}: 💫 ${_rw.stardust}  ⚡ ${_rw.energy}`;
-    // チュートリアルクリア時はホーム復帰後にパーティクルを飛ばす
-    if (_endReason === 'clear' && curMode().type === 'tutorial') {
-      _pendingReward = { stardust: _rw.stardust, energy: _rw.energy };
-    }
+    const _rw = grantPlayReward(score, curMode().type);
+    if (_rwEl) _rwEl.textContent = `${T('rewardGained')}: 💫 ${_rw.stardust}`;
+    // ゲームオーバーオーバーレイ表示後にリソースバーへパーティクルを飛ばす
+    _pendingReward = { stardust: _rw.stardust };
   } else if (_rwEl) {
     _rwEl.textContent = '';
   }
@@ -1059,6 +1191,8 @@ function _startGameOverAnim() {
   const ids = [...bmap.keys()];
   if (ids.length === 0) {
     show(overlay);
+    showResourceBar();
+    _fireOverlayParticles();
     _startAutoReturn();
     return;
   }
@@ -1073,10 +1207,24 @@ function _startGameOverAnim() {
       _popBody(id);
       if (idx === ids.length - 1) {
         // 最後の天体のポップアニメが終わる頃にオーバーレイを表示
-        setTimeout(() => { show(overlay); _startAutoReturn(); }, POP_DUR_MS + 80);
+        setTimeout(() => {
+          show(overlay);
+          showResourceBar();
+          _fireOverlayParticles();
+          _startAutoReturn();
+        }, POP_DUR_MS + 80);
       }
     }, Math.round(idx * interval));
   });
+}
+
+// ゲームオーバーオーバーレイ表示直後にリソースバーへパーティクルを飛ばす
+function _fireOverlayParticles() {
+  if (_pendingReward && typeof flyRewardParticles === 'function') {
+    const _pr = _pendingReward;
+    _pendingReward = null;
+    setTimeout(() => flyRewardParticles(_pr.stardust), 350);
+  }
 }
 
 // 天体を物理世界から除去してポップエフェクトを登録する
@@ -1105,6 +1253,8 @@ function updateHUD() {
     scoreEl.textContent = `${T('score')}: ${score}`;
   }
   achCheckScore(score);
+  // チュートリアルではスコアが進捗指標になるステージがあるため、HUDも同期更新
+  if (_m && _m.type === 'tutorial') updateStageObjective();
   const _ni = bodyImages[nxtBi];
   if (_ni && _ni.complete && _ni.naturalWidth > 0) {
     nextEmoEl.innerHTML = `<img src="${_ni.src}" style="height:1.3em;vertical-align:middle;border-radius:50%">`;
@@ -1127,28 +1277,54 @@ function updateTimerHUD() {
   el.classList.toggle('timer-warn', remain <= 10000); // 残り10秒で警告色
 }
 
-// チュートリアル目標バナー（プレイ中のみ表示）。beginGame / langchange / 終了時に呼ぶ。
+// チュートリアルHUD（ヘッダー左エリアをチュートリアル情報で上書き）。
+// beginGame / noteSkillUsed / updateHUD / langchange / 終了時に呼ぶ。
 function updateStageObjective() {
-  const el = document.getElementById('stage-objective');
-  if (!el) return;
-  const m = curMode();
-  if (!waiting && !dead && m.type === 'tutorial' && curStage()) {
-    const s = curStage();
-    const idx = CFG.STAGES.findIndex(x => x.id === s.id);
-    const total = CFG.STAGES.length;
-    // テキストは config 由来の信頼値なので innerHTML 安全
-    let _prog = '';
-    if (s.requireSkillCount) {
+  const header  = document.getElementById('header');
+  const tutHud  = document.getElementById('tut-hud');
+  const m       = curMode();
+  const isTut   = !waiting && !dead && m.type === 'tutorial' && !!curStage();
+
+  // ヘッダーにクラスを付与 → score/hi を CSS で隠す
+  if (header) header.classList.toggle('tutorial-mode', isTut);
+
+  if (!tutHud) return;
+  if (!isTut) { tutHud.style.display = 'none'; return; }
+
+  const s     = curStage();
+  const idx   = CFG.STAGES.findIndex(x => x.id === s.id);
+  const total = CFG.STAGES.length;
+
+  // ステージ番号
+  const stepEl = document.getElementById('tut-hud-step');
+  if (stepEl) stepEl.textContent = `${modeName(m)} ${idx + 1}/${total}`;
+
+  // 目標説明
+  const descEl = document.getElementById('tut-hud-desc');
+  if (descEl) descEl.textContent = stageDesc(s);
+
+  // 進捗（スキル使用系 or スコア系）
+  const progEl = document.getElementById('tut-hud-progress');
+  if (progEl) {
+    let html = '';
+    if (s.requireAllSkills) {
+      html = Object.entries(s.requireAllSkills).map(([skill, need]) => {
+        const done = Math.min(_skillUsedCounts[skill] || 0, need);
+        const met  = done >= need;
+        return `<span class="tut-prog-item${met ? ' tut-prog-met' : ''}">${_skillIcon(skill)} ${done}/${need}</span>`;
+      }).join('');
+    } else if (s.requireSkillCount) {
       const { skill, count } = s.requireSkillCount;
-      const _done = _skillUsedCounts[skill] || 0;
-      _prog = ` <span style="opacity:0.7">(${_done}/${count})</span>`;
+      const done = _skillUsedCounts[skill] || 0;
+      const met  = done >= count;
+      html = `<span class="tut-prog-item${met ? ' tut-prog-met' : ''}">${_skillIcon(skill)} ${done}/${count}</span>`;
+    } else if (s.goalScore != null) {
+      html = `<span class="tut-prog-item">${score} / ${s.goalScore}</span>`;
     }
-    el.innerHTML = `<div class="obj-step">${modeName(m)} ${idx + 1}/${total}</div>`
-                 + `<div class="obj-desc">${stageDesc(s)}${_prog}</div>`;
-    el.style.display = 'block';
-  } else {
-    el.style.display = 'none';
+    progEl.innerHTML = html;
   }
+
+  tutHud.style.display = '';
 }
 
 // ユーザー操作を記録（案内ポインターのアイドル判定リセット）。
@@ -1177,9 +1353,15 @@ function updateObjectivePointer() {
   if (tutorialActive) { _hideObjPointer(); return; }
   if (Date.now() - _idleLastInput < OBJ_POINTER_IDLE_MS) { _hideObjPointer(); return; }
 
-  // requireSkillCount もスキルボタンを指す（残り使用回数を表示）
-  const _rsc = st.requireSkillCount;
-  const _skillTarget = st.requireSkill || (_rsc && _rsc.skill) || null;
+  // requireAllSkills → 未達成の最初のスキルを指す
+  let _skillTarget = st.requireSkill || null;
+  if (!_skillTarget && st.requireSkillCount) _skillTarget = st.requireSkillCount.skill;
+  if (!_skillTarget && st.requireAllSkills) {
+    const _unmet = Object.entries(st.requireAllSkills).find(
+      ([skill, count]) => (_skillUsedCounts[skill] || 0) < count
+    );
+    _skillTarget = _unmet ? _unmet[0] : null;
+  }
   let targetEl = null, text = '';
   if      (_skillTarget === 'bomb')    { targetEl = document.getElementById('skill-bomb');    text = T('skillHintBomb'); }
   else if (_skillTarget === 'upgrade') { targetEl = document.getElementById('skill-upgrade'); text = T('skillHintUpgrade'); }
@@ -1236,7 +1418,23 @@ function loop(t) {
 // これにより物理演算の座標系を変えずにスマホ・PC どちらでも正しく表示できる。
 // ============================================================
 const _headerEl = document.getElementById('header');
+
+// ============================================================
+// VIEWPORT HEIGHT SYNC
+// visualViewport.height が最も正確（アドレスバー・ソフトキー込みの実視認領域）。
+// CSS custom property --app-height に注入することで body { height: var(--app-height) }
+// が常に実際の見える高さに追随する。100dvh / 100vh のフォールバックより優先される。
+// ============================================================
+function _setVhVar() {
+  const h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+  document.documentElement.style.setProperty('--app-height', h + 'px');
+}
+
 function resize() {
+  // outer.style.height は前回 resize() が設定した値なのでリセットしてから
+  // flex により決定される実際の利用可能高さを読み取る。
+  // これにより body の --app-height が更新された後の正確なサイズが取得できる。
+  outer.style.height = '';
   const ow = outer.clientWidth  || CFG.W;
   const oh = outer.clientHeight || CFG.H;
   const s  = Math.min(ow / CFG.W, oh / CFG.H);
@@ -1255,16 +1453,19 @@ function resize() {
   const _toastEl = document.getElementById('ach-toast');
   if (_toastEl) _toastEl.style.height = _barH + 'px';
   // 再フィットした時点のビューポート寸法を記録（_onViewportResize の判定用）
-  _lastFitW = window.innerWidth; _lastFitH = window.innerHeight;
+  _lastFitW = window.innerWidth;
+  _lastFitH = window.visualViewport ? window.visualViewport.height : window.innerHeight;
 }
 
 // アドレスバー開閉は「幅そのまま・高さだけ」変化させて resize を連発する。
-// 幅が同一かつ高さ変化が閾値以下なら再フィットせず、最後のスケールを維持して
-// canvas のガタつきを防ぐ。回転・PCリサイズ（幅変化）や大きな高さ変化のときだけ
-// resize() を呼ぶ。初回フィットは init() が resize() を直接呼ぶ。
+// --app-height は毎回更新（CSS レイアウトを正しく保つ）。
+// canvas のスケール再計算は幅変化 or 高さ変化が閾値超のときだけ行い
+// アドレスバー展開/収縮のガタつきを防ぐ。
 let _lastFitW = 0, _lastFitH = 0;
 function _onViewportResize() {
-  const w = window.innerWidth, h = window.innerHeight;
+  _setVhVar(); // --app-height を常に最新化（CSS レイアウトへ即反映）
+  const w = window.innerWidth;
+  const h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
   if (w === _lastFitW && Math.abs(h - _lastFitH) <= CFG.RESIZE_IGNORE_DH) return;
   resize();
 }
@@ -1418,6 +1619,8 @@ function showHomeTab(tab) {
   else if (tab === 'ranking'  && typeof openRankingHome === 'function') openRankingHome();
   else if (tab === 'ach'      && typeof openAchievements === 'function') openAchievements();
   if (tab === 'play') updateModeToggle(); // プレイ＝ホーム基本画面を最新化
+  // デスクトップ: どのタブを選んでも両パネルtickを維持
+  if (typeof ensureDesktopTicks === 'function') ensureDesktopTicks();
 }
 // チュートリアル完了までは「プレイ」以外を隠す。完了で一斉解禁。
 function updateHomeNav() {
@@ -1581,6 +1784,7 @@ function beginGame(modeId = currentModeId, stageId = currentStageId) {
   document.getElementById('home-nav')?.classList.remove('show'); // 下部バーを隠す
   _closeAllHomeOverlays(); // 開いているメタオーバーレイを全て閉じる（ランキング等の残留防止）
   startScreen.classList.add('hidden');       // スタート画面をフェードアウト
+  hideResourceBar(); // ゲームプレイ中はリソースバーを隠す
   updateSkillButtons(); // waiting=false になったのでボタンの disabled を解除
   updateHUD();             // 目標スコア併記を反映
   updateStageObjective();  // チュートリアル目標バナーを表示
@@ -1629,6 +1833,11 @@ async function _fetchSessionToken() {
 // game-ui.js に分離（game.js の後にロード）。openSettings/closeSettings 等を提供。
 
 window.addEventListener('resize', _onViewportResize);
+// visualViewport は iOS/Android Chrome でアドレスバー展開時に window.resize より先に発火する
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', _onViewportResize);
+}
+_setVhVar(); // 初回: --app-height を DOM 構築直後に確定させる
 
 // ============================================================
 // LANG — 言語セレクターの構築と langchange イベントへの対応

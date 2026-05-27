@@ -14,7 +14,14 @@
     スマホ向け: user-scalable=no でピンチズーム無効、maximum-scale=1.0 で拡大防止。
     ゲーム中に画面が拡大・縮小するとタッチ座標がずれるため必須。
   -->
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <!-- PWA / モバイル全画面対応 -->
+  <meta name="theme-color" content="#1a0e30">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Rollaxy">
+  <link rel="manifest" href="manifest.json">
   <title>Rollaxy | NOVORA GAME</title>
   <meta name="description" content="A space-themed falling merge browser game. Combine celestial bodies, chain merges with strategic skills, and aim for the galaxy cluster. Free to play.">
   <meta name="robots" content="index, follow">
@@ -52,83 +59,116 @@
   position: fixed で viewport 全体を不透明に覆い、ゲームが一切見えない状態を作る。
   beginGame() で .hidden クラスを付与してフェードアウト。init() で .hidden を外してフェードイン。
 -->
-<div id="start-screen">
-  <!-- 上部リソースバー（星屑・エネルギー保有量） -->
-  <div id="resource-bar">
-    <span id="res-stardust"><span class="res-icon">💫</span><span id="res-stardust-val">0</span></span>
-    <span id="res-energy"><span class="res-icon">⚡</span><span id="res-energy-val">0</span></span>
-  </div>
-  <!-- 右上メニュー（ホーム画面専用） -->
-  <button id="home-menu-btn" aria-label="Menu"><span></span><span></span><span></span></button>
-  <div id="home-menu-panel">
-    <button id="home-menu-settings" data-i18n="settings">設定</button>
-    <a id="home-menu-profile" href="/profile/" data-i18n="profileLink" target="_blank" rel="noopener">👤 プロフィール</a>
-    <a id="home-menu-games" href="/games/" data-i18n="gamesLink">🎮 ゲーム一覧</a>
-  </div>
-  <h2 data-i18n="title">ころころ宇宙</h2>
-  <div id="start-playername">
-    <div id="start-name-view">
-      <span>👤</span>
-      <span id="start-playername-val"></span>
-      <button id="start-name-edit-btn" aria-label="Edit name">✎</button>
-    </div>
-    <div id="start-name-editor">
-      <input id="start-name-input" type="text" maxlength="15">
-      <button id="start-name-save-btn">✓</button>
-      <button id="start-name-cancel-btn">✕</button>
-    </div>
-    <div id="start-name-hint">
-      <span id="start-name-hint-msg"></span>
-      <button id="start-name-hint-ok"></button>
-    </div>
-  </div>
-  <!-- プレイ（ホーム既定）パネル -->
-  <div id="play-panel">
-    <button id="mode-toggle-btn" style="display:none"></button>
-    <div id="stage-select-list" style="display:none"></div>
-    <div id="start-stage-desc" style="display:none"></div>
-    <button id="start-btn" data-i18n="start">スタート</button>
-  </div>
-  <!-- モード選択シート（スタート後に表示。チュートリアル完了後のみ） -->
-  <div id="mode-select-sheet" style="display:none">
-    <p id="mode-select-title" data-i18n="modeSelectTitle">モードを選択</p>
-    <div id="mode-select-btns"></div>
-    <button id="mode-select-back" data-i18n="settingsBack">← 戻る</button>
-  </div>
+<!-- リソースバー（星屑・エネルギー保有量）— position:fixed で全画面共通表示 -->
+<div id="resource-bar" style="display:none">
+  <span id="res-stardust"><span class="res-icon">💫</span><span id="res-stardust-val">0</span></span>
+  <span id="res-energy"><span class="res-icon">⚡</span><span id="res-energy-val">0</span></span>
 </div>
 
+<!--
+  ホームカルーセル（#start-screen）
+  3パネル横並び: 研究(左) ← プレイ(中央) → 恒星(右)
+  mobile: overflow:hidden + translateX でスワイプ切替
+  desktop(≥760px): 3列同時表示（左右にpeek）
+-->
+<div id="start-screen">
+  <div id="home-carousel">
+
+    <!-- パネル0: 研究（LEFT） -->
+    <div class="home-panel" id="panel-research">
+      <div id="research-panel">
+        <h2 data-i18n="researchTitle">研究</h2>
+        <div id="research-civ">
+          <div id="research-civ-level"></div>
+          <div id="research-civ-cost"></div>
+          <button id="research-civ-up"></button>
+        </div>
+        <div id="research-list"></div>
+      </div>
+    </div>
+
+    <!-- パネル1: プレイ（CENTER） -->
+    <div class="home-panel" id="panel-play">
+      <!-- 右上メニュー（ホーム画面専用） -->
+      <button id="home-menu-btn" aria-label="Menu"><span></span><span></span><span></span></button>
+      <div id="home-menu-panel">
+        <button id="home-menu-settings" data-i18n="settings">設定</button>
+        <a id="home-menu-profile" href="/profile/" data-i18n="profileLink" target="_blank" rel="noopener">👤 プロフィール</a>
+        <a id="home-menu-games" href="/games/" data-i18n="gamesLink">🎮 ゲーム一覧</a>
+      </div>
+      <h2 data-i18n="title">ころころ宇宙</h2>
+      <div id="start-playername">
+        <div id="start-name-view">
+          <span>👤</span>
+          <span id="start-playername-val"></span>
+          <button id="start-name-edit-btn" aria-label="Edit name">✎</button>
+        </div>
+        <div id="start-name-editor">
+          <input id="start-name-input" type="text" maxlength="15">
+          <button id="start-name-save-btn">✓</button>
+          <button id="start-name-cancel-btn">✕</button>
+        </div>
+        <div id="start-name-hint">
+          <span id="start-name-hint-msg"></span>
+          <button id="start-name-hint-ok"></button>
+        </div>
+      </div>
+      <!-- プレイ（ホーム既定）パネル -->
+      <div id="play-panel">
+        <button id="mode-toggle-btn" style="display:none"></button>
+        <div id="stage-select-list" style="display:none"></div>
+        <div id="start-stage-desc" style="display:none"></div>
+        <button id="start-btn" data-i18n="start">スタート</button>
+      </div>
+      <!-- モード選択シート（スタート後に表示。チュートリアル完了後のみ） -->
+      <div id="mode-select-sheet" style="display:none">
+        <p id="mode-select-title" data-i18n="modeSelectTitle">モードを選択</p>
+        <div id="mode-select-btns"></div>
+        <button id="mode-select-back" data-i18n="settingsBack">← 戻る</button>
+      </div>
+    </div>
+
+    <!-- パネル2: 恒星（RIGHT） -->
+    <div class="home-panel" id="panel-cosmos">
+      <div id="cosmos-panel">
+        <h2 data-i18n="cosmosTitle">宇宙</h2>
+        <div id="cosmos-star"></div>
+        <div id="cosmos-mass"></div>
+        <div id="cosmos-balances">
+          <span id="cosmos-stardust">💫 0</span>
+          <span id="cosmos-energy">⚡ 0</span>
+        </div>
+        <div id="cosmos-rate"></div>
+        <div id="cosmos-generator">
+          <div id="cosmos-gen-head" data-i18n="generatorTitle">物質生成器</div>
+          <div id="cosmos-gen-level">Lv 1</div>
+          <button id="cosmos-upgrade-btn">強化</button>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /#home-carousel -->
+</div><!-- /#start-screen -->
+
 <!-- ホーム下部 5ボタンバー。固定要素・z-index でオーバーレイより前面。バーで各パネルを切替 -->
+<!-- ボタン順: 研究(左端) | 実績 | プレイ(中央↑) | ランキング | 恒星(右端) — スワイプ方向と一致 -->
 <nav id="home-nav">
-  <button id="nav-cosmos" class="nav-item" data-tab="cosmos">
-    <span class="nav-icon">🌌</span><span class="nav-label" data-i18n="navCosmos">恒星</span>
-  </button>
   <button id="nav-research" class="nav-item" data-tab="research">
     <span class="nav-icon">🔬</span><span class="nav-label" data-i18n="navResearch">研究</span>
-  </button>
-  <button id="nav-play" class="nav-item nav-play active" data-tab="play">
-    <span class="nav-icon">▶</span><span class="nav-label" data-i18n="navPlay">プレイ</span>
   </button>
   <button id="nav-ach" class="nav-item" data-tab="ach">
     <span class="nav-icon">🏆</span><span class="nav-label" data-i18n="navAch">実績</span>
   </button>
+  <button id="nav-play" class="nav-item nav-play active" data-tab="play">
+    <span class="nav-icon">▶</span><span class="nav-label" data-i18n="navPlay">プレイ</span>
+  </button>
   <button id="nav-ranking" class="nav-item" data-tab="ranking">
     <span class="nav-icon">📊</span><span class="nav-label" data-i18n="navRanking">ランキング</span>
   </button>
+  <button id="nav-cosmos" class="nav-item" data-tab="cosmos">
+    <span class="nav-icon">🌌</span><span class="nav-label" data-i18n="navCosmos">恒星</span>
+  </button>
 </nav>
-
-<!-- 研究オーバーレイ（文明レベル + 研究一覧）。下部バーの「研究」で開く -->
-<div id="research-overlay">
-  <div id="research-panel">
-    <h2 data-i18n="researchTitle">研究</h2>
-    <div id="research-civ">
-      <div id="research-civ-level"></div>
-      <div id="research-civ-cost"></div>
-      <button id="research-civ-up"></button>
-    </div>
-    <div id="research-energy"></div>
-    <div id="research-list"></div>
-  </div>
-</div>
 
 <!-- ランキングオーバーレイ（/api/rollaxy/ranking をネイティブ表示）。下部バーの「ランキング」で開く -->
 <div id="ranking-overlay">
@@ -188,23 +228,7 @@
   </div>
 </div>
 
-<!-- 宇宙（メタ進行）オーバーレイ — スタート画面から開く。#start-screen より上の z-index -->
-<div id="cosmos-overlay">
-  <div id="cosmos-panel">
-    <h2 data-i18n="cosmosTitle">宇宙</h2>
-    <div id="cosmos-star">💫</div>
-    <div id="cosmos-balances">
-      <span id="cosmos-stardust">💫 0</span>
-      <span id="cosmos-energy">⚡ 0</span>
-    </div>
-    <div id="cosmos-rate"></div>
-    <div id="cosmos-generator">
-      <div id="cosmos-gen-head" data-i18n="generatorTitle">物質生成器</div>
-      <div id="cosmos-gen-level">Lv 1</div>
-      <button id="cosmos-upgrade-btn">強化</button>
-    </div>
-  </div>
-</div>
+<!-- 宇宙パネルはホームカルーセル内 #panel-cosmos に移動済み -->
 
 <!--
   ゲームエリア（#canvas-outer）
@@ -226,6 +250,12 @@
       <div id="score-el">スコア: 0</div>
       <div id="hi-el">最高: 0</div>
       <div id="timer-el" style="display:none"></div>
+      <!-- チュートリアル時にスコア/最高の代わりに表示 -->
+      <div id="tut-hud" style="display:none">
+        <div id="tut-hud-step"></div>
+        <div id="tut-hud-desc"></div>
+        <div id="tut-hud-progress"></div>
+      </div>
     </div>
     <div id="next-wrap">
       <div id="next-normal"><span data-i18n="next">次の天体</span><span id="next-emoji">💫</span></div>
@@ -233,8 +263,6 @@
     <div id="header-right">
       <button id="settings-btn" aria-label="Menu"><span></span><span></span><span></span></button>
     </div>
-    <!-- チュートリアル目標（tutorial モードのプレイ中のみ表示・ヘッダー2行目） -->
-    <div id="stage-objective" style="display:none"></div>
   </div>
   <div id="overlay">
     <h2 data-i18n="gameOver">ゲームオーバー</h2>
@@ -306,8 +334,10 @@
       <button id="credits-back-btn" data-i18n="settingsBack">← 戻る</button>
     </div>
   </div>
-  <!-- 連鎖表示（「N連鎖！」のポップアップ。2連鎖以上で表示） -->
+  <!-- 連鎖表示（「N連鎖！ ×倍率」のポップアップ。2連鎖以上で表示） -->
   <div id="chain-display"></div>
+  <!-- 連鎖スコア演出（ベース×ステップ倍率を高速再現） -->
+  <div id="chain-score-anim"></div>
 
   <!--
     デバッグパネル（` キーでトグル）
@@ -450,8 +480,8 @@
 <script src="game-share.js"></script>
 <script src="achievement-data.js"></script>
 <script src="game-achievements.js"></script>
-<script src="game.js"></script>
 <script src="game-meta.js"></script>
+<script src="game.js"></script>
 <script src="game-ui.js"></script>
 </body>
 </html>

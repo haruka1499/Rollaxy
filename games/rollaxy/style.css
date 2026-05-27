@@ -6,18 +6,32 @@
    ============================================================ */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-html, body {
+html {
+  /* html は 100% のまま（body の高さ計算の基点になる） */
   height: 100%; overflow: hidden;
+  background: #1a0e30;
+}
+body {
+  /*
+   * 高さの優先順位（上が最優先）:
+   *  1. var(--app-height) … JS が visualViewport.height で注入する実測値
+   *  2. 100dvh             … アドレスバーを除いた動的ビューポート高（Chrome 108+ / Safari 15.4+）
+   *  3. 100%               … フォールバック（旧ブラウザ）
+   */
+  height: 100%;           /* fallback */
+  height: 100dvh;         /* dynamic viewport height */
+  height: var(--app-height, 100dvh); /* JS 注入値（最優先） */
+  overflow: hidden;
   background: #1a0e30;
   touch-action: none;
   -webkit-user-select: none; user-select: none;
   font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  display: flex; flex-direction: column; align-items: center;
 }
 /* 中国語表示時: 日本語フォントを使わず中国語最適化フォントにフォールバック */
 :lang(zh), :lang(zh) * {
   font-family: 'PingFang SC', 'Noto Sans SC', 'Microsoft YaHei UI', 'Microsoft YaHei', sans-serif;
 }
-body { display: flex; flex-direction: column; align-items: center; }
 
 /* ============================================================
    ヘッダー
@@ -42,17 +56,26 @@ body { display: flex; flex-direction: column; align-items: center; }
 }
 #timer-el.timer-warn { color: #ff6b6b; }
 /* チュートリアル目標（ヘッダー 2 行目として表示） */
-#stage-objective {
-  flex: 0 0 100%;           /* ヘッダーの幅いっぱいの 2 行目 */
-  display: none;            /* JS で style.display を切り替え */
-  padding: 5px 0 4px;
-  margin: 4px -14px -8px;   /* ヘッダーの左右 padding を打ち消して端まで広げる */
-  text-align: center;
-  border-top: 1px solid rgba(255,255,255,0.12);
-  background: rgba(100,70,220,0.25);
-  pointer-events: none;
-  color: #fff;
+/* チュートリアルHUD（#header-left 内でスコア/最高の代わりに表示） */
+#tut-hud { display: none; }
+#tut-hud-step {
+  font-size: 11px; opacity: 0.65; letter-spacing: 0.04em;
 }
+#tut-hud-desc {
+  font-size: 13px; font-weight: bold; color: #e8d8ff; line-height: 1.3; margin-top: 1px;
+}
+#tut-hud-progress {
+  display: flex; gap: 7px; margin-top: 3px;
+}
+.tut-prog-item {
+  font-size: 12px; font-weight: bold; color: #b8a0ff;
+}
+.tut-prog-item.tut-prog-met {
+  color: #7dff90;
+}
+/* tutorial-mode クラス付与時: スコア/最高スコアを非表示 */
+#header.tutorial-mode #score-el,
+#header.tutorial-mode #hi-el { display: none; }
 #next-wrap { font-size: 12px; text-align: center; line-height: 1.3; }
 #next-emoji { font-size: 28px; display: block; }
 #forced-skill-canvas {
@@ -83,7 +106,8 @@ body { display: flex; flex-direction: column; align-items: center; }
    ============================================================ */
 #canvas-outer {
   position: relative; width: 100%; max-width: 400px;
-  flex: 1; overflow: hidden;
+  flex: 1; min-height: 0; /* flex 子要素のオーバーフロー防止 */
+  overflow: hidden;
 }
 canvas { position: absolute; top: 0; left: 0; transform-origin: top left; }
 
@@ -175,7 +199,7 @@ canvas { position: absolute; top: 0; left: 0; transform-origin: top left; }
    ============================================================ */
 #chain-display {
   position: absolute;
-  top: 42%; left: 50%;
+  top: 40%; left: 50%;
   transform: translateX(-50%) scale(1);
   font-size: 42px; font-weight: bold;
   color: #ffe566;
@@ -187,7 +211,46 @@ canvas { position: absolute; top: 0; left: 0; transform-origin: top left; }
   white-space: nowrap;
   opacity: 0;
   z-index: 20;
+  text-align: center;
+  line-height: 1.1;
 }
+/* 連鎖倍率（チェーン数の下に表示） */
+.chain-mult {
+  display: block;
+  font-size: 26px;
+  font-weight: bold;
+  color: #8ee4ff;
+  text-shadow: 0 0 12px rgba(100, 200, 255, 0.9), 0 1px 3px rgba(0,0,0,0.6);
+  margin-top: 2px;
+}
+.chain-mult.chain-skill {
+  color: #ffb055;
+  text-shadow: 0 0 14px rgba(255, 160, 60, 0.9), 0 1px 3px rgba(0,0,0,0.6);
+}
+/* 連鎖スコア演出 */
+#chain-score-anim {
+  position: absolute;
+  top: 56%; left: 50%;
+  transform: translateX(-50%);
+  font-size: 20px; font-weight: bold;
+  pointer-events: none; white-space: nowrap;
+  z-index: 21; opacity: 0; display: none;
+  text-align: center;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.7);
+}
+#chain-score-anim.csa-show {
+  display: block;
+  animation: csaAppear 0.12s ease-out forwards;
+}
+@keyframes csaAppear {
+  from { opacity: 0; transform: translateX(-50%) scale(0.82); }
+  to   { opacity: 1; transform: translateX(-50%) scale(1); }
+}
+.csa-base { color: #ffe566; }
+.csa-mult { color: #8ee4ff; margin-left: 5px; }
+.csa-mult.csa-skill { color: #ffb055; }
+.csa-mult.csa-final { font-size: 24px; }
+.csa-eq   { color: #aaffcc; margin-left: 4px; }
 #chain-display.show {
   animation: chainPop 1.3s ease-out forwards;
 }
@@ -320,25 +383,124 @@ canvas { position: absolute; top: 0; left: 0; transform-origin: top left; }
 #confirm-cancel:active { transform: scale(0.92); box-shadow: 0 1px 6px rgba(200,40,40,0.4); }
 
 /* ============================================================
-   スタート画面（#start-screen）
-   ゲームcanvasとは独立した専用レイヤー。
-   position: fixed でビューポート全体を不透明に覆い、
-   ゲームcanvasが一切透けて見えない状態を作る。
-   init()     → .hidden を外す（表示）
-   beginGame()→ .hidden を付ける（フェードアウトして非表示）
+   ホームカルーセル（#start-screen）
+   3パネル水平スライド: 研究(0) ← プレイ(1) → 恒星(2)
+   mobile : overflow:hidden + translateX でスナップ
+   desktop: 3列同時表示（左右peek）
    ============================================================ */
 #start-screen {
   position: fixed; inset: 0; z-index: 1000;
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
   background: #060412;
-  color: #fff; gap: 24px; text-align: center;
+  color: #fff;
+  overflow: hidden;            /* mobile: パネルをクリップ */
   transition: opacity 0.35s ease;
+  display: flex; flex-direction: column;
 }
 #start-screen.hidden {
   opacity: 0;
   pointer-events: none;
 }
-#start-screen h2 { font-size: 36px; font-weight: bold; }
+
+/* カルーセルトラック（3パネル横並び） */
+#home-carousel {
+  flex: 1; min-height: 0;
+  display: flex; flex-direction: row;
+  width: 300%;                 /* 3パネル分 */
+  transform: translateX(-33.333%);  /* 初期: プレイパネル表示 */
+  transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+}
+
+/* 各パネル共通 */
+.home-panel {
+  width: 33.333%;              /* 300%の1/3 = viewport幅 */
+  flex-shrink: 0;
+  height: 100%;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  display: flex; flex-direction: column; align-items: center;
+  padding-top: 40px;
+  padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+  box-sizing: border-box;
+}
+
+/* プレイパネル: 縦中央寄せ・メニューボタン基点 */
+#panel-play {
+  justify-content: center;
+  gap: 24px;
+  text-align: center;
+  position: relative;          /* #home-menu-btn の absolute 基点 */
+}
+
+/* 研究・恒星パネル: 上から始まる */
+#panel-research, #panel-cosmos {
+  justify-content: flex-start;
+}
+
+/* panel-play 内のタイトル h2 */
+#panel-play h2 { font-size: 36px; font-weight: bold; }
+
+/* ============================================================
+   デスクトップ(≥760px): 3カラム全幅レイアウト
+   ============================================================ */
+@media (min-width: 760px) {
+  #start-screen {
+    overflow: hidden;
+    flex-direction: row;
+    align-items: stretch;
+  }
+  #home-carousel {
+    width: 100%;
+    flex: 1;
+    transform: none !important;     /* デスクトップはスライドしない */
+    transition: none !important;
+    align-items: stretch;
+  }
+  .home-panel {
+    flex: 1;
+    width: auto;
+    height: 100%;
+    overflow-y: auto;
+    padding-top: 48px;
+  }
+  /* 研究パネル（左） */
+  #panel-research {
+    flex: 1;
+    max-width: none;
+    overflow-x: hidden;
+    background: rgba(8, 5, 22, 0.98);
+    border-right: 1px solid rgba(124,92,252,0.2);
+    opacity: 1;
+    border-radius: 0;
+  }
+  /* プレイパネル（中央）: 少し広め */
+  #panel-play {
+    flex: 1.1;
+    border-left:  1px solid rgba(124,92,252,0.2);
+    border-right: 1px solid rgba(124,92,252,0.2);
+    overflow-y: auto;
+    background: #060412;
+  }
+  /* 恒星パネル（右） */
+  #panel-cosmos {
+    flex: 1;
+    max-width: none;
+    overflow-x: hidden;
+    border-left: 1px solid rgba(124,92,252,0.2);
+    opacity: 1;
+    border-radius: 0;
+  }
+  /* 内部コンテナを横中央に寄せつつ最大幅を確保 */
+  #panel-research #research-panel,
+  #panel-cosmos   #cosmos-panel {
+    max-width: 420px;
+    width: 100%;
+    padding: 24px 24px;
+    margin: 0 auto;
+    box-sizing: border-box;
+  }
+}
 
 /* ── ホーム画面 右上メニュー ── */
 #home-menu-btn {
@@ -831,23 +993,70 @@ canvas { position: absolute; top: 0; left: 0; transform-origin: top left; }
 #home-lang-row { display: flex; gap: 8px; }
 
 /* ============================================================
-   宇宙（メタ進行）オーバーレイ — #cosmos-overlay
+   宇宙パネル（#panel-cosmos 内 #cosmos-panel）
    ============================================================ */
-#cosmos-overlay {
-  display: none; position: fixed; inset: 0; z-index: 1001;
+/* モバイルでも恒星パネルに背景グラデーション */
+#panel-cosmos {
   background: radial-gradient(circle at 50% 35%, #1a0e38 0%, #060412 70%);
-  flex-direction: column; align-items: center; justify-content: center;
-  overflow-y: auto; color: #fff;
 }
-#cosmos-overlay.show { display: flex; }
 #cosmos-panel {
   display: flex; flex-direction: column; align-items: center;
   gap: 18px; width: 100%; max-width: 360px; padding: 32px 20px;
 }
 #cosmos-panel h2 { font-size: 28px; font-weight: bold; }
 #cosmos-star {
-  line-height: 1; filter: drop-shadow(0 0 16px rgba(150,110,255,0.6));
-  transition: font-size 0.3s ease;
+  display: flex; align-items: center; justify-content: center;
+  filter: drop-shadow(0 0 20px rgba(150,110,255,0.65));
+}
+#cosmos-star img {
+  display: block;
+  width: clamp(110px, 36vw, 190px);
+  height: clamp(110px, 36vw, 190px);
+  object-fit: contain;
+  max-width: 90%;
+}
+/* デスクトップの恒星パネルでは適切なサイズに */
+@media (min-width: 760px) {
+  #panel-cosmos #cosmos-star img {
+    width: clamp(120px, 14vw, 200px);
+    height: clamp(120px, 14vw, 200px);
+  }
+}
+/*
+ * 恒星 脈動演出（JS で .star-pulse クラスを付与してトリガー）
+ * 0%: 等倍 → 16%: 押し込み最大 → 36%: スプリングバック → 80%: 安定
+ * 数字の float と同時に開始されることで「絞り出される」感を出す
+ */
+@keyframes starPulseSync {
+  0%   { transform: scale(1); }
+  16%  { transform: scale(0.76); }
+  36%  { transform: scale(1.12); }
+  52%  { transform: scale(0.97); }
+  66%  { transform: scale(1.04); }
+  82%  { transform: scale(1); }
+  100% { transform: scale(1); }
+}
+#cosmos-star.star-pulse {
+  animation: starPulseSync 0.9s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+/*
+ * 浮き上がる数値 — JS で生成して body に追加
+ * 0%: 恒星中心で小さく透明 → 12%: 押し出されて膨らむ → 70%: 浮上 → 100%: 消える
+ */
+@keyframes energyFloatUp {
+  0%   { opacity: 0;   transform: translateX(-50%) translateY(0)     scale(0.35); }
+  12%  { opacity: 1;   transform: translateX(-50%) translateY(-14px) scale(1.22); }
+  70%  { opacity: 0.9; transform: translateX(-50%) translateY(-70px) scale(0.95); }
+  100% { opacity: 0;   transform: translateX(-50%) translateY(-95px) scale(0.75); }
+}
+.energy-float {
+  position: fixed; pointer-events: none; z-index: 1100;
+  color: #8fd6ff; font-size: 18px; font-weight: 800;
+  white-space: nowrap;
+  text-shadow: 0 0 10px rgba(80,180,255,0.7), 0 1px 3px rgba(0,0,0,0.5);
+  transform-origin: center center;
+  animation: energyFloatUp 1.3s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 #cosmos-balances {
   display: flex; gap: 20px; font-size: 18px; font-weight: bold;
@@ -855,6 +1064,7 @@ canvas { position: absolute; top: 0; left: 0; transform-origin: top left; }
 }
 #cosmos-stardust { color: #ffd86b; }
 #cosmos-energy   { color: #8fd6ff; }
+#cosmos-mass     { font-size: 13px; color: #c8b8f0; margin-bottom: 2px; }
 #cosmos-rate     { font-size: 13px; color: #b9a9e6; }
 #cosmos-generator {
   display: flex; flex-direction: column; align-items: center; gap: 8px;
@@ -903,6 +1113,10 @@ canvas { position: absolute; top: 0; left: 0; transform-origin: top left; }
 #home-nav.show { display: flex; }
 /* チュートリアル中はプレイのみ → 中央寄せ */
 #home-nav.tutorial-only { justify-content: center; }
+/* デスクトップ: 研究・恒星・プレイは常時3列表示なのでナビボタン不要 → 隠す */
+@media (min-width: 760px) {
+  #nav-research, #nav-cosmos { display: none !important; }
+}
 .nav-item.active .nav-label { color: #fff; }
 .nav-item.active .nav-icon  { transform: translateY(-1px); filter: drop-shadow(0 0 6px rgba(124,92,252,0.7)); }
 .nav-item {
@@ -925,17 +1139,9 @@ canvas { position: absolute; top: 0; left: 0; transform-origin: top left; }
 .nav-item.nav-play .nav-label { color: #fff; font-weight: bold; }
 
 /* ============================================================
-   モード選択 / 研究 オーバーレイ
+   モード選択オーバーレイ（#mode-select-overlay は未使用、#mode-select-sheet を使用）
+   研究パネルは #panel-research 内の #research-panel に移行済み
    ============================================================ */
-#mode-select-overlay, #research-overlay {
-  display: none; position: fixed; inset: 0; z-index: 1001;
-  background: rgba(4, 2, 16, 0.97);
-  flex-direction: column; align-items: center;
-  overflow-y: auto; color: #fff;
-}
-#mode-select-overlay { justify-content: center; }
-#research-overlay    { justify-content: flex-start; }
-#mode-select-overlay.show, #research-overlay.show { display: flex; }
 #mode-select-panel, #research-panel {
   display: flex; flex-direction: column; align-items: center;
   gap: 16px; width: 100%; max-width: 360px; padding: 32px 20px;
@@ -956,7 +1162,7 @@ canvas { position: absolute; top: 0; left: 0; transform-origin: top left; }
   -webkit-tap-highlight-color: transparent;
 }
 #research-civ-up:disabled { background: #4a3a7a; color: #998; cursor: default; }
-#research-energy { font-size: 14px; color: #8fd6ff; font-weight: bold; font-variant-numeric: tabular-nums; }
+
 
 /* 研究：一覧 */
 #research-list { display: flex; flex-direction: column; gap: 10px; width: 100%; }
@@ -985,15 +1191,18 @@ canvas { position: absolute; top: 0; left: 0; transform-origin: top left; }
 }
 
 /* ============================================================
-   リソースバー（星屑・エネルギー保有量 — ホーム画面上部）
+   リソースバー（星屑・エネルギー保有量 — 全画面共通 fixed 表示）
    ============================================================ */
 #resource-bar {
-  position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
+  position: fixed;
+  top: max(14px, calc(env(safe-area-inset-top, 0px) + 6px));
+  left: 50%; transform: translateX(-50%);
   display: flex; align-items: center; gap: 20px;
-  background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(10,4,30,0.82); border: 1px solid rgba(124,92,252,0.35);
   border-radius: 999px; padding: 5px 20px;
   font-size: 15px; font-weight: 700; color: #e0d6ff;
-  white-space: nowrap; pointer-events: none; z-index: 1;
+  white-space: nowrap; pointer-events: none; z-index: 2000;
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
 }
 #res-stardust, #res-energy {
   display: flex; align-items: center; gap: 5px;
@@ -1029,9 +1238,11 @@ canvas { position: absolute; top: 0; left: 0; transform-origin: top left; }
 }
 #ranking-overlay.show { display: flex; }
 
-/* 固定バーに隠れないよう余白を確保 */
-#start-screen { padding-bottom: 72px; }
-#cosmos-overlay, #research-overlay, #ranking-overlay { padding-bottom: 72px; box-sizing: border-box; }
+/* 固定バーに隠れないよう余白を確保（各 .home-panel の padding-bottom に統合済み）*/
+#ranking-overlay {
+  padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+  box-sizing: border-box;
+}
 
 /* プレイ（ホーム既定）パネル */
 #play-panel {
@@ -1106,13 +1317,7 @@ canvas { position: absolute; top: 0; left: 0; transform-origin: top left; }
   opacity: 0.35; cursor: default;
 }
 
-/* チュートリアル目標（ヘッダー内サブスタイル） */
-#stage-objective .obj-step {
-  font-size: 11px; opacity: 0.7; letter-spacing: 0.05em;
-}
-#stage-objective .obj-desc {
-  font-size: 14px; font-weight: bold; line-height: 1.4; color: #e8d8ff;
-}
+/* (旧 #stage-objective スタイル → #tut-hud に移行済み) */
 
 /* 案内ポインター（目標案内モード）。#tutorial-pointer を fixed 配置で流用 */
 #tutorial-pointer.obj-pointer {

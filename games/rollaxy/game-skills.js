@@ -71,7 +71,7 @@ function explodeBomb(pos) {
 
   if (bombBody) { Matter.Composite.remove(world, bombBody, true); bombBody = null; }
   bombFuseTimer = null; bombHit = false;
-  _skillJustUsed = true; // スキル（爆弾）が適用された
+  notifySkillUsed(); // スキル（爆弾）が適用された
   wakeAllBodies();
 }
 
@@ -85,14 +85,11 @@ let _fsRafId  = null;
 let _fsActive = false;
 
 function _sizeFsCanvas() {
-  const outer = document.getElementById('canvas-outer');
-  const ow = outer.clientWidth  || CFG.W;
-  const oh = outer.clientHeight || CFG.H;
-  const s  = Math.min(ow / CFG.W, oh / CFG.H);
-  const ox = Math.floor((ow - CFG.W * s) / 2);
-  const barH   = Math.round(CFG.BAR_H * s);
-  const cssW   = Math.round(CFG.W * s);
-  const cssH   = Math.round(68 * s); // ヘッダー相当の高さ
+  const s  = (typeof _canvasScale   !== 'undefined' && _canvasScale   > 0) ? _canvasScale   : 1;
+  const ox = (typeof _canvasOffsetX !== 'undefined')                       ? _canvasOffsetX : 0;
+  const barH = Math.round(CFG.BAR_H * s);
+  const cssW = Math.round(CFG.W * s);
+  const cssH = Math.round(68 * s); // ヘッダー相当の高さ
   _fsCanvas.style.left   = ox + 'px';
   _fsCanvas.style.top    = barH + 'px';
   _fsCanvas.style.width  = cssW + 'px';
@@ -322,15 +319,16 @@ function confirmSkillAction() {
     const nb = spawn(d.body.position.x, d.body.position.y, ni);
     const dur = 300 + ni * 100;
     glowMap.set(nb.id, { endTime: Date.now() + dur, duration: dur });
+    if (ni > _maxTierThisGame) _maxTierThisGame = ni; // requireTier 判定用（スキル強化経路）
     if (skillCharges.upgrade !== Infinity) skillCharges.upgrade--;
-    _skillJustUsed = true; // スキル（強化）が適用された
+    notifySkillUsed(); // スキル（強化）が適用された
     noteSkillUsed('upgrade'); // チュートリアル目標判定用
   } else if (activeSkill === 'delete') {
     playDeleteSound();
     bmap.delete(skillSelectedId); glowMap.delete(skillSelectedId);
     Matter.Composite.remove(world, d.body, true);
     if (skillCharges.delete !== Infinity) skillCharges.delete--;
-    _skillJustUsed = true; // スキル（削除）が適用された
+    notifySkillUsed(); // スキル（削除）が適用された
     noteSkillUsed('delete'); // チュートリアル目標判定用
   }
 
@@ -388,10 +386,12 @@ const RLT_SKILLS  = ['bomb', 'upgrade', 'delete'];
 const RLT_SPIN_MS = 90;  // 通常スピード (ms/ステップ)
 const RLT_DECEL   = [110, 160, 225, 315, 440]; // 減速ステップの間隔 (ms)
 let rltPos = 0, rltTarget = 0, rltTimer = null, rltAutoTimer = null, rltStopping = false;
+let _rltTimerPauseStart = 0; // タイムアタック: ルーレット開始時刻（_gameEndAt 補正用）
 
 function showRoulette() {
   rouletteActive = true;
   rltStopping    = false;
+  if (typeof _timeLimitMs !== 'undefined' && _timeLimitMs > 0) _rltTimerPauseStart = Date.now();
   rltPos         = 0;
   // 当選スキルはランダム（初回オンボーディングはチュートリアルへ移行済み）
   rltTarget = Math.floor(Math.random() * 3);
@@ -447,6 +447,7 @@ function rltFinish() {
 
     // 4連鎖の当選スキルを即時強制使用（通常仕様）。
     // 次のルーレットはスキル使用完了後に onForcedSkillUsed() で処理。
+    // タイマー補正は強制スキル使用完了時（onForcedSkillUsed）に行う。
     activateForcedSkill(skill);
   }, 500);
 }
@@ -454,6 +455,7 @@ function rltFinish() {
 function rltReset() {
   clearTimeout(rltTimer); clearTimeout(rltAutoTimer);
   rouletteActive = false; rltStopping = false;
+  _rltTimerPauseStart = 0;
   document.getElementById('roulette-overlay').classList.remove('show');
 }
 
@@ -619,7 +621,16 @@ function activateForcedSkill(skill) {
 
 // 強制スキル使用完了時（upgrade/delete は confirmSkillAction、bomb は drop から呼ばれる）
 function onForcedSkillUsed() {
+  // タイムアタック: ルーレット開始〜スキル使用完了までの経過時間を _gameEndAt に加算
+  if (typeof _timeLimitMs !== 'undefined' && _timeLimitMs > 0 &&
+      typeof _gameEndAt !== 'undefined' && _gameEndAt > 0 &&
+      _rltTimerPauseStart > 0) {
+    _gameEndAt += Date.now() - _rltTimerPauseStart;
+    _rltTimerPauseStart = 0;
+  }
+
   _forcedSkillActive = false;
+  updateForcedSkillBanner();
   updateSkillButtons();
   updateReminderHighlight();
   if (rouletteQueue.length > 0) setTimeout(processNextRoulette, 350);

@@ -19,6 +19,7 @@
 const metaState = {
   stardust: 0,
   energy:   0,
+  mass:     0, // 物質生成器が蓄積した質量
   genLevel: CFG.META.GENERATOR.START_LEVEL,
   civLevel: CFG.META.CIV.START_LEVEL,
   research: new Set(), // 所持研究ID
@@ -34,6 +35,7 @@ function loadMeta() {
   const g = CFG.META.GENERATOR, c = CFG.META.CIV;
   metaState.stardust  = Math.max(0, _metaNum(STORAGE_KEYS.META_STARDUST, 0));
   metaState.energy    = Math.max(0, _metaNum(STORAGE_KEYS.META_ENERGY, 0));
+  metaState.mass      = Math.max(0, _metaNum(STORAGE_KEYS.META_MASS, 0));
   metaState.genLevel  = Math.min(g.MAX_LEVEL,
                           Math.max(g.START_LEVEL, Math.floor(_metaNum(STORAGE_KEYS.META_GEN_LEVEL, g.START_LEVEL))));
   metaState.civLevel  = Math.min(c.MAX_LEVEL,
@@ -49,6 +51,7 @@ function loadMeta() {
 function saveMeta() {
   localStorage.setItem(STORAGE_KEYS.META_STARDUST,   String(metaState.stardust));
   localStorage.setItem(STORAGE_KEYS.META_ENERGY,     String(metaState.energy));
+  localStorage.setItem(STORAGE_KEYS.META_MASS,       String(metaState.mass));
   localStorage.setItem(STORAGE_KEYS.META_GEN_LEVEL,  String(metaState.genLevel));
   localStorage.setItem(STORAGE_KEYS.META_CIV_LEVEL,  String(metaState.civLevel));
   localStorage.setItem(STORAGE_KEYS.META_RESEARCH,   JSON.stringify([...metaState.research]));
@@ -72,10 +75,19 @@ function getModifier(key) {
 }
 
 // ---- 計算ヘルパー ----
-// 恒星エネルギー/秒 = (ENERGY_BASE + (level-1)*ENERGY_PER_LEVEL) × 研究倍率
-function starEnergyRate(level = metaState.genLevel) {
+// 質量生成レート (質量/秒) = (MASS_BASE + (level-1)*MASS_PER_LEVEL) × 研究倍率
+function massProdRate(level = metaState.genLevel) {
   const s = CFG.META.STAR;
-  return (s.ENERGY_BASE + (level - 1) * s.ENERGY_PER_LEVEL) * getModifier('starRateMult');
+  return (s.MASS_BASE + (level - 1) * s.MASS_PER_LEVEL) * getModifier('starRateMult');
+}
+// エネルギー生成レート (energy/秒) = K × mass^(2/3)
+function energyRateFromMass(mass) {
+  if (mass <= 0) return 0;
+  return CFG.META.STAR.ENERGY_K * Math.pow(mass, 2 / 3);
+}
+// 現在の恒星エネルギー/秒（現在の蓄積質量から）
+function starEnergyRate() {
+  return energyRateFromMass(metaState.mass);
 }
 // 恒星の見た目 tier（BODIES index）。TIER_LEVELS の到達レベルから決定。
 function starTierBi(level = metaState.genLevel) {
@@ -130,36 +142,55 @@ function buyResearch(id) {
   return true;
 }
 
-// 放置（経過時間）分の恒星エネルギーを精算。上限あり。戻り値 = 今回加算した量。
+// 放置（経過時間）分の質量・エネルギーを精算。時間上限あり。戻り値 = 今回加算したエネルギー量。
+// 質量は m(t) = m0 + r*t で増加。エネルギーは integral_0^T K*(m0+r*t)^(2/3) dt の解析解で計算。
+//   r > 0: K * 3/(5*r) * [(m0 + r*T)^(5/3) - m0^(5/3)]
+//   r = 0: K * m0^(2/3) * T
 function settleEnergy() {
   const now = Date.now();
   let elapsedSec = (now - metaState.lastSaved) / 1000;
   if (!Number.isFinite(elapsedSec) || elapsedSec < 0) elapsedSec = 0; // 時計巻き戻り対策
-  const capped = Math.min(elapsedSec, CFG.META.IDLE.CAP_SEC);
-  const gain = capped * starEnergyRate();
-  metaState.energy   += gain;
+  const T  = Math.min(elapsedSec, CFG.META.IDLE.CAP_SEC);
+  const k  = CFG.META.STAR.ENERGY_K;
+  const r  = massProdRate();
+  const m0 = metaState.mass;
+
+  // 質量増加
+  metaState.mass += r * T;
+
+  // エネルギー増加（解析積分）
+  let energyGain;
+  if (r > 0) {
+    energyGain = k * (3 / (5 * r)) * (Math.pow(m0 + r * T, 5 / 3) - Math.pow(m0, 5 / 3));
+  } else {
+    energyGain = k * Math.pow(m0, 2 / 3) * T;
+  }
+  if (!Number.isFinite(energyGain) || energyGain < 0) energyGain = 0;
+
+  metaState.energy   += energyGain;
   metaState.lastSaved = now;
   saveMeta();
-  return gain;
+  updateResourceBar();
+  return energyGain;
 }
 
 // プレイ報酬を計算（floor）。modeType = 'time' | 'endless' | 'tutorial'
-function computeReward(score, chainEvents, modeType) {
+// stardust = score × STARDUST_PER_SCORE × modeMult × 研究倍率
+// ※ エネルギーはゲームからは得られず、恒星（物質生成器）が自動生成する
+function computeReward(score, modeType) {
   const r = CFG.META.REWARD;
   const modeMult = (r.MODE_MULT && r.MODE_MULT[modeType] != null) ? r.MODE_MULT[modeType] : 1;
   const rMult = getModifier('rewardMult'); // 研究による報酬倍率
   const mult = modeMult * rMult;
-  const stardust = Math.floor((score * r.STARDUST_PER_SCORE + chainEvents * r.STARDUST_PER_CHAIN) * mult);
-  const energy   = Math.floor((score * r.ENERGY_PER_SCORE   + chainEvents * r.ENERGY_PER_CHAIN)   * mult);
-  return { stardust: Math.max(0, stardust), energy: Math.max(0, energy) };
+  const stardust = Math.floor(score * r.STARDUST_PER_SCORE * mult);
+  return { stardust: Math.max(0, stardust) };
 }
 
-// プレイ報酬を付与して保存。戻り値 = 付与した報酬 {stardust, energy}。
-function grantPlayReward(score, chainEvents, modeType) {
+// プレイ報酬を付与して保存。戻り値 = 付与した報酬 {stardust}。
+function grantPlayReward(score, modeType) {
   settleEnergy(); // 付与前に放置分を確定（lastSaved 更新）
-  const rw = computeReward(score, chainEvents, modeType);
+  const rw = computeReward(score, modeType);
   metaState.stardust += rw.stardust;
-  metaState.energy   += rw.energy;
   saveMeta();
   updateResourceBar();
   return rw;
@@ -189,10 +220,9 @@ function updateResourceBar() {
 
 // ステージクリア時に報酬パーティクルを飛ばす。
 // stardust / energy: 今回獲得した量（粒数の計算に使用）。
-function flyRewardParticles(stardust, energy) {
+function flyRewardParticles(stardust) {
   const sdTarget = document.getElementById('res-stardust');
-  const enTarget = document.getElementById('res-energy');
-  if (!sdTarget || !enTarget) return;
+  if (!sdTarget) return;
 
   // ソース：画面中央やや下
   const sx = window.innerWidth  / 2;
@@ -248,31 +278,47 @@ function flyRewardParticles(stardust, energy) {
   };
 
   const nStar = stardust > 0 ? 6 : 0;
-  const nEner = energy  > 0 ? 5 : 0;
   _flyGroup('💫', sdTarget, nStar, 0);
-  _flyGroup('⚡',  enTarget, nEner, 80);
 }
 
 // ============================================================
-// UI — #cosmos-overlay
+// ============================================================
+// ホームカルーセル制御 (0=研究, 1=プレイ, 2=恒星)
+// ============================================================
+let _carouselIdx = 1;
+
+// カルーセルを指定パネルへ移動（mobile のみアニメーション、desktop は静的3列表示）
+function carouselGoTo(idx) {
+  _carouselIdx = idx;
+  const el = document.getElementById('home-carousel');
+  if (!el) return;
+  // デスクトップ(≥760px)は CSS で常時3列表示のためtransformしない
+  if (window.matchMedia('(min-width: 760px)').matches) return;
+  el.style.transform = `translateX(${-idx * 33.3333}%)`;
+}
+
+// ============================================================
+// UI — cosmos-panel / research-panel
 // ============================================================
 function _setTxt(id, txt) { const e = document.getElementById(id); if (e) e.textContent = txt; }
 function _fmt(n) { return Math.floor(n).toLocaleString(); }
 
 function renderCosmos() {
-  const overlay = document.getElementById('cosmos-overlay');
-  if (!overlay) return;
-  // 恒星の見た目
+  if (!document.getElementById('cosmos-panel')) return;
+  // 恒星の見た目（天体画像 PNG）。tier に応じた key で images/{key}.png を使用
   const bi = starTierBi();
   const starEl = document.getElementById('cosmos-star');
   if (starEl) {
-    starEl.textContent = CFG.BODIES[bi].e;
-    starEl.style.fontSize = (44 + bi * 6) + 'px';
+    const key  = CFG.BODIES[bi].key;
+    const name = CFG.BODIES[bi].n;
+    starEl.innerHTML = `<img src="images/${key}.png" alt="${name}">`;
+    starEl.style.fontSize = ''; // 旧emoji用 font-size をクリア
   }
-  // 残高
+  // 質量・残高
+  _setTxt('cosmos-mass',     T('massInfo')(_fmt(metaState.mass), massProdRate().toFixed(1)));
   _setTxt('cosmos-stardust', `💫 ${_fmt(metaState.stardust)}`);
   _setTxt('cosmos-energy',   `⚡ ${_fmt(metaState.energy)}`);
-  _setTxt('cosmos-rate',     `+${starEnergyRate().toFixed(1)} ${T('stellarEnergy')}${T('energyRate')}`);
+  _setTxt('cosmos-rate',     `⚡ +${starEnergyRate().toFixed(2)} ${T('stellarEnergy')}${T('energyRate')}`);
   // 物質生成器
   _setTxt('cosmos-gen-level', T('generatorLevel')(metaState.genLevel));
   const cost = generatorCost();
@@ -288,25 +334,55 @@ function renderCosmos() {
   }
 }
 
+// 毎秒: 恒星を脈動させながら数値を「絞り出す」演出（同期）
+function _tickStarEffect() {
+  const starEl = document.getElementById('cosmos-star');
+  if (!starEl) return;
+  const rate = starEnergyRate();
+  if (rate <= 0) return;
+
+  // ① 恒星を押し込む（star-pulse クラスで CSS animation をトリガー）
+  starEl.classList.remove('star-pulse');
+  void starEl.offsetWidth; // reflow で animation をリセット
+  starEl.classList.add('star-pulse');
+  starEl.addEventListener('animationend', () => starEl.classList.remove('star-pulse'), { once: true });
+
+  // ② 同タイミングで数値を「押し出される」ように浮かせる
+  const rect = starEl.getBoundingClientRect();
+  const p = document.createElement('span');
+  p.className = 'energy-float';
+  p.textContent = `+${rate.toFixed(2)} ⚡`;
+  // 水平方向に少しランダムにずらし、恒星の中央やや上から出現
+  const ox = (Math.random() - 0.5) * 44;
+  p.style.left = (rect.left + rect.width / 2 + ox) + 'px';
+  p.style.top  = (rect.top + rect.height * 0.42) + 'px';
+  document.body.appendChild(p);
+  setTimeout(() => p.remove(), 1450);
+}
+
 let _cosmosTimer = null;
 function _startCosmosTick() {
   _stopCosmosTick();
-  _cosmosTimer = setInterval(() => { settleEnergy(); renderCosmos(); }, 1000);
+  _cosmosTimer = setInterval(() => {
+    settleEnergy();
+    renderCosmos();
+    _tickStarEffect();
+  }, 1000);
 }
 function _stopCosmosTick() {
   if (_cosmosTimer) { clearInterval(_cosmosTimer); _cosmosTimer = null; }
 }
 
 function openCosmos() {
-  settleEnergy(); // 開いた瞬間に放置分を反映
+  settleEnergy();
   renderCosmos();
-  document.getElementById('cosmos-overlay')?.classList.add('show');
+  carouselGoTo(2);
   _startCosmosTick();
 }
 function closeCosmos() {
   _stopCosmosTick();
   settleEnergy();
-  document.getElementById('cosmos-overlay')?.classList.remove('show');
+  carouselGoTo(1);
 }
 
 // ---- 研究オーバーレイ ----
@@ -314,8 +390,7 @@ function _locName(o) { const c = (currentLang || 'ja').replace(/^./, x => x.toUp
 function _locDesc(o) { const c = (currentLang || 'ja').replace(/^./, x => x.toUpperCase()); return o['desc' + c] || o.descJa; }
 
 function renderResearch() {
-  const ov = document.getElementById('research-overlay');
-  if (!ov) return;
+  if (!document.getElementById('research-list')) return;
   // 文明レベル
   _setTxt('research-civ-level', T('civLevelLabel')(metaState.civLevel));
   const cc = civLevelCost();
@@ -327,7 +402,6 @@ function renderResearch() {
     _setTxt('research-civ-cost', T('civNextCost')(_fmt(cc)));
     if (upBtn) { upBtn.textContent = T('civUpBtn'); upBtn.disabled = metaState.energy < cc; }
   }
-  _setTxt('research-energy', `⚡ ${_fmt(metaState.energy)}`);
   // 研究一覧（名前・説明は config 由来の信頼値なので innerHTML 安全）
   const list = document.getElementById('research-list');
   if (!list) return;
@@ -361,16 +435,28 @@ function _startResearchTick() {
 function _stopResearchTick() {
   if (_researchTimer) { clearInterval(_researchTimer); _researchTimer = null; }
 }
+
+// デスクトップ(≥760px)では両パネルが常時表示されるため両方のティックを起動する。
+// 重複呼び出しは内部で _stop してから再起動するので安全。
+function ensureDesktopTicks() {
+  if (!window.matchMedia('(min-width: 760px)').matches) return;
+  settleEnergy();
+  renderCosmos();
+  renderResearch();
+  _startCosmosTick();
+  _startResearchTick();
+}
+
 function openResearch() {
   settleEnergy();
   renderResearch();
-  document.getElementById('research-overlay')?.classList.add('show');
+  carouselGoTo(0);
   _startResearchTick();
 }
 function closeResearch() {
   _stopResearchTick();
   settleEnergy();
-  document.getElementById('research-overlay')?.classList.remove('show');
+  carouselGoTo(1);
 }
 
 // ---- ランキングオーバーレイ（/api/rollaxy/ranking をネイティブ表示）----
@@ -451,12 +537,12 @@ if (_researchListEl) {
   });
 }
 
-// 言語切替時、開いていれば動的表示を再描画（静的ラベルは data-i18n が更新）
+// 言語切替時、ホーム画面が表示中なら動的コンテンツを再描画
 document.addEventListener('langchange', () => {
-  const cov = document.getElementById('cosmos-overlay');
-  if (cov && cov.classList.contains('show')) renderCosmos();
-  const rov = document.getElementById('research-overlay');
-  if (rov && rov.classList.contains('show')) renderResearch();
+  if (!document.getElementById('start-screen')?.classList.contains('hidden')) {
+    renderCosmos();
+    renderResearch();
+  }
   const rkv = document.getElementById('ranking-overlay');
   if (rkv && rkv.classList.contains('show')) renderRankingHome();
 });
