@@ -53,6 +53,11 @@
   beginGame() で .hidden クラスを付与してフェードアウト。init() で .hidden を外してフェードイン。
 -->
 <div id="start-screen">
+  <!-- 上部リソースバー（星屑・エネルギー保有量） -->
+  <div id="resource-bar">
+    <span id="res-stardust"><span class="res-icon">💫</span><span id="res-stardust-val">0</span></span>
+    <span id="res-energy"><span class="res-icon">⚡</span><span id="res-energy-val">0</span></span>
+  </div>
   <!-- 右上メニュー（ホーム画面専用） -->
   <button id="home-menu-btn" aria-label="Menu"><span></span><span></span><span></span></button>
   <div id="home-menu-panel">
@@ -77,11 +82,66 @@
       <button id="start-name-hint-ok"></button>
     </div>
   </div>
-  <button id="mode-toggle-btn"></button>
-  <button id="start-btn" data-i18n="start">スタート</button>
-  <a id="start-ranking-link" href="/games/rollaxy/ranking/" data-i18n="rankingBtn" target="_blank" rel="noopener">🏆 ランキング</a>
-  <button id="start-ach-btn" class="ach-open-btn" data-i18n="achievements">🏆 実績</button>
-  <a id="start-games-link" href="/games/" data-i18n="gamesLink">🎮 ゲーム一覧</a>
+  <!-- プレイ（ホーム既定）パネル -->
+  <div id="play-panel">
+    <button id="mode-toggle-btn" style="display:none"></button>
+    <div id="stage-select-list" style="display:none"></div>
+    <div id="start-stage-desc" style="display:none"></div>
+    <button id="start-btn" data-i18n="start">スタート</button>
+  </div>
+  <!-- モード選択シート（スタート後に表示。チュートリアル完了後のみ） -->
+  <div id="mode-select-sheet" style="display:none">
+    <p id="mode-select-title" data-i18n="modeSelectTitle">モードを選択</p>
+    <div id="mode-select-btns"></div>
+    <button id="mode-select-back" data-i18n="settingsBack">← 戻る</button>
+  </div>
+</div>
+
+<!-- ホーム下部 5ボタンバー。固定要素・z-index でオーバーレイより前面。バーで各パネルを切替 -->
+<nav id="home-nav">
+  <button id="nav-cosmos" class="nav-item" data-tab="cosmos">
+    <span class="nav-icon">🌌</span><span class="nav-label" data-i18n="navCosmos">恒星</span>
+  </button>
+  <button id="nav-research" class="nav-item" data-tab="research">
+    <span class="nav-icon">🔬</span><span class="nav-label" data-i18n="navResearch">研究</span>
+  </button>
+  <button id="nav-play" class="nav-item nav-play active" data-tab="play">
+    <span class="nav-icon">▶</span><span class="nav-label" data-i18n="navPlay">プレイ</span>
+  </button>
+  <button id="nav-ach" class="nav-item" data-tab="ach">
+    <span class="nav-icon">🏆</span><span class="nav-label" data-i18n="navAch">実績</span>
+  </button>
+  <button id="nav-ranking" class="nav-item" data-tab="ranking">
+    <span class="nav-icon">📊</span><span class="nav-label" data-i18n="navRanking">ランキング</span>
+  </button>
+</nav>
+
+<!-- 研究オーバーレイ（文明レベル + 研究一覧）。下部バーの「研究」で開く -->
+<div id="research-overlay">
+  <div id="research-panel">
+    <h2 data-i18n="researchTitle">研究</h2>
+    <div id="research-civ">
+      <div id="research-civ-level"></div>
+      <div id="research-civ-cost"></div>
+      <button id="research-civ-up"></button>
+    </div>
+    <div id="research-energy"></div>
+    <div id="research-list"></div>
+  </div>
+</div>
+
+<!-- ランキングオーバーレイ（/api/rollaxy/ranking をネイティブ表示）。下部バーの「ランキング」で開く -->
+<div id="ranking-overlay">
+  <div id="ranking-panel">
+    <h2 data-i18n="navRanking">ランキング</h2>
+    <div id="rank-period-tabs">
+      <button class="rank-period active" data-period="daily" data-i18n="tabDaily">今日</button>
+      <button class="rank-period" data-period="weekly" data-i18n="tabWeekly">今週</button>
+      <button class="rank-period" data-period="all" data-i18n="tabAll">全期間</button>
+    </div>
+    <div id="rank-list-home"></div>
+    <a id="rank-fulllink" href="/games/rollaxy/ranking/" target="_blank" rel="noopener" data-i18n="rankingFull">フルランキング →</a>
+  </div>
 </div>
 
 <!-- ホーム画面専用設定オーバーレイ（#start-screen より上の z-index） -->
@@ -128,6 +188,24 @@
   </div>
 </div>
 
+<!-- 宇宙（メタ進行）オーバーレイ — スタート画面から開く。#start-screen より上の z-index -->
+<div id="cosmos-overlay">
+  <div id="cosmos-panel">
+    <h2 data-i18n="cosmosTitle">宇宙</h2>
+    <div id="cosmos-star">💫</div>
+    <div id="cosmos-balances">
+      <span id="cosmos-stardust">💫 0</span>
+      <span id="cosmos-energy">⚡ 0</span>
+    </div>
+    <div id="cosmos-rate"></div>
+    <div id="cosmos-generator">
+      <div id="cosmos-gen-head" data-i18n="generatorTitle">物質生成器</div>
+      <div id="cosmos-gen-level">Lv 1</div>
+      <button id="cosmos-upgrade-btn">強化</button>
+    </div>
+  </div>
+</div>
+
 <!--
   ゲームエリア（#canvas-outer）
   - <canvas> が物理演算・描画を担う。論理サイズ 400×772px を CSS transform で画面にフィット。
@@ -147,6 +225,7 @@
     <div id="header-left">
       <div id="score-el">スコア: 0</div>
       <div id="hi-el">最高: 0</div>
+      <div id="timer-el" style="display:none"></div>
     </div>
     <div id="next-wrap">
       <div id="next-normal"><span data-i18n="next">次の天体</span><span id="next-emoji">💫</span></div>
@@ -154,13 +233,17 @@
     <div id="header-right">
       <button id="settings-btn" aria-label="Menu"><span></span><span></span><span></span></button>
     </div>
+    <!-- チュートリアル目標（tutorial モードのプレイ中のみ表示・ヘッダー2行目） -->
+    <div id="stage-objective" style="display:none"></div>
   </div>
   <div id="overlay">
     <h2 data-i18n="gameOver">ゲームオーバー</h2>
     <p class="result"><span data-i18n="scoreResult">スコア</span>: <strong id="final-score">0</strong></p>
+    <p id="reward-el" class="reward-line"></p>
     <p id="new-hi" data-i18n="newRecord">🏆 新記録！</p>
     <p id="rank-pct-el"></p>
     <button id="retry-btn" data-i18n="retry">もう一度</button>
+    <button id="next-stage-btn" style="display:none"></button>
     <button id="share-btn" data-i18n="shareBtn">X でシェア</button>
     <a id="ranking-link" href="/games/rollaxy/ranking/" data-i18n="rankingBtn">🏆 ランキング</a>
     <button id="overlay-ach-btn" class="ach-open-btn" data-i18n="achievements">🏆 実績</button>
@@ -368,6 +451,7 @@
 <script src="achievement-data.js"></script>
 <script src="game-achievements.js"></script>
 <script src="game.js"></script>
+<script src="game-meta.js"></script>
 <script src="game-ui.js"></script>
 </body>
 </html>

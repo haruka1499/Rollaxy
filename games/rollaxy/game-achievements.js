@@ -169,16 +169,6 @@ function achCheckBodyMerge(bodyIndex, total) {
   }
 }
 
-// 1ゲーム中の最高連鎖数チェック
-function achCheckMaxChain(max) {
-  const cat = ACH_CATS.find(c => c.id === 'chain_max');
-  if (!cat) return;
-  for (const it of cat.items) {
-    if (max >= it.mergeThreshold) _unlockAch(it.id);
-    else break;
-  }
-}
-
 // 累計連鎖回数チェック（total = 累計連鎖解決回数）
 function achCheckTotalChains(total) {
   const cat = ACH_CATS.find(c => c.id === 'chain_total');
@@ -368,6 +358,8 @@ _syncFromServer();
   const startBtn   = document.getElementById('start-ach-btn');
   const menuBtn    = document.getElementById('menu-ach-btn');
   const overlayBtn = document.getElementById('overlay-ach-btn');
+  // ※ ホーム下部バーの「実績」(#nav-ach) は game.js の showHomeTab() が統括するため
+  //   ここでは個別バインドしない（二重起動防止）。
 
   // click+touchend の二重登録は共通ユーティリティ on()（game-util.js）に統一。
   // on() は要素が null だと落ちるため、存在する場合のみバインドする。

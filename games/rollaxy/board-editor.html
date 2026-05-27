@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rollaxy — Board Editor (Physics)</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #08031a; color: #e0d6ff;
+  font-family: system-ui, sans-serif;
+  display: flex; flex-direction: column; height: 100vh;
+  user-select: none;
+}
+
+/* ===== ツールバー ===== */
+#toolbar {
+  display: flex; align-items: center; gap: 6px; padding: 8px 10px;
+  background: #130830; border-bottom: 1px solid rgba(124,92,252,0.3);
+  flex-wrap: wrap; flex-shrink: 0;
+}
+#toolbar-title { font-size: 13px; color: #9a84cc; font-weight: bold; margin-right: 4px; white-space: nowrap; }
+
+#palette { display: flex; gap: 4px; flex-wrap: wrap; }
+.body-btn {
+  display: flex; flex-direction: column; align-items: center; gap: 1px;
+  padding: 3px 5px; border-radius: 7px; border: 2px solid transparent;
+  cursor: pointer; background: rgba(255,255,255,0.05); color: #ccc;
+  font-size: 10px; min-width: 42px; transition: border-color 0.15s;
+}
+.body-btn .be { font-size: 19px; line-height: 1.1; }
+.body-btn .bk { font-size: 9px; color: #888; }
+.body-btn:hover { border-color: rgba(124,92,252,0.5); }
+.body-btn.active { border-color: #7c5cfc; background: rgba(124,92,252,0.18); color: #fff; }
+
+#toolbar-actions {
+  margin-left: auto; display: flex; gap: 8px; align-items: center; flex-shrink: 0;
+}
+#count-el { font-size: 12px; color: #888; white-space: nowrap; }
+.tb-btn {
+  padding: 6px 14px; border-radius: 6px; cursor: pointer;
+  font-size: 13px; border: none; font-weight: bold; white-space: nowrap;
+}
+#btn-undo   { background: rgba(255,255,255,0.1); color: #ccc; }
+#btn-freeze { background: rgba(80,160,255,0.25); color: #8cf; }
+#btn-freeze.frozen { background: rgba(80,255,160,0.25); color: #8fc; }
+#btn-clear  { background: rgba(200,60,60,0.35); color: #faa; }
+#btn-copy   { background: #7c5cfc; color: #fff; }
+#btn-copy.copied { background: #2a9a60; }
+
+/* ===== メインエリア ===== */
+#main {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  overflow: hidden; padding: 8px; gap: 12px;
+}
+canvas { cursor: crosshair; display: block; }
+
+/* ===== 右サイドパネル ===== */
+#side {
+  width: 168px; flex-shrink: 0;
+  display: flex; flex-direction: column; gap: 8px;
+  font-size: 12px;
+}
+#side h3 { font-size: 11px; color: #9a84cc; margin-bottom: 2px; }
+#side-info {
+  background: rgba(255,255,255,0.05); border-radius: 6px;
+  padding: 8px; line-height: 1.7; color: #bbb; font-size: 11px;
+}
+#body-list-panel {
+  background: rgba(255,255,255,0.04); border-radius: 6px;
+  padding: 8px; overflow-y: auto; max-height: 380px;
+}
+.bl-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 2px 0; border-bottom: 1px solid rgba(255,255,255,0.06);
+  font-size: 11px; gap: 4px;
+}
+.bl-row:last-child { border-bottom: none; }
+.bl-rm {
+  cursor: pointer; color: #f88; font-size: 13px; padding: 0 2px;
+  background: none; border: none; flex-shrink: 0;
+}
+#settle-indicator {
+  padding: 4px 8px; border-radius: 4px; font-size: 11px; text-align: center;
+  background: rgba(255,160,0,0.15); color: #fca; border: 1px solid rgba(255,160,0,0.3);
+}
+#settle-indicator.settled {
+  background: rgba(0,200,100,0.12); color: #6fa; border-color: rgba(0,200,100,0.3);
+}
+
+/* ===== ステータスバー ===== */
+#statusbar {
+  padding: 3px 10px; background: #0e0424;
+  font-size: 11px; color: #7a6aaa;
+  border-top: 1px solid rgba(124,92,252,0.2); flex-shrink: 0;
+}
+</style>
+</head>
+<body>
+
+<!-- ツールバー -->
+<div id="toolbar">
+  <span id="toolbar-title">🌌 Board Editor (Physics)</span>
+  <div id="palette"></div>
+  <div id="toolbar-actions">
+    <span id="count-el"></span>
+    <button class="tb-btn" id="btn-undo">↩ Undo</button>
+    <button class="tb-btn" id="btn-freeze">❄ フリーズ</button>
+    <button class="tb-btn" id="btn-clear">🗑 クリア</button>
+    <button class="tb-btn" id="btn-copy">📋 JSON コピー</button>
+  </div>
+</div>
+
+<!-- メイン -->
+<div id="main">
+  <canvas id="canvas"></canvas>
+  <div id="side">
+    <div>
+      <h3>操作方法</h3>
+      <div id="side-info">
+        <b>クリック</b>: 配置（落下）<br>
+        <b>右クリック</b>: 削除<br>
+        <b>1〜9, 0, -, =</b>: 天体選択<br>
+        <b>Ctrl+Z</b>: アンドゥ<br>
+        <b>❄ フリーズ</b>: 現在地で固定<br>
+        <br>
+        <span style="color:#f88">赤点線</span>: 危険ライン<br>
+        <span style="color:#8cf">青点線</span>: ドロップY<br>
+        <span style="color:#aaa">灰色</span>: フリーズ済み<br>
+        <br>
+        ※ 安定したら JSON コピー
+      </div>
+    </div>
+    <div id="settle-indicator">⏳ 計算中...</div>
+    <div>
+      <h3>配置済み (<span id="count-side">0</span>)</h3>
+      <div id="body-list-panel"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ステータスバー -->
+<div id="statusbar">クリックで天体を配置（重力で落下・安定します）</div>
+
+<!-- Matter.js（ゲームと同じローカルファイル） -->
+<script src="vendor/matter.min.js"></script>
+<script>
+// ===== 天体定義 (config.js の BODIES から転記) =====
+const BODIES = [
+  { n: '宇宙塵',   e: '💫', r: 12,  c: '#b0a090' }, // 0  → 1
+  { n: '小惑星',   e: '🪨', r: 18,  c: '#807060' }, // 1  → 2
+  { n: '月',       e: '🌙', r: 25,  c: '#d0c8b0' }, // 2  → 3
+  { n: '地球',     e: '🌍', r: 33,  c: '#3388cc' }, // 3  → 4
+  { n: '木星',     e: '🪐', r: 42,  c: '#d4a870' }, // 4  → 5
+  { n: '太陽',     e: '☀️', r: 51,  c: '#ffcc00' }, // 5  → 6
+  { n: '赤色巨星', e: '🔴', r: 61,  c: '#cc2200' }, // 6  → 7
+  { n: '白色矮星', e: '⭐', r: 70,  c: '#c8d8ff' }, // 7  → 8
+  { n: '中性子星', e: '💠', r: 79,  c: '#2244cc' }, // 8  → 9
+  { n: 'BH',       e: '🌑', r: 88,  c: '#220033' }, // 9  → 0
+  { n: '銀河',     e: '🌌', r: 97,  c: '#7744cc' }, // 10 → -
+  { n: '銀河団',   e: '🌐', r: 106, c: '#aa44ff' }, // 11 → =
+];
+const KEY_MAP = {'1':0,'2':1,'3':2,'4':3,'5':4,'6':5,'7':6,'8':7,'9':8,'0':9,'-':10,'=':11};
+
+// ===== ゲームボード定数（config.js と完全一致） =====
+const GW = 400, GH = 772;
+const BOX = { L: 18, R: 382, T: 240, B: 760, W: 18, GL: 8, GR: 392 };
+const DANGER_Y = 248;
+const DROP_Y   = 190;
+const PHYS = {
+  GRAVITY:  2.0,
+  FRIC:     0.10,
+  FRIC_AIR: 0.015,
+  REST:     0.05,
+  FRIC_S:   0.20,
+  SLOP:     0.05,
+  SUBSTEPS: 4,
+  POS_ITER: 16,
+  VEL_ITER: 12,
+};
+
+// ===== 物理エンジン初期化 =====
+const { Engine, Composite, Bodies: MB, Events } = Matter;
+
+const engine = Engine.create({
+  enableSleeping:     true,
+  gravity:            { y: PHYS.GRAVITY },
+  positionIterations: PHYS.POS_ITER,
+  velocityIterations: PHYS.VEL_ITER,
+});
+const world = engine.world;
+
+// 壁（ゲームと同じ矩形）
+const WO = { isStatic: true, label: 'wall', friction: PHYS.FRIC, frictionStatic: PHYS.FRIC_S };
+const { L, R, T, B, W: wt, GL, GR } = BOX;
+Composite.add(world, [
+  MB.rectangle((L+R)/2, B + wt/2,   R-L+wt*2, wt,     WO), // 底
+  MB.rectangle(L - wt/2, (T+B)/2,   wt, B-T+wt,        WO), // 左
+  MB.rectangle(R + wt/2, (T+B)/2,   wt, B-T+wt,        WO), // 右
+  MB.rectangle(GL - wt/2, T/2,       wt, T,             WO), // 左ガイド
+  MB.rectangle(GR + wt/2, T/2,       wt, T,             WO), // 右ガイド
+]);
+
+// ===== 状態 =====
+let selectedBi   = 0;
+let physBodies   = [];  // [{ mBody: MatterBody, bi, frozen }]
+let history      = [];  // アンドゥ用スナップショット [{bi,x,y,frozen}[]]
+let hoverGame    = null;
+let allSettled   = true;
+
+// ===== DOM =====
+const canvas     = document.getElementById('canvas');
+const ctx        = canvas.getContext('2d');
+const statusEl   = document.getElementById('statusbar');
+const countEl    = document.getElementById('count-el');
+const countSide  = document.getElementById('count-side');
+const listPanel  = document.getElementById('body-list-panel');
+const settleEl   = document.getElementById('settle-indicator');
+
+// ===== パレット構築 =====
+const palette = document.getElementById('palette');
+BODIES.forEach((b, i) => {
+  const key = Object.keys(KEY_MAP).find(k => KEY_MAP[k] === i) || '';
+  const btn = document.createElement('button');
+  btn.className = 'body-btn' + (i === 0 ? ' active' : '');
+  btn.title = `${b.n} (キー: ${key})`;
+  btn.innerHTML = `<span class="be">${b.e}</span><span>${b.n}</span><span class="bk">[${key}]</span>`;
+  btn.addEventListener('click', () => selectBody(i));
+  palette.appendChild(btn);
+});
+
+function selectBody(i) {
+  selectedBi = i;
+  document.querySelectorAll('.body-btn').forEach((el, j) => el.classList.toggle('active', j === i));
+  status(`選択: ${BODIES[i].n} (r=${BODIES[i].r})`);
+}
+
+// ===== スケール =====
+function calcScale() {
+  const main = document.getElementById('main');
+  const mw   = main.clientWidth  - 188;
+  const mh   = main.clientHeight - 8;
+  return Math.min(mw / GW, mh / GH, 1.4);
+}
+function resizeCanvas() {
+  const s = calcScale();
+  canvas.width  = Math.round(GW * s);
+  canvas.height = Math.round(GH * s);
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+// ===== 描画 =====
+function render() {
+  const s = calcScale();
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // 背景
+  ctx.fillStyle = '#060412';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // ゲームエリア背景
+  ctx.fillStyle = 'rgba(255,255,255,0.02)';
+  ctx.fillRect(BOX.L*s, BOX.T*s, (BOX.R-BOX.L)*s, (BOX.B-BOX.T)*s);
+
+  // 壁
+  ctx.fillStyle = '#1e0e3a';
+  ctx.fillRect(0,        0,      BOX.L*s,          GH*s);
+  ctx.fillRect(BOX.R*s,  0,      (GW-BOX.R)*s,     GH*s);
+  ctx.fillRect(0,        BOX.B*s, GW*s,             (GH-BOX.B)*s);
+
+  // 壁の境界線
+  ctx.strokeStyle = 'rgba(124,92,252,0.3)';
+  ctx.lineWidth = 1; ctx.setLineDash([]);
+  ctx.beginPath();
+  ctx.moveTo(BOX.L*s, BOX.T*s); ctx.lineTo(BOX.L*s, BOX.B*s);
+  ctx.moveTo(BOX.R*s, BOX.T*s); ctx.lineTo(BOX.R*s, BOX.B*s);
+  ctx.moveTo(BOX.L*s, BOX.B*s); ctx.lineTo(BOX.R*s, BOX.B*s);
+  ctx.stroke();
+
+  // 危険ライン（赤点線）
+  ctx.strokeStyle = 'rgba(255,80,80,0.55)';
+  ctx.lineWidth = 1.5; ctx.setLineDash([6, 4]);
+  ctx.beginPath();
+  ctx.moveTo(BOX.L*s, DANGER_Y*s); ctx.lineTo(BOX.R*s, DANGER_Y*s);
+  ctx.stroke();
+
+  // ドロップY（青点線）
+  ctx.strokeStyle = 'rgba(80,180,255,0.35)';
+  ctx.lineWidth = 1; ctx.setLineDash([4, 6]);
+  ctx.beginPath();
+  ctx.moveTo(BOX.L*s, DROP_Y*s); ctx.lineTo(BOX.R*s, DROP_Y*s);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // ラベル
+  ctx.font = `${Math.round(9*s)}px system-ui`;
+  ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
+  ctx.fillStyle = 'rgba(255,80,80,0.5)';
+  ctx.fillText('danger', (BOX.L+3)*s, (DANGER_Y-2)*s);
+  ctx.fillStyle = 'rgba(80,180,255,0.4)';
+  ctx.fillText('drop',   (BOX.L+3)*s, (DROP_Y-2)*s);
+
+  // 天体（物理位置から描画）
+  for (const pb of physBodies) {
+    const pos = pb.mBody.position;
+    const sleeping = pb.mBody.isSleeping || pb.frozen;
+    drawBody(pb.bi, pos.x, pos.y, s, pb.frozen ? 0.55 : (sleeping ? 0.85 : 1.0), pb.frozen);
+  }
+
+  // ホバープレビュー
+  if (hoverGame) {
+    const r   = BODIES[selectedBi].r;
+    const pos = clampPos(hoverGame.x, hoverGame.y, r);
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(pos.x*s, pos.y*s, r*s, 0, Math.PI*2);
+    ctx.fillStyle   = 'rgba(255,255,255,0.12)';
+    ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+    ctx.lineWidth   = 1.5;
+    ctx.fill(); ctx.stroke();
+    ctx.restore();
+    ctx.save();
+    ctx.globalAlpha = 0.45;
+    ctx.font = `${r*1.3*s}px sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#fff';
+    ctx.fillText(BODIES[selectedBi].e, pos.x*s, pos.y*s);
+    ctx.restore();
+  }
+
+  // 安定判定
+  checkSettled();
+  updateSideList();
+  const n = physBodies.length;
+  countEl.textContent   = `配置数: ${n}`;
+  countSide.textContent = n;
+}
+
+function drawBody(bi, gx, gy, s, alpha, frozen) {
+  const b = BODIES[bi];
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.beginPath();
+  ctx.arc(gx*s, gy*s, b.r*s, 0, Math.PI*2);
+  ctx.fillStyle   = frozen ? '#444455bb' : b.c + 'bb';
+  ctx.fill();
+  ctx.strokeStyle = frozen ? 'rgba(180,180,200,0.4)' : 'rgba(255,255,255,0.25)';
+  ctx.lineWidth   = 1;
+  ctx.stroke();
+  ctx.font = `${b.r*1.3*s}px sans-serif`;
+  ctx.textAlign    = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle    = '#fff';
+  ctx.fillText(b.e, gx*s, gy*s);
+  ctx.restore();
+}
+
+// ===== 安定判定 =====
+function checkSettled() {
+  if (physBodies.length === 0) {
+    settleEl.textContent = '— 天体なし';
+    settleEl.className   = 'settled';
+    allSettled = true;
+    return;
+  }
+  const moving = physBodies.filter(pb => {
+    if (pb.frozen) return false;
+    const v = pb.mBody.velocity;
+    const speed = Math.hypot(v.x, v.y);
+    return speed > 0.5 || !pb.mBody.isSleeping;
+  });
+  allSettled = moving.length === 0;
+  if (allSettled) {
+    settleEl.textContent = '✓ 安定 — コピー可能';
+    settleEl.className   = 'settled';
+  } else {
+    settleEl.textContent = `⏳ 落下中 (${moving.length} 個)`;
+    settleEl.className   = '';
+  }
+}
+
+// ===== サイドリスト =====
+function updateSideList() {
+  listPanel.innerHTML = '';
+  if (physBodies.length === 0) {
+    listPanel.innerHTML = '<div style="color:#666;font-size:11px">なし</div>';
+    return;
+  }
+  [...physBodies].reverse().forEach((pb, ri) => {
+    const idx = physBodies.length - 1 - ri;
+    const pos = pb.mBody.position;
+    const row = document.createElement('div');
+    row.className = 'bl-row';
+    row.innerHTML =
+      `<span>${BODIES[pb.bi].e} ${BODIES[pb.bi].n}</span>` +
+      `<span style="color:#777">(${Math.round(pos.x)},${Math.round(pos.y)})</span>` +
+      `<button class="bl-rm" title="削除">✕</button>`;
+    row.querySelector('.bl-rm').addEventListener('click', () => {
+      saveHistory();
+      Composite.remove(world, pb.mBody);
+      physBodies.splice(idx, 1);
+    });
+    listPanel.appendChild(row);
+  });
+}
+
+// ===== ユーティリティ =====
+function clampPos(x, y, r) {
+  return {
+    x: Math.max(BOX.L + r + 1, Math.min(BOX.R - r - 1, x)),
+    y: Math.max(BOX.T + r + 1, Math.min(BOX.B - r - 1, y)),
+  };
+}
+
+function toGame(clientX, clientY) {
+  const s    = calcScale();
+  const rect = canvas.getBoundingClientRect();
+  return { x: (clientX - rect.left) / s, y: (clientY - rect.top) / s };
+}
+
+function findBodyAt(gx, gy) {
+  for (let i = physBodies.length - 1; i >= 0; i--) {
+    const pb  = physBodies[i];
+    const pos = pb.mBody.position;
+    const r   = BODIES[pb.bi].r;
+    if (Math.hypot(gx - pos.x, gy - pos.y) <= r) return i;
+  }
+  return -1;
+}
+
+function saveHistory() {
+  const snap = physBodies.map(pb => ({
+    bi:     pb.bi,
+    x:      pb.mBody.position.x,
+    y:      pb.mBody.position.y,
+    frozen: pb.frozen,
+  }));
+  history.push(snap);
+  if (history.length > 30) history.shift();
+}
+
+function restoreHistory(snap) {
+  // 全削除
+  physBodies.forEach(pb => Composite.remove(world, pb.mBody));
+  physBodies = [];
+  // 復元（フリーズ済みは static、それ以外は dynamic）
+  snap.forEach(s => addBody(s.bi, s.x, s.y, s.frozen));
+}
+
+function addBody(bi, x, y, frozen = false) {
+  const def = BODIES[bi];
+  const mb  = MB.circle(x, y, def.r, {
+    label:        'celestial_' + bi,
+    friction:     PHYS.FRIC,
+    frictionAir:  PHYS.FRIC_AIR,
+    frictionStatic: PHYS.FRIC_S,
+    restitution:  PHYS.REST,
+    slop:         PHYS.SLOP,
+    isStatic:     frozen,
+    sleepThreshold: 60,
+  });
+  Composite.add(world, mb);
+  physBodies.push({ mBody: mb, bi, frozen });
+}
+
+function status(msg) { statusEl.textContent = msg; }
+
+// ===== マウスイベント =====
+canvas.addEventListener('mousemove', e => {
+  const gp  = toGame(e.clientX, e.clientY);
+  hoverGame = gp;
+  const r   = BODIES[selectedBi].r;
+  const pos = clampPos(gp.x, gp.y, r);
+  status(`(${Math.round(pos.x)}, ${Math.round(pos.y)}) — クリックで配置 / 右クリックで削除`);
+});
+
+canvas.addEventListener('mouseleave', () => {
+  hoverGame = null;
+  status('クリックで天体を配置（重力で落下・安定します）');
+});
+
+canvas.addEventListener('click', e => {
+  const gp  = toGame(e.clientX, e.clientY);
+  const r   = BODIES[selectedBi].r;
+  const pos = clampPos(gp.x, gp.y, r);
+  saveHistory();
+  addBody(selectedBi, pos.x, pos.y, false);
+  status(`✓ 配置: ${BODIES[selectedBi].n} at (${Math.round(pos.x)}, ${Math.round(pos.y)}) — 計 ${physBodies.length} 個`);
+});
+
+canvas.addEventListener('contextmenu', e => {
+  e.preventDefault();
+  const gp  = toGame(e.clientX, e.clientY);
+  const idx = findBodyAt(gp.x, gp.y);
+  if (idx >= 0) {
+    saveHistory();
+    Composite.remove(world, physBodies[idx].mBody);
+    const removed = physBodies.splice(idx, 1)[0];
+    status(`削除: ${BODIES[removed.bi].n}`);
+  }
+});
+
+// ===== キーボード =====
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  if (KEY_MAP[e.key] !== undefined) { selectBody(KEY_MAP[e.key]); return; }
+  if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+    e.preventDefault();
+    if (history.length > 0) {
+      restoreHistory(history.pop());
+      status('↩ アンドゥ');
+    } else {
+      status('アンドゥ履歴がありません');
+    }
+  }
+});
+
+// ===== ボタン =====
+document.getElementById('btn-undo').addEventListener('click', () => {
+  if (history.length > 0) {
+    restoreHistory(history.pop());
+    status('↩ アンドゥ');
+  } else {
+    status('アンドゥ履歴がありません');
+  }
+});
+
+// フリーズ：動いている全天体を現在地で静止させる
+document.getElementById('btn-freeze').addEventListener('click', () => {
+  saveHistory();
+  let cnt = 0;
+  physBodies.forEach(pb => {
+    if (!pb.frozen) {
+      Matter.Body.setVelocity(pb.mBody, { x: 0, y: 0 });
+      Matter.Body.setAngularVelocity(pb.mBody, 0);
+      Matter.Body.setStatic(pb.mBody, true);
+      pb.frozen = true;
+      cnt++;
+    }
+  });
+  status(`❄ ${cnt} 個をフリーズしました（灰色 = 固定済み）`);
+});
+
+document.getElementById('btn-clear').addEventListener('click', () => {
+  if (physBodies.length === 0) return;
+  if (confirm(`${physBodies.length} 個の天体を全て削除しますか？`)) {
+    saveHistory();
+    physBodies.forEach(pb => Composite.remove(world, pb.mBody));
+    physBodies = [];
+    status('クリアしました');
+  }
+});
+
+document.getElementById('btn-copy').addEventListener('click', () => {
+  if (physBodies.length === 0) { status('⚠ 天体がありません'); return; }
+  const out = physBodies.map(pb => ({
+    bi: pb.bi,
+    x:  Math.round(pb.mBody.position.x),
+    y:  Math.round(pb.mBody.position.y),
+  }));
+  const json = JSON.stringify(out, null, 2);
+  navigator.clipboard.writeText(json).then(() => {
+    const btn = document.getElementById('btn-copy');
+    btn.textContent = '✓ コピー完了！';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = '📋 JSON コピー'; btn.classList.remove('copied'); }, 2500);
+    status(`✓ ${out.length} 個の配置データをコピーしました`);
+    console.log('presetBodies =', json);
+  }).catch(() => {
+    window.prompt('以下の JSON をコピーしてください:', json);
+  });
+});
+
+// ===== 物理ループ =====
+const STEP = 1000 / 60;
+let lastTs = 0;
+
+function loop(ts) {
+  requestAnimationFrame(loop);
+  const dt = Math.min(ts - lastTs, 50);
+  lastTs = ts;
+  // SUBSTEPS=4 でゲームと同じ精度
+  for (let i = 0; i < PHYS.SUBSTEPS; i++) {
+    Engine.update(engine, STEP / PHYS.SUBSTEPS);
+  }
+  render();
+}
+
+requestAnimationFrame(ts => { lastTs = ts; requestAnimationFrame(loop); });
+status('天体を選択してクリック → 重力で落下・安定後に JSON コピー');
+</script>
+</body>
+</html>

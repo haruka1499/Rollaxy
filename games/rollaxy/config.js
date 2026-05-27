@@ -83,25 +83,77 @@ const CFG = {
   },
 
   // ============================================================
-  // ゲームモード（拡張用の土台）
+  // ゲームモード
   // ============================================================
-  // type: 'endless' = ゲームオーバーまで（従来の通常モード）
-  //       'stage'   = goal スコア到達でクリア（デフォルト）
+  // type: 'tutorial' = STAGES を順に進める導入。各ステージ固有の目標を達成でクリア。
+  //       'time'     = 制限時間内にスコアを稼ぐメインモード（timeLimit 秒で終了）。
+  //       'endless'  = ゲームオーバーまで（従来の通常モード）。
   // unlockLevel: 解禁に必要なプレイヤーレベル（将来用。0 = 常時解禁）
-  // 新モードを追加する場合はここに足し、必要なら game.js の checkGoal/doStageClear を拡張する。
-  // ランキング送信は endless のみ（stage はローカル進行のみ。game.js doGameOver 参照）。
+  // timeLimit: 制限時間(秒)。time モードのみ使用。
+  // ランキング送信は endless のみ（time/tutorial はローカル進行。game.js doGameOver 参照）。
+  // ※ DEFAULT_MODE はチュートリアル未完了時 game.js が 'tutorial' に上書きする。
   MODES: [
-    { id: 'stage',   type: 'stage',   nameJa: 'ステージ',   nameEn: 'Stage',   nameZh: '关卡', unlockLevel: 0 },
-    { id: 'endless', type: 'endless', nameJa: 'エンドレス', nameEn: 'Endless', nameZh: '无尽', unlockLevel: 0 },
+    { id: 'tutorial', type: 'tutorial', nameJa: 'チュートリアル', nameEn: 'Tutorial',    nameZh: '教程', unlockLevel: 0 },
+    { id: 'time',     type: 'time',     nameJa: 'タイムアタック', nameEn: 'Time Attack', nameZh: '限时', unlockLevel: 0, timeLimit: 180 },
+    { id: 'endless',  type: 'endless',  nameJa: 'エンドレス',     nameEn: 'Endless',     nameZh: '无尽', unlockLevel: 0 },
   ],
-  DEFAULT_MODE: 'stage',
+  DEFAULT_MODE: 'time',
 
-  // ステージ定義（stage モード用）。id = "ワールド-ステージ"。goal = クリアに必要なスコア。
-  // 将来はワールド追加・特殊ルール（出現天体制限など）をここに足して拡張する。
+  // ステージ定義（tutorial モード用）。id = "ワールド-ステージ"。
+  // 目標スキーマ（複数指定時は全て満たすとクリア）:
+  //   goalScore     … このスコア到達
+  //   timeLimit     … 制限時間(秒)。超過で失敗（リトライ）
+  //   requireSkill  … 指定スキル('bomb'|'upgrade'|'delete')を1回使用
+  //   requireAnySkill … 任意スキルを指定回数以上使用
+  //   requireTier   … この天体インデックス以上を1度でも生成（9=ブラックホール）
+  //   descJa/En/Zh  … プレイ中・スタート画面に表示する目標説明
   STAGES: [
-    { id: '1-1', goal:  3000, unlockLevel: 0 },
-    { id: '1-2', goal:  6000, unlockLevel: 0 },
-    { id: '1-3', goal: 10000, unlockLevel: 0 },
+    { id: '1-1', goalScore: 100, unlockLevel: 0,
+      descJa: '天体を合成して 100 点を取ろう', descEn: 'Merge bodies to reach 100 points', descZh: '合成天体，达到 100 分' },
+    { id: '1-2', goalScore: 100, timeLimit: 60, unlockLevel: 0,
+      descJa: '60 秒以内に 100 点を取ろう', descEn: 'Score 100 points within 60 seconds', descZh: '在 60 秒内达到 100 分' },
+    { id: '1-3',
+      requireSkillCount: { skill: 'upgrade', count: 5 },
+      initSkills: { upgrade: 5 },
+      presetBodies: [
+        {"bi":0,"x":62,"y":748},{"bi":6,"x":117,"y":699},{"bi":7,"x":246,"y":691},
+        {"bi":3,"x":349,"y":727},{"bi":3,"x":51,"y":633},{"bi":4,"x":168,"y":611},
+        {"bi":1,"x":36,"y":736},{"bi":1,"x":364,"y":679},{"bi":1,"x":101,"y":623},
+        {"bi":5,"x":331,"y":605},{"bi":3,"x":249,"y":588},{"bi":1,"x":364,"y":544},
+        {"bi":4,"x":288,"y":523},{"bi":5,"x":85,"y":556},{"bi":6,"x":186,"y":510},
+      ],
+      unlockLevel: 0,
+      descJa: '強化スキルを 5 回使おう（スキル5個付き）', descEn: 'Use the Upgrade skill 5 times (5 charges given)', descZh: '使用强化技能 5 次（附赠5个技能）' },
+    { id: '1-4',
+      requireSkillCount: { skill: 'bomb', count: 5 },
+      initSkills: { bomb: 5 },
+      presetBodies: [
+        {"bi":0,"x":62,"y":748},{"bi":6,"x":117,"y":699},{"bi":7,"x":246,"y":691},
+        {"bi":3,"x":349,"y":727},{"bi":3,"x":51,"y":633},{"bi":4,"x":168,"y":611},
+        {"bi":1,"x":36,"y":736},{"bi":1,"x":364,"y":679},{"bi":1,"x":101,"y":623},
+        {"bi":5,"x":331,"y":605},{"bi":3,"x":249,"y":588},{"bi":1,"x":364,"y":544},
+        {"bi":4,"x":288,"y":523},{"bi":5,"x":85,"y":556},{"bi":6,"x":186,"y":510},
+      ],
+      unlockLevel: 0,
+      descJa: '爆弾スキルを 5 回使おう（スキル5個付き）', descEn: 'Use the Bomb skill 5 times (5 charges given)', descZh: '使用炸弹技能 5 次（附赠5个技能）' },
+    { id: '1-5',
+      requireSkillCount: { skill: 'delete', count: 5 },
+      initSkills: { delete: 5 },
+      presetBodies: [
+        {"bi":0,"x":62,"y":748},{"bi":6,"x":117,"y":699},{"bi":7,"x":246,"y":691},
+        {"bi":3,"x":349,"y":727},{"bi":3,"x":51,"y":633},{"bi":4,"x":168,"y":611},
+        {"bi":1,"x":36,"y":736},{"bi":1,"x":364,"y":679},{"bi":1,"x":101,"y":623},
+        {"bi":5,"x":331,"y":605},{"bi":3,"x":249,"y":588},{"bi":1,"x":364,"y":544},
+        {"bi":4,"x":288,"y":523},{"bi":5,"x":85,"y":556},{"bi":6,"x":186,"y":510},
+      ],
+      unlockLevel: 0,
+      descJa: '削除スキルを 5 回使おう（スキル5個付き）', descEn: 'Use the Delete skill 5 times (5 charges given)', descZh: '使用删除技能 5 次（附赠5个技能）' },
+    { id: '1-6', goalScore: 150, timeLimit: 60, unlockLevel: 0,
+      descJa: '60 秒以内に 150 点を取ろう', descEn: 'Score 150 points within 60 seconds', descZh: '在 60 秒内达到 150 分' },
+    { id: '1-7', requireTier: 9, unlockLevel: 0,
+      descJa: 'ブラックホールを作ろう（時間制限なし）', descEn: 'Create a Black Hole (no time limit)', descZh: '制造一个黑洞（无时间限制）' },
+    { id: '1-8', goalScore: 500, timeLimit: 120, requireAnySkill: 1, unlockLevel: 0,
+      descJa: 'スキルを使い、120 秒で 500 点', descEn: 'Use skills and score 500 in 120s', descZh: '使用技能，120 秒内达到 500 分' },
   ],
 
   // スキル初期所持数（デバッグ・バランス調整用）
@@ -141,6 +193,89 @@ const CFG = {
   // 効果音設定
   SOUND: {
     DEFAULT_VOL: 1.0, // デフォルト音量（0.0〜1.0）。スライダーで変更した値は localStorage に保存される
+  },
+
+  // ============================================================
+  // META — メタ進行（インクリメンタル）の調整値
+  // ============================================================
+  // ループ: プレイ → 星屑(stardust)/恒星エネルギー(energy)獲得 → 星屑で物質生成器を
+  //          強化 → 恒星サイズ↑ → 自動恒星エネルギー/秒↑（放置でも蓄積）。
+  // ※ 文明レベル・研究は次段階。ここでは恒星エネルギーの使い道は未実装（蓄積のみ）。
+  META: {
+    // プレイ報酬の計算（係数構造。将来アップグレード倍率なども掛けられるよう拡張可能）。
+    // stardust = floor((score*PER_SCORE + chainEvents*PER_CHAIN) * modeMult)
+    REWARD: {
+      STARDUST_PER_SCORE: 0.20, // スコア1点あたり星屑
+      STARDUST_PER_CHAIN: 3,    // 連鎖（2連鎖以上の確定）1回あたり星屑
+      ENERGY_PER_SCORE:   0.08, // スコア1点あたり恒星エネルギー
+      ENERGY_PER_CHAIN:   1,    // 連鎖1回あたり恒星エネルギー
+      // モード別倍率（チュートリアルは導入なので控えめ）
+      MODE_MULT: { time: 1.0, endless: 1.0, tutorial: 0.3 },
+    },
+    // 物質生成器（単一・レベル制）。Lv L→L+1 のコスト = floor(BASE_COST * GROWTH^(L-1))。
+    GENERATOR: {
+      START_LEVEL: 1,   // 初期レベル（最初から最小の恒星が存在）
+      MAX_LEVEL:   100, // 上限（暫定）
+      BASE_COST:   100, // Lv1→2 のコスト（星屑）
+      GROWTH:      1.40, // レベルごとのコスト倍率
+    },
+    // 恒星：レベル → 恒星エネルギー/秒。rate = ENERGY_BASE + (level-1)*ENERGY_PER_LEVEL。
+    STAR: {
+      ENERGY_BASE:      0.5, // Lv1 の恒星エネルギー/秒
+      ENERGY_PER_LEVEL: 0.5, // レベルごとの増分
+      // 恒星の見た目tier。各 bi(BODIES index) に到達する最小レベル。
+      // 例: Lv1=宇宙塵(0) … Lv64=ブラックホール(9)。
+      TIER_LEVELS: [1, 4, 8, 13, 19, 26, 34, 43, 53, 64, 76, 89],
+    },
+    // 放置（オフライン）蓄積の上限（秒）。この時間分までしか溜まらない。
+    IDLE: { CAP_SEC: 4 * 3600 }, // 最大4時間分
+
+    // ── 文明レベル（消費型）──
+    // 恒星エネルギーを支払ってレベルアップ。レベルは研究の解禁ゲート専用（常時ボーナスなし）。
+    // Lv L→L+1 のコスト = floor(BASE_COST * GROWTH^(L-1)) 恒星エネルギー。
+    CIV: {
+      START_LEVEL: 1,
+      MAX_LEVEL:   50,
+      BASE_COST:   200,
+      GROWTH:      1.60,
+    },
+
+    // ── 研究 ──
+    // 星屑で購入し、reqCiv（必要文明レベル）で解禁。所持研究の effect を中央集計して各所に適用。
+    // effect.type:
+    //   'rewardMult'  星屑・恒星エネルギーの獲得倍率（value=0.15 → +15%）
+    //   'scoreMult'   ゲーム内スコア倍率（value=0.10 → +10%）
+    //   'starRateMult' 恒星エネルギー/秒の倍率
+    //   'genCostMult' 物質生成器コスト倍率（value=-0.10 → -10%）
+    //   'skillCharge' 初期スキル所持数を各 +value（加算・整数）
+    //   'timeBonus'   タイムモードの制限時間 +value 秒（加算）
+    // 将来拡張: requires:[id...] で前提研究、effect 種別追加、別通貨コスト等を足せる。
+    RESEARCH: [
+      { id: 'r_reward1', reqCiv: 1, cost: 300, effect: { type: 'rewardMult', value: 0.15 },
+        nameJa: '資源効率',   nameEn: 'Resource Efficiency', nameZh: '资源效率',
+        descJa: '星屑・恒星エネルギーの獲得 +15%', descEn: '+15% stardust & stellar energy', descZh: '星屑与恒星能量 +15%' },
+      { id: 'r_score1', reqCiv: 1, cost: 300, effect: { type: 'scoreMult', value: 0.10 },
+        nameJa: '重力制御',   nameEn: 'Gravity Control', nameZh: '引力控制',
+        descJa: 'ゲーム内スコア +10%', descEn: '+10% in-game score', descZh: '游戏内分数 +10%' },
+      { id: 'r_star1', reqCiv: 2, cost: 600, effect: { type: 'starRateMult', value: 0.20 },
+        nameJa: '核融合促進', nameEn: 'Fusion Boost', nameZh: '聚变促进',
+        descJa: '恒星エネルギー/秒 +20%', descEn: '+20% stellar energy/s', descZh: '恒星能量/秒 +20%' },
+      { id: 'r_gencost1', reqCiv: 2, cost: 600, effect: { type: 'genCostMult', value: -0.10 },
+        nameJa: '生成最適化', nameEn: 'Generator Optimization', nameZh: '生成优化',
+        descJa: '物質生成器の強化コスト -10%', descEn: '-10% generator upgrade cost', descZh: '物质生成器强化成本 -10%' },
+      { id: 'r_skill1', reqCiv: 3, cost: 1000, effect: { type: 'skillCharge', value: 1 },
+        nameJa: 'スキル研鑽', nameEn: 'Skill Mastery', nameZh: '技能精进',
+        descJa: '初期スキル所持数 各+1', descEn: '+1 starting charge per skill', descZh: '初始技能持有数 各+1' },
+      { id: 'r_time1', reqCiv: 3, cost: 1000, effect: { type: 'timeBonus', value: 30 },
+        nameJa: '時間圧縮',   nameEn: 'Time Dilation', nameZh: '时间压缩',
+        descJa: 'タイムモードの制限時間 +30秒', descEn: '+30s in Time Attack', descZh: '限时模式时间 +30秒' },
+      { id: 'r_reward2', reqCiv: 4, cost: 2500, effect: { type: 'rewardMult', value: 0.25 },
+        nameJa: '資源効率 II', nameEn: 'Resource Efficiency II', nameZh: '资源效率 II',
+        descJa: '星屑・恒星エネルギーの獲得 +25%', descEn: '+25% stardust & stellar energy', descZh: '星屑与恒星能量 +25%' },
+      { id: 'r_score2', reqCiv: 5, cost: 2500, effect: { type: 'scoreMult', value: 0.20 },
+        nameJa: '重力制御 II', nameEn: 'Gravity Control II', nameZh: '引力控制 II',
+        descJa: 'ゲーム内スコア +20%', descEn: '+20% in-game score', descZh: '游戏内分数 +20%' },
+    ],
   },
 
   // ゲーム用天体画像の表示調整値（image-adjuster.html で決定した値）
@@ -186,7 +321,8 @@ const STORAGE_KEYS = {
 
   // ── rollaxy_ : このゲーム専用（リセット対象） ──
   SFX_VOL:            'rollaxy_sfx_vol',
-  TUTORIAL_DONE:      'rollaxy_tutorial_done',
+  TUTORIAL_DONE:      'rollaxy_tutorial_done',         // 4連鎖後の強制スキル使用オンボーディング完了
+  STAGE_TUTORIAL_DONE:'rollaxy_stage_tutorial_done',   // 多段チュートリアル(1-1〜1-8)完了
   HI_SCORE:           'rollaxy_hi',
   BODY_MERGES:        'rollaxy_body_merges',
   CHAIN_COUNTS:       'rollaxy_chain_counts',
@@ -207,6 +343,13 @@ const STORAGE_KEYS = {
   SKILL_HINT_BOMB:    'rollaxy_skill_hint_bomb',
   SKILL_HINT_UPGRADE: 'rollaxy_skill_hint_upgrade',
   SKILL_HINT_DELETE:  'rollaxy_skill_hint_delete',
+  // ── メタ進行（インクリメンタル） ──
+  META_STARDUST:      'rollaxy_stardust',          // 所持星屑
+  META_ENERGY:        'rollaxy_stellar_energy',    // 所持恒星エネルギー
+  META_GEN_LEVEL:     'rollaxy_generator_level',   // 物質生成器レベル
+  META_LAST_SAVED:    'rollaxy_meta_last_saved',   // 放置蓄積の基準時刻 (ms)
+  META_CIV_LEVEL:     'rollaxy_civ_level',         // 文明レベル
+  META_RESEARCH:      'rollaxy_research',           // 所持研究ID配列(JSON)
 
   // ── レガシー（移行済み・読み取り/削除のみ。新規利用しない） ──
   LEGACY_HI:   'korokoro_hi',

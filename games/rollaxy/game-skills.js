@@ -324,12 +324,14 @@ function confirmSkillAction() {
     glowMap.set(nb.id, { endTime: Date.now() + dur, duration: dur });
     if (skillCharges.upgrade !== Infinity) skillCharges.upgrade--;
     _skillJustUsed = true; // スキル（強化）が適用された
+    noteSkillUsed('upgrade'); // チュートリアル目標判定用
   } else if (activeSkill === 'delete') {
     playDeleteSound();
     bmap.delete(skillSelectedId); glowMap.delete(skillSelectedId);
     Matter.Composite.remove(world, d.body, true);
     if (skillCharges.delete !== Infinity) skillCharges.delete--;
     _skillJustUsed = true; // スキル（削除）が適用された
+    noteSkillUsed('delete'); // チュートリアル目標判定用
   }
 
   // 操作後に全ボディの sleep を解除する。
@@ -391,8 +393,8 @@ function showRoulette() {
   rouletteActive = true;
   rltStopping    = false;
   rltPos         = 0;
-  // 初回チュートリアル: upgrade（index 1）に固定。2回目以降はランダム
-  rltTarget = tutorialDone ? Math.floor(Math.random() * 3) : 1;
+  // 当選スキルはランダム（初回オンボーディングはチュートリアルへ移行済み）
+  rltTarget = Math.floor(Math.random() * 3);
   document.getElementById('roulette-stop').disabled = false;
   document.getElementById('roulette-overlay').classList.add('show');
   rltSetHighlight(RLT_SPIN_MS);
@@ -443,16 +445,9 @@ function rltFinish() {
     document.getElementById('roulette-overlay').classList.remove('show');
     rouletteActive = false;
 
-    if (!tutorialDone) {
-      // 初回チュートリアル: upgradeを強制使用させる
-      localStorage.setItem(STORAGE_KEYS.TUTORIAL_DONE, '1');
-      tutorialDone = true;
-      startTutorialForcedUpgrade();
-    } else {
-      // 2回目以降: 即時強制使用（チケット蓄積なし）
-      activateForcedSkill(skill);
-      // 次のルーレットはスキル使用完了後に onForcedSkillUsed() で処理
-    }
+    // 4連鎖の当選スキルを即時強制使用（通常仕様）。
+    // 次のルーレットはスキル使用完了後に onForcedSkillUsed() で処理。
+    activateForcedSkill(skill);
   }, 500);
 }
 
@@ -483,11 +478,6 @@ function processNextRoulette() {
 // 5連鎖報酬をカウントアップして、状況に応じてパネルを表示
 function enqueueChoice() {
   if (dead) return; // ゲームオーバー後は報酬を与えない
-  if (!tutorialDone) {
-    // 初回チュートリアル: ルーレット（upgrade固定）に流す
-    enqueueRoulette();
-    return;
-  }
   _session5ChainCount++;
   pendingChoiceRewards++;
   updateRewardQueueInfo();

@@ -26,7 +26,8 @@ body { display: flex; flex-direction: column; align-items: center; }
    ============================================================ */
 #header {
   position: absolute; left: 0; right: 0; z-index: 5;
-  display: flex; justify-content: space-between; align-items: center;
+  display: flex; flex-wrap: wrap;
+  justify-content: space-between; align-items: center;
   padding: 8px 14px; color: #fff;
   background: #1a0e30;
 }
@@ -34,6 +35,24 @@ body { display: flex; flex-direction: column; align-items: center; }
 #header-right { flex: 1; display: flex; justify-content: flex-end; align-items: center; }
 #score-el { font-size: 20px; font-weight: bold; }
 #hi-el    { font-size: 13px; opacity: 0.75; margin-top: 2px; }
+/* 残り時間表示（time / 制限時間付き tutorial ステージ） */
+#timer-el {
+  font-size: 16px; font-weight: bold; margin-top: 2px;
+  font-variant-numeric: tabular-nums; color: #cbb6ff;
+}
+#timer-el.timer-warn { color: #ff6b6b; }
+/* チュートリアル目標（ヘッダー 2 行目として表示） */
+#stage-objective {
+  flex: 0 0 100%;           /* ヘッダーの幅いっぱいの 2 行目 */
+  display: none;            /* JS で style.display を切り替え */
+  padding: 5px 0 4px;
+  margin: 4px -14px -8px;   /* ヘッダーの左右 padding を打ち消して端まで広げる */
+  text-align: center;
+  border-top: 1px solid rgba(255,255,255,0.12);
+  background: rgba(100,70,220,0.25);
+  pointer-events: none;
+  color: #fff;
+}
 #next-wrap { font-size: 12px; text-align: center; line-height: 1.3; }
 #next-emoji { font-size: 28px; display: block; }
 #forced-skill-canvas {
@@ -682,6 +701,11 @@ canvas { position: absolute; top: 0; left: 0; transform-origin: top left; }
   -webkit-tap-highlight-color: transparent;
   transition: background 0.15s, border-color 0.15s;
 }
+/* スタート画面のチュートリアル目標説明（モードトグル下） */
+#start-stage-desc {
+  max-width: 300px;
+  font-size: 15px; font-weight: 600; line-height: 1.4; color: #d4c4ff; text-align: center;
+}
 /* モードに応じて要素を隠す汎用クラス（例: stageモードでシェアボタンを非表示） */
 .is-hidden { display: none !important; }
 
@@ -805,6 +829,333 @@ canvas { position: absolute; top: 0; left: 0; transform-origin: top left; }
 #home-lang-wrap { display: flex; flex-direction: column; align-items: center; gap: 6px; }
 #home-lang-label { font-size: 11px; color: #888; letter-spacing: 0.08em; text-transform: uppercase; }
 #home-lang-row { display: flex; gap: 8px; }
+
+/* ============================================================
+   宇宙（メタ進行）オーバーレイ — #cosmos-overlay
+   ============================================================ */
+#cosmos-overlay {
+  display: none; position: fixed; inset: 0; z-index: 1001;
+  background: radial-gradient(circle at 50% 35%, #1a0e38 0%, #060412 70%);
+  flex-direction: column; align-items: center; justify-content: center;
+  overflow-y: auto; color: #fff;
+}
+#cosmos-overlay.show { display: flex; }
+#cosmos-panel {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 18px; width: 100%; max-width: 360px; padding: 32px 20px;
+}
+#cosmos-panel h2 { font-size: 28px; font-weight: bold; }
+#cosmos-star {
+  line-height: 1; filter: drop-shadow(0 0 16px rgba(150,110,255,0.6));
+  transition: font-size 0.3s ease;
+}
+#cosmos-balances {
+  display: flex; gap: 20px; font-size: 18px; font-weight: bold;
+  font-variant-numeric: tabular-nums;
+}
+#cosmos-stardust { color: #ffd86b; }
+#cosmos-energy   { color: #8fd6ff; }
+#cosmos-rate     { font-size: 13px; color: #b9a9e6; }
+#cosmos-generator {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  width: 100%; padding: 16px; border-radius: 14px;
+  background: rgba(124,92,252,0.12); border: 1px solid rgba(124,92,252,0.35);
+}
+#cosmos-gen-head  { font-size: 15px; font-weight: bold; color: #cbb6ff; }
+#cosmos-gen-level { font-size: 14px; color: #ddd; }
+#cosmos-upgrade-btn {
+  padding: 10px 22px; font-size: 15px; font-weight: bold;
+  border-radius: 22px; cursor: pointer; color: #fff;
+  border: none; background: #7c5cfc;
+  -webkit-tap-highlight-color: transparent;
+  font-variant-numeric: tabular-nums;
+}
+#cosmos-upgrade-btn:disabled { background: #4a3a7a; color: #998; cursor: default; }
+#cosmos-close {
+  margin-top: 8px; padding: 8px 24px; font-size: 14px;
+  border-radius: 20px; cursor: pointer; color: #cbb6ff;
+  background: rgba(124,92,252,0.15); border: 1px solid rgba(124,92,252,0.5);
+  -webkit-tap-highlight-color: transparent;
+}
+/* スタート画面の「宇宙」ボタン */
+#cosmos-open-btn {
+  padding: 8px 20px; font-size: 14px; font-weight: bold;
+  border-radius: 20px; cursor: pointer; color: #cbb6ff;
+  background: rgba(124,92,252,0.15); border: 1px solid rgba(124,92,252,0.5);
+  -webkit-tap-highlight-color: transparent;
+}
+/* 結果オーバーレイの報酬行 */
+.reward-line {
+  font-size: 15px; font-weight: bold; color: #ffd86b;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ============================================================
+   ホーム下部 5ボタンバー — #home-nav
+   ============================================================ */
+#home-nav {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 1002; /* オーバーレイ(1001)より前面 */
+  display: none; align-items: stretch;
+  background: rgba(10, 6, 26, 0.96);
+  border-top: 1px solid rgba(124, 92, 252, 0.3);
+  padding-bottom: env(safe-area-inset-bottom, 0px); /* iPhone ホームバー回避 */
+}
+#home-nav.show { display: flex; }
+/* チュートリアル中はプレイのみ → 中央寄せ */
+#home-nav.tutorial-only { justify-content: center; }
+.nav-item.active .nav-label { color: #fff; }
+.nav-item.active .nav-icon  { transform: translateY(-1px); filter: drop-shadow(0 0 6px rgba(124,92,252,0.7)); }
+.nav-item {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 3px;
+  padding: 10px 4px; min-height: 58px;
+  background: none; border: none; cursor: pointer; color: #cbb6ff;
+  text-decoration: none; -webkit-tap-highlight-color: transparent;
+}
+.nav-item .nav-icon  { font-size: 22px; line-height: 1; }
+.nav-item .nav-label { font-size: 11px; }
+.nav-item:active { background: rgba(124, 92, 252, 0.15); }
+/* 中央のプレイは一段持ち上げた丸ボタンで強調 */
+.nav-item.nav-play .nav-icon {
+  width: 46px; height: 46px; border-radius: 50%; margin-top: -20px;
+  display: flex; align-items: center; justify-content: center;
+  background: #7c5cfc; color: #fff; font-size: 18px;
+  box-shadow: 0 4px 14px rgba(124, 92, 252, 0.5);
+}
+.nav-item.nav-play .nav-label { color: #fff; font-weight: bold; }
+
+/* ============================================================
+   モード選択 / 研究 オーバーレイ
+   ============================================================ */
+#mode-select-overlay, #research-overlay {
+  display: none; position: fixed; inset: 0; z-index: 1001;
+  background: rgba(4, 2, 16, 0.97);
+  flex-direction: column; align-items: center;
+  overflow-y: auto; color: #fff;
+}
+#mode-select-overlay { justify-content: center; }
+#research-overlay    { justify-content: flex-start; }
+#mode-select-overlay.show, #research-overlay.show { display: flex; }
+#mode-select-panel, #research-panel {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 16px; width: 100%; max-width: 360px; padding: 32px 20px;
+}
+#mode-select-panel h2, #research-panel h2 { font-size: 26px; font-weight: bold; }
+
+/* 研究：文明レベル枠 */
+#research-civ {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  width: 100%; padding: 14px; border-radius: 14px;
+  background: rgba(124, 92, 252, 0.12); border: 1px solid rgba(124, 92, 252, 0.35);
+}
+#research-civ-level { font-size: 18px; font-weight: bold; color: #cbb6ff; }
+#research-civ-cost  { font-size: 13px; color: #8fd6ff; font-variant-numeric: tabular-nums; }
+#research-civ-up {
+  padding: 8px 22px; font-size: 14px; font-weight: bold; border-radius: 20px;
+  border: none; background: #7c5cfc; color: #fff; cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+#research-civ-up:disabled { background: #4a3a7a; color: #998; cursor: default; }
+#research-energy { font-size: 14px; color: #8fd6ff; font-weight: bold; font-variant-numeric: tabular-nums; }
+
+/* 研究：一覧 */
+#research-list { display: flex; flex-direction: column; gap: 10px; width: 100%; }
+.research-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 12px 14px; border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.research-item.owned  { opacity: 0.55; }
+.research-item.locked { opacity: 0.5; }
+.research-info { text-align: left; flex: 1; }
+.research-name { font-size: 14px; font-weight: bold; }
+.research-desc { font-size: 12px; color: #bbb; margin-top: 2px; }
+.research-buy-btn {
+  flex-shrink: 0; padding: 8px 12px; font-size: 13px; font-weight: bold;
+  border-radius: 18px; border: none; background: #7c5cfc; color: #fff; cursor: pointer;
+  white-space: nowrap; font-variant-numeric: tabular-nums;
+  -webkit-tap-highlight-color: transparent;
+}
+.research-buy-btn:disabled { background: #3a3358; color: #99a; cursor: default; }
+#research-close, #mode-select-close {
+  margin-top: 6px; padding: 8px 24px; font-size: 14px;
+  border-radius: 20px; cursor: pointer; color: #cbb6ff;
+  background: rgba(124, 92, 252, 0.15); border: 1px solid rgba(124, 92, 252, 0.5);
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ============================================================
+   リソースバー（星屑・エネルギー保有量 — ホーム画面上部）
+   ============================================================ */
+#resource-bar {
+  position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 20px;
+  background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 999px; padding: 5px 20px;
+  font-size: 15px; font-weight: 700; color: #e0d6ff;
+  white-space: nowrap; pointer-events: none; z-index: 1;
+}
+#res-stardust, #res-energy {
+  display: flex; align-items: center; gap: 5px;
+}
+.res-icon { font-size: 17px; line-height: 1; }
+/* 数字が到着時にポンと膨らむ */
+@keyframes resBump {
+  0%   { transform: scale(1); }
+  45%  { transform: scale(1.55); color: #fff; }
+  100% { transform: scale(1); }
+}
+#res-stardust.res-bump, #res-energy.res-bump {
+  animation: resBump 0.35s ease-out;
+}
+
+/* パーティクル（報酬飛翔） */
+.reward-particle {
+  position: fixed; pointer-events: none; z-index: 3000;
+  font-size: 22px; line-height: 1;
+  will-change: left, top, opacity, transform;
+  margin: -11px 0 0 -11px; /* 中心基準 */
+}
+
+/* ============================================================
+   タブUI追加分（固定バー対応・プレイパネル・ランキング・案内ポインター）
+   ============================================================ */
+/* ランキングオーバーレイ — cosmos/research と同様に全画面固定 */
+#ranking-overlay {
+  display: none; position: fixed; inset: 0; z-index: 1001;
+  background: rgba(4, 2, 16, 0.97);
+  flex-direction: column; align-items: center;
+  justify-content: flex-start; overflow-y: auto; color: #fff;
+}
+#ranking-overlay.show { display: flex; }
+
+/* 固定バーに隠れないよう余白を確保 */
+#start-screen { padding-bottom: 72px; }
+#cosmos-overlay, #research-overlay, #ranking-overlay { padding-bottom: 72px; box-sizing: border-box; }
+
+/* プレイ（ホーム既定）パネル */
+#play-panel {
+  display: flex; flex-direction: column; align-items: center; gap: 16px;
+}
+
+/* モード選択シート（スタート後に表示） */
+#mode-select-sheet {
+  display: flex; flex-direction: column; align-items: center; gap: 20px;
+  width: 100%; max-width: 320px;
+  animation: sheetIn 0.2s ease-out;
+}
+@keyframes sheetIn {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+#mode-select-title {
+  font-size: 18px; font-weight: bold; color: #c8b8ff; letter-spacing: 0.04em;
+}
+#mode-select-btns {
+  display: flex; flex-direction: column; gap: 12px; width: 100%;
+}
+.mode-card {
+  display: flex; flex-direction: column; gap: 4px;
+  padding: 16px 20px; border-radius: 14px; cursor: pointer;
+  border: 2px solid rgba(124,92,252,0.35);
+  background: rgba(124,92,252,0.1); color: #fff;
+  text-align: left; transition: border-color 0.15s, background 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.mode-card:hover, .mode-card:active {
+  border-color: #7c5cfc; background: rgba(124,92,252,0.25);
+}
+.mode-card .mc-name { font-size: 18px; font-weight: bold; }
+.mode-card .mc-desc { font-size: 13px; color: #b0a0d8; }
+#mode-select-back {
+  background: none; border: none; color: #9a84cc;
+  font-size: 14px; cursor: pointer; padding: 4px 8px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ステージ選択リスト（チュートリアルモード時） */
+#stage-select-list {
+  display: flex; flex-wrap: wrap; justify-content: center; gap: 8px;
+  max-width: 320px;
+}
+.stage-badge {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  min-width: 52px; padding: 6px 8px; border-radius: 10px;
+  font-size: 11px; font-weight: bold; cursor: pointer;
+  border: 2px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.05); color: #a090c8;
+  transition: border-color 0.15s, background 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.stage-badge .sb-num  { font-size: 15px; font-weight: bold; }
+.stage-badge .sb-icon { font-size: 13px; line-height: 1; }
+/* クリア済み */
+.stage-badge.cleared {
+  border-color: rgba(124,92,252,0.5); color: #c8b8ff; cursor: pointer;
+}
+.stage-badge.cleared:hover, .stage-badge.cleared:active {
+  border-color: #7c5cfc; background: rgba(124,92,252,0.18);
+}
+/* 選択中 */
+.stage-badge.selected {
+  border-color: #7c5cfc; background: rgba(124,92,252,0.28);
+  color: #fff; box-shadow: 0 0 8px rgba(124,92,252,0.5);
+}
+/* 未到達（選択不可） */
+.stage-badge.locked {
+  opacity: 0.35; cursor: default;
+}
+
+/* チュートリアル目標（ヘッダー内サブスタイル） */
+#stage-objective .obj-step {
+  font-size: 11px; opacity: 0.7; letter-spacing: 0.05em;
+}
+#stage-objective .obj-desc {
+  font-size: 14px; font-weight: bold; line-height: 1.4; color: #e8d8ff;
+}
+
+/* 案内ポインター（目標案内モード）。#tutorial-pointer を fixed 配置で流用 */
+#tutorial-pointer.obj-pointer {
+  pointer-events: none;
+}
+
+/* ランキングオーバーレイ */
+#ranking-panel {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 14px; width: 100%; max-width: 420px; padding: 32px 16px;
+}
+#ranking-panel h2 { font-size: 26px; font-weight: bold; }
+#rank-period-tabs { display: flex; gap: 8px; }
+.rank-period {
+  padding: 7px 16px; font-size: 13px; border-radius: 999px; cursor: pointer;
+  border: 1px solid rgba(124, 92, 252, 0.4); background: transparent; color: #b9a9e6;
+  -webkit-tap-highlight-color: transparent;
+}
+.rank-period.active { background: #7c5cfc; border-color: #7c5cfc; color: #fff; }
+#rank-list-home {
+  width: 100%; display: flex; flex-direction: column;
+  border-radius: 12px; border: 1px solid rgba(124, 92, 252, 0.18); overflow: hidden;
+}
+#rank-list-home .rank-card {
+  display: flex; align-items: center; gap: 10px; padding: 11px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05); min-height: 54px;
+}
+#rank-list-home .rank-card:last-child { border-bottom: none; }
+#rank-list-home .rank-card.is-mine { background: rgba(124, 92, 252, 0.12); border-left: 3px solid #7c5cfc; }
+#rank-list-home .rc-rank { width: 2.4em; text-align: right; font-weight: 700; font-size: 0.95rem; color: #9a8cc0; flex-shrink: 0; }
+#rank-list-home .rc-rank.top1 { color: #ffd700; }
+#rank-list-home .rc-rank.top2 { color: #c0c0c0; }
+#rank-list-home .rc-rank.top3 { color: #cd7f32; }
+#rank-list-home .rc-body { font-size: 1.5rem; width: 1.9rem; text-align: center; flex-shrink: 0; }
+#rank-list-home .rc-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+#rank-list-home .rc-player { font-size: 0.9rem; font-weight: 700; color: #d4baff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#rank-list-home .rc-score { font-size: 0.82rem; color: #a090c0; }
+#rank-list-home .rc-date { font-size: 0.72rem; color: #8a7caa; white-space: nowrap; flex-shrink: 0; }
+#rank-list-home .rank-status { text-align: center; padding: 40px 12px; color: #9a8cc0; font-size: 0.9rem; }
+#rank-list-home .rank-status.error { color: #ff6666; }
+#rank-fulllink {
+  font-size: 13px; color: #8fd6ff; text-decoration: none; margin-top: 4px;
+}
 
 #home-displayname-wrap {
   display: flex; flex-direction: column; align-items: center; gap: 6px;
