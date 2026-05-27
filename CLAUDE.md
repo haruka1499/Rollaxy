@@ -71,6 +71,25 @@ games/rollaxy/
   - スキル連鎖系 → `group: 'skill_chain'` / 同時存在系 → `group: 'sim'`
 - トーストには `condJa/condEn/condZh`（達成条件）を表示（sub フレーバーテキストではない）
 
+### 簡易チート対策方針（将来の課金・ランキング保護の前提）
+クライアント側（localStorage / JS）は原理的に改ざん可能なため、**完全防御は目指さない**。
+目的は「カジュアルな改ざんの抑止」と「将来サーバー検証へ繋ぐフック」の確保。本丸の enforcement は
+将来サーバー側（スコア妥当性・課金レシート検証）で行う。現状の最低限の仕組み:
+
+- **セーブ整合性署名**: メタ進行(`metaState`)を保存するたびに FNV-1a チェックサム（`_metaSig()`,
+  `CFG.META.ANTICHEAT.SIG_SALT` でソルト）を `META_SIG` に書き込む。読込時に再計算して照合し、
+  不一致なら `metaState._suspect = true` を立てて `console.warn`。**破壊的リセットはしない**
+  （正規ユーザーのセーブ破損を誤って消さないため）。
+- **検知ログ送出**: 不一致を検知したら `POST /api/rollaxy/report`（worker.js `handleReport`）へ
+  fire-and-forget でビーコン送信。サーバーは `console.warn('[anticheat] …')` で **Cloudflare ログ**
+  （`wrangler tail` / ダッシュボード）へ出力するのみ（永続化は必要時に Logpush）。多重送信は
+  クライアント側 `_reportSent` で抑止。現状はログ観測が目的で、能動的ペナルティ（獲得停止等）は未実装。
+- **時計操作対策**（オフライン報酬）: `settleEnergy()` で経過時間 `elapsed` が負（巻き戻し）なら 0、
+  進め過ぎは `CFG.META.IDLE.CAP_SEC`（12h）で頭打ち。報酬は「精算直前レート × 時間」のシンプル計算。
+- **値のサニタイズ**: 読込時に数値は `_metaNum()` で有限値チェック（`Infinity`/`NaN`/文字列注入は既定値へ）、
+  リソースは `Math.max(0, …)`、レベルは `Math.min/max/floor` でクランプ。
+- 新しい永続値を追加する際は **必ず `_metaSig()` の対象に含める**（署名の意味が薄れるのを防ぐ）。
+
 ---
 
 ## 農場×文明発展ゲーム — 開発中

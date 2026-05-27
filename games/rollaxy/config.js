@@ -205,7 +205,13 @@ const CFG = {
       TIER_LEVELS: [1, 4, 8, 13, 19, 26, 34, 43, 53, 64, 76, 89],
     },
     // 放置（オフライン）蓄積の上限（秒）。この時間分までしか溜まらない。
-    IDLE: { CAP_SEC: 4 * 3600 }, // 最大4時間分
+    IDLE: { CAP_SEC: 12 * 3600 }, // 最大12時間分
+
+    // 簡易チート対策（クライアント側は「抑止」のみ。本丸は将来のサーバー検証）。
+    // 詳細方針は CLAUDE.md「簡易チート対策方針」を参照。
+    ANTICHEAT: {
+      SIG_SALT: 'rlx_meta_v1', // セーブ署名のソルト（難読化目的・暗号強度なし）
+    },
 
     // ── 文明レベル（消費型）──
     // 恒星エネルギーを支払ってレベルアップ。レベルは研究の解禁ゲート専用（常時ボーナスなし）。
@@ -328,6 +334,7 @@ const STORAGE_KEYS = {
   META_MASS:          'rollaxy_meta_mass',         // 蓄積質量
   META_CIV_LEVEL:     'rollaxy_civ_level',         // 文明レベル
   META_RESEARCH:      'rollaxy_research',           // 所持研究ID配列(JSON)
+  META_SIG:           'rollaxy_meta_sig',           // セーブ整合性チェックサム（簡易チート対策）
 
   // ── レガシー（移行済み・読み取り/削除のみ。新規利用しない） ──
   LEGACY_HI:   'korokoro_hi',

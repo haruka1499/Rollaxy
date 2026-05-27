@@ -24,11 +24,30 @@ const metaState = {
   civLevel: CFG.META.CIV.START_LEVEL,
   research: new Set(), // 所持研究ID
   lastSaved: Date.now(),
+  _suspect: false,     // 簡易チート対策: セーブ署名不一致フラグ（将来サーバー検証へ送出）
 };
 
 function _metaNum(key, def) {
   const v = parseFloat(localStorage.getItem(key));
   return Number.isFinite(v) ? v : def;
+}
+
+// 簡易チート対策: セーブ全体の整合性チェックサム（FNV-1a, 暗号強度なし＝改ざん抑止用）。
+// localStorage を手で書き換えると署名が一致しなくなり _suspect フラグが立つ。
+function _metaSig() {
+  const s = [
+    CFG.META.ANTICHEAT.SIG_SALT,
+    metaState.stardust, metaState.energy, metaState.mass,
+    metaState.genLevel, metaState.civLevel,
+    [...metaState.research].sort().join(','),
+    metaState.lastSaved,
+  ].join('|');
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return (h >>> 0).toString(36);
 }
 
 function loadMeta() {
@@ -45,7 +64,34 @@ function loadMeta() {
     metaState.research = new Set(Array.isArray(ids) ? ids : []);
   } catch (_) { metaState.research = new Set(); }
   metaState.lastSaved = _metaNum(STORAGE_KEYS.META_LAST_SAVED, Date.now());
+
+  // 簡易チート対策: 署名検証。不一致＝外部編集の疑い。破壊的措置は取らず
+  // フラグを立てつつ Cloudflare ログへビーコン送出（将来のサーバー検証・課金保護のフック）。
+  const storedSig = localStorage.getItem(STORAGE_KEYS.META_SIG);
+  metaState._suspect = (storedSig !== null && storedSig !== _metaSig());
+  if (metaState._suspect) {
+    console.warn('[anticheat] meta integrity check failed');
+    _reportSuspect('meta_sig_mismatch');
+  }
+
   updateResourceBar();
+}
+
+// 簡易チート検知のサーバー通知（fire-and-forget）。Cloudflare ログに出すだけ。
+// 同一セッションでの多重送信は防ぐ。
+let _reportSent = false;
+function _reportSuspect(kind) {
+  if (_reportSent) return;
+  _reportSent = true;
+  try {
+    const pid = (typeof getPlayerId === 'function') ? getPlayerId() : null;
+    fetch('/api/rollaxy/report', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ player_id: pid, kind }),
+      keepalive: true,
+    }).catch(() => {});
+  } catch (_) {}
 }
 
 function saveMeta() {
@@ -56,6 +102,7 @@ function saveMeta() {
   localStorage.setItem(STORAGE_KEYS.META_CIV_LEVEL,  String(metaState.civLevel));
   localStorage.setItem(STORAGE_KEYS.META_RESEARCH,   JSON.stringify([...metaState.research]));
   localStorage.setItem(STORAGE_KEYS.META_LAST_SAVED, String(metaState.lastSaved));
+  localStorage.setItem(STORAGE_KEYS.META_SIG,        _metaSig()); // 整合性署名（簡易チート対策）
 }
 
 // ============================================================
@@ -142,32 +189,24 @@ function buyResearch(id) {
   return true;
 }
 
-// 放置（経過時間）分の質量・エネルギーを精算。時間上限あり。戻り値 = 今回加算したエネルギー量。
-// 質量は m(t) = m0 + r*t で増加。エネルギーは integral_0^T K*(m0+r*t)^(2/3) dt の解析解で計算。
-//   r > 0: K * 3/(5*r) * [(m0 + r*T)^(5/3) - m0^(5/3)]
-//   r = 0: K * m0^(2/3) * T
+// 放置（経過時間）分の質量・エネルギーを精算。時間上限あり（CAP_SEC = 12h）。
+// 戻り値 = 今回加算したエネルギー量。
+// シンプル計算: エネルギーレートは「精算直前の質量」で固定し、経過秒数を単純に掛ける。
+//   energyGain = energyRateFromMass(mass_before) * T
+//   massGain   = massProdRate() * T
+// ※ 簡易チート対策: 時計巻き戻り(elapsed<0)は 0 に、進め過ぎは CAP_SEC で頭打ち。
 function settleEnergy() {
   const now = Date.now();
   let elapsedSec = (now - metaState.lastSaved) / 1000;
   if (!Number.isFinite(elapsedSec) || elapsedSec < 0) elapsedSec = 0; // 時計巻き戻り対策
-  const T  = Math.min(elapsedSec, CFG.META.IDLE.CAP_SEC);
-  const k  = CFG.META.STAR.ENERGY_K;
-  const r  = massProdRate();
-  const m0 = metaState.mass;
+  const T = Math.min(elapsedSec, CFG.META.IDLE.CAP_SEC);
 
-  // 質量増加
-  metaState.mass += r * T;
-
-  // エネルギー増加（解析積分）
-  let energyGain;
-  if (r > 0) {
-    energyGain = k * (3 / (5 * r)) * (Math.pow(m0 + r * T, 5 / 3) - Math.pow(m0, 5 / 3));
-  } else {
-    energyGain = k * Math.pow(m0, 2 / 3) * T;
-  }
+  // エネルギーレートは精算前の質量で固定（オフライン直前のレート × 時間）
+  let energyGain = energyRateFromMass(metaState.mass) * T;
   if (!Number.isFinite(energyGain) || energyGain < 0) energyGain = 0;
 
-  metaState.energy   += energyGain;
+  metaState.mass    += massProdRate() * T; // 質量はレート × 時間で線形増加
+  metaState.energy  += energyGain;
   metaState.lastSaved = now;
   saveMeta();
   updateResourceBar();
@@ -514,7 +553,26 @@ function closeRankingHome() {
 // 初期化・イベント配線（スクリプトは body 末尾のため DOM 構築済み）
 // ============================================================
 loadMeta();
-settleEnergy(); // ページ読み込み時にオフライン分を反映（lastSaved 更新）
+// オフライン報酬: settleEnergy 前に経過時間を測り、戻り値（獲得エネルギー）を通知。
+(function _grantOfflineReward() {
+  const elapsedSec = (Date.now() - metaState.lastSaved) / 1000;
+  const gain = settleEnergy(); // lastSaved を更新（12h 上限・シンプル計算）
+  // 1分以上放置かつ 1以上の獲得があったときだけ控えめに通知
+  if (elapsedSec >= 60 && gain >= 1) _showOfflineReward(gain);
+})();
+
+// オフライン報酬トースト（ホーム上部に数秒表示）
+function _showOfflineReward(gain) {
+  const el = document.createElement('div');
+  el.className = 'offline-reward-toast';
+  el.textContent = T('offlineGain')(_fmt(gain));
+  document.body.appendChild(el);
+  requestAnimationFrame(() => el.classList.add('show'));
+  setTimeout(() => {
+    el.classList.add('hiding');
+    setTimeout(() => el.remove(), 450);
+  }, 4000);
+}
 
 // ※ 下部バーのタブ切替（恒星/研究/実績/ランキング/プレイ）は game.js の showHomeTab() が統括。
 //    ここでは各パネル内の操作だけ配線する。

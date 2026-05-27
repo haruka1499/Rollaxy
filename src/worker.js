@@ -756,6 +756,33 @@ async function handlePlayerUpdate(request, env) {
 }
 
 // ============================================================
+// POST /api/rollaxy/report — クライアント異常レポート（簡易チート検知ログ）
+// fire-and-forget。console.warn で Cloudflare ログ（wrangler tail / ダッシュボード）に出す。
+// 永続化が必要になったら Logpush を設定する。本格的な enforcement は将来別途実装。
+// ============================================================
+async function handleReport(request, env) {
+  const origin = request.headers.get('Origin') ?? '';
+  let body = {};
+  try { body = await request.json(); } catch (_) {}
+
+  const pid  = typeof body.player_id === 'string' ? body.player_id.slice(0, 40) : '?';
+  const kind = typeof body.kind === 'string' ? body.kind.slice(0, 32) : '?';
+  const cf   = request.cf || {};
+
+  console.warn('[anticheat] ' + JSON.stringify({
+    game:      GAME_ID,
+    kind,                                   // 例: 'meta_sig_mismatch'
+    player_id: pid,
+    country:   cf.country || null,
+    ip:        request.headers.get('CF-Connecting-IP') || null,
+    ua:        (request.headers.get('User-Agent') || '').slice(0, 120),
+    ts:        Date.now(),
+  }));
+
+  return json({ ok: true }, 200, corsHeaders(origin));
+}
+
+// ============================================================
 // メインルーター
 // ============================================================
 const ID_RE = /^[a-zA-Z0-9]{8,12}$/;
@@ -792,6 +819,10 @@ export default {
 
     if (method === 'POST' && path === '/api/rollaxy/achievements/unlock') {
       return handleAchievementsUnlock(request, env);
+    }
+
+    if (method === 'POST' && path === '/api/rollaxy/report') {
+      return handleReport(request, env);
     }
 
     if (method === 'POST' && path === '/api/admin/cleanup') {
