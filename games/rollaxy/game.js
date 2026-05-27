@@ -1632,14 +1632,18 @@ function updateHomeNav() {
   document.getElementById('home-nav')?.classList.toggle('tutorial-only', !done);
 }
 // バー全体のクリックを委譲（プレイは音声解除も行う）
+// ランキング・実績は同じボタンをもう一度押すとプレイに戻る（トグル）
 const _homeNavEl = document.getElementById('home-nav');
 if (_homeNavEl) {
   _homeNavEl.addEventListener('click', (e) => {
     const btn = e.target.closest('.nav-item');
     if (!btn) return;
-    if (btn.dataset.tab === 'play') _tryUnlockAudio();
+    const tab = btn.dataset.tab;
+    if (tab === 'play') _tryUnlockAudio();
     playDecisionSound();
-    showHomeTab(btn.dataset.tab);
+    // すでにアクティブな overlay タブを再押し → プレイに戻す
+    const isActive = btn.classList.contains('active');
+    showHomeTab(isActive && (tab === 'ranking' || tab === 'ach') ? 'play' : tab);
   });
 }
 
