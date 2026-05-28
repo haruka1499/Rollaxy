@@ -1348,7 +1348,7 @@ function updateStageObjective() {
     progEl.innerHTML = html;
   }
 
-  tutHud.style.display = '';
+  tutHud.style.display = 'block';
 }
 
 // ユーザー操作を記録（案内ポインターのアイドル判定リセット）。
