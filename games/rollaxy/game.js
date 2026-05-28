@@ -1667,6 +1667,11 @@ if (_skipTutorialBtn) {
     const _saved = localStorage.getItem(STORAGE_KEYS.MODE);
     currentModeId = (_saved && CFG.MODES.some(m => m.id === _saved && m.type !== 'tutorial'))
       ? _saved : CFG.DEFAULT_MODE;
+    logEvent('tutorial_skip', {
+      game_id:     'rollaxy',
+      game_number: parseInt(localStorage.getItem(STORAGE_KEYS.GAME_COUNT) || '0', 10),
+      lang:        typeof currentLang !== 'undefined' ? currentLang : 'ja',
+    });
     updateHomeNav();
     updateModeToggle();
   });
