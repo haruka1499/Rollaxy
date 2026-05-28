@@ -398,6 +398,13 @@ let _pendingShareId = null;
 // セッショントークン（beginGame() で取得し _createShare() で使う）
 let _sessionToken = null;
 
+// チュートリアルステージ番号（1始まり、非tutorialはnull）
+function _tutStageNum() {
+  if (curMode()?.type !== 'tutorial') return null;
+  const idx = CFG.STAGES.findIndex(s => s.id === currentStageId);
+  return idx >= 0 ? idx + 1 : null;
+}
+
 // replay / anti-cheat 用メタデータ
 let _gameStartTime     = 0; // beginGame() でセット
 let _dropCount         = 0; // 天体を落とすたびにカウント
@@ -1062,6 +1069,22 @@ function doStageClear() {
   if (_isLast && !isStageTutorialDone()) {
     localStorage.setItem(STORAGE_KEYS.STAGE_TUTORIAL_DONE, '1');
   }
+  // GA4: チュートリアルステージクリア
+  const _stNum = _tutStageNum();
+  logEvent('tutorial_stage_clear', {
+    game_id:     'rollaxy',
+    stage_id:    currentStageId,
+    stage_num:   _stNum,
+    score,
+    elapsed_sec: Math.round((Date.now() - _gameStartTime) / 1000),
+  });
+  if (_isLast) {
+    logEvent('tutorial_complete', {
+      game_id:     'rollaxy',
+      elapsed_sec: Math.round((Date.now() - _gameStartTime) / 1000),
+      game_number: parseInt(localStorage.getItem(STORAGE_KEYS.GAME_COUNT) || '0', 10),
+    });
+  }
   doGameOver();
 }
 
@@ -1153,16 +1176,17 @@ function doGameOver() {
     }
   } catch (_) {}
   logEvent('game_over', {
-    game_id:      'rollaxy',
-    mode:         currentModeId,
-    stage:        curMode()?.type === 'tutorial' ? currentStageId : null,
-    cleared:      _endIsClear ? 1 : 0,
+    game_id:            'rollaxy',
+    mode:               currentModeId,
+    stage:              curMode()?.type === 'tutorial' ? currentStageId : null,
+    tutorial_stage_num: _tutStageNum(),
+    cleared:            _endIsClear ? 1 : 0,
     score,
-    highest_tier: _highestTier,
-    drop_count:   _dropCount,
-    elapsed_sec:  _elapsedSec,
-    is_new_best:  isHi ? 1 : 0,
-    lang:         typeof currentLang !== 'undefined' ? currentLang : 'ja',
+    highest_tier:       _highestTier,
+    drop_count:         _dropCount,
+    elapsed_sec:        _elapsedSec,
+    is_new_best:        isHi ? 1 : 0,
+    lang:               typeof currentLang !== 'undefined' ? currentLang : 'ja',
   });
   // ランキング送信は endless モードのみ（stage スコアで endless リーダーボードを汚さない）。
   // stage モードではシェアボタンを隠し、_createShare() も呼ばない。
@@ -1527,7 +1551,7 @@ canvas.addEventListener('touchend', e => {
 on(retryBtn, () => {
   _clearAutoReturn();
   playDecisionSound();
-  logEvent('retry_click', { game_id: 'rollaxy', previous_score: score });
+  logEvent('retry_click', { game_id: 'rollaxy', mode: currentModeId, tutorial_stage_num: _tutStageNum(), previous_score: score });
   init();
 });
 
@@ -1815,13 +1839,14 @@ function beginGame(modeId = currentModeId, stageId = currentStageId) {
   const _gameCount  = _prevCount + 1;
   localStorage.setItem(STORAGE_KEYS.GAME_COUNT, String(_gameCount));
   logEvent('game_start', {
-    game_id:          'rollaxy',
-    mode:             currentModeId,
-    stage:            m.type === 'tutorial' ? currentStageId : null,
-    lang:             typeof currentLang !== 'undefined' ? currentLang : 'ja',
-    game_number:      _gameCount,           // 通算プレイ回数（リテンション分析用）
-    is_returning:     _prevCount > 0 ? 1 : 0, // 初回=0、2回目以降=1
-    has_display_name: localStorage.getItem(STORAGE_KEYS.NAME_SET) ? 1 : 0,
+    game_id:            'rollaxy',
+    mode:               currentModeId,
+    stage:              m.type === 'tutorial' ? currentStageId : null,
+    tutorial_stage_num: _tutStageNum(),
+    lang:               typeof currentLang !== 'undefined' ? currentLang : 'ja',
+    game_number:        _gameCount,
+    is_returning:       _prevCount > 0 ? 1 : 0,
+    has_display_name:   localStorage.getItem(STORAGE_KEYS.NAME_SET) ? 1 : 0,
   });
   _fetchSessionToken(); // セッショントークンをバックグラウンドで取得（ゲーム開始はブロックしない）
 

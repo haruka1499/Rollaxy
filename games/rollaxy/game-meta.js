@@ -186,6 +186,7 @@ function buyResearch(id) {
   metaState.research.add(id);
   saveMeta();
   updateResourceBar();
+  logEvent('research_unlock', { game_id: 'rollaxy', research_id: id, cost: def.cost });
   return true;
 }
 
@@ -244,6 +245,7 @@ function upgradeGenerator() {
   metaState.genLevel += 1;
   saveMeta();
   updateResourceBar();
+  logEvent('meta_upgrade', { game_id: 'rollaxy', type: 'generator', new_level: metaState.genLevel, cost });
   return true;
 }
 
