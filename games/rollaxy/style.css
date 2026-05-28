@@ -1329,7 +1329,8 @@ canvas { position: absolute; top: 0; left: 0; transform-origin: top left; }
 /* ランキングオーバーレイ */
 #ranking-panel {
   display: flex; flex-direction: column; align-items: center;
-  gap: 14px; width: 100%; max-width: 420px; padding: 32px 16px;
+  gap: 14px; width: 100%; max-width: 420px;
+  padding: 72px 16px 32px;
 }
 #ranking-panel h2 { font-size: 26px; font-weight: bold; }
 #rank-mode-tabs   { display: flex; gap: 8px; margin-bottom: 8px; }
