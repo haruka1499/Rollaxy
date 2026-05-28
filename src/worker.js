@@ -304,21 +304,39 @@ async function handleRanking(request, env) {
          ORDER BY score DESC LIMIT ?`
       ).bind(GAME_ID, since, mode, limit).all());
     } catch (_) {
-      ({ results } = await env.DB.prepare(
-        `SELECT id, score, highest_body_tier, created_at
-         FROM (
-           SELECT id, score, highest_body_tier, created_at,
-                  ROW_NUMBER() OVER (
-                    PARTITION BY player_id
-                    ORDER BY score DESC, created_at DESC
-                  ) AS rn
-           FROM shares
-           WHERE game_id=? AND created_at>=? AND player_id IS NOT NULL
-             AND COALESCE(mode,'endless')=?
-         )
-         WHERE rn=1
-         ORDER BY score DESC LIMIT ?`
-      ).bind(GAME_ID, since, mode, limit).all());
+      try {
+        ({ results } = await env.DB.prepare(
+          `SELECT id, score, highest_body_tier, created_at
+           FROM (
+             SELECT id, score, highest_body_tier, created_at,
+                    ROW_NUMBER() OVER (
+                      PARTITION BY player_id
+                      ORDER BY score DESC, created_at DESC
+                    ) AS rn
+             FROM shares
+             WHERE game_id=? AND created_at>=? AND player_id IS NOT NULL
+               AND COALESCE(mode,'endless')=?
+           )
+           WHERE rn=1
+           ORDER BY score DESC LIMIT ?`
+        ).bind(GAME_ID, since, mode, limit).all());
+      } catch (_) {
+        // mode列未追加(migration未実施)の場合の最終フォールバック。modeフィルターなし。
+        ({ results } = await env.DB.prepare(
+          `SELECT id, score, highest_body_tier, created_at
+           FROM (
+             SELECT id, score, highest_body_tier, created_at,
+                    ROW_NUMBER() OVER (
+                      PARTITION BY player_id
+                      ORDER BY score DESC, created_at DESC
+                    ) AS rn
+             FROM shares
+             WHERE game_id=? AND created_at>=? AND player_id IS NOT NULL
+           )
+           WHERE rn=1
+           ORDER BY score DESC LIMIT ?`
+        ).bind(GAME_ID, since, limit).all());
+      }
     }
   }
 
