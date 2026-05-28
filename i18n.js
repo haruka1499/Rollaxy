@@ -24,6 +24,7 @@ const _I18N = {
     siteDesc:      'ブラウザで遊べるゲーム集 — インストール不要',
     featured:      'Featured Games',
     rollaxyDesc:   '宇宙をテーマにした落ちものパズル。天体を合体させて銀河団を目指せ。',
+    playNow:       '今すぐ遊ぶ ▶',
     gamesPageDesc: 'ブラウザで遊べるゲーム一覧',
     // ── ランキングページ ──
     rankingTitle: '🏆 Rollaxy ランキング',
@@ -74,6 +75,7 @@ const _I18N = {
     siteDesc:      'Free browser games — no installation required',
     featured:      'Featured Games',
     rollaxyDesc:   'A space-themed falling merge puzzle. Combine celestial bodies and aim for the galaxy cluster.',
+    playNow:       'Play Now ▶',
     gamesPageDesc: 'Free browser games — play instantly',
     // ── Ranking page ──
     rankingTitle: '🏆 Rollaxy Ranking',
@@ -124,6 +126,7 @@ const _I18N = {
     siteDesc:      '免费网页游戏 — 无需安装',
     featured:      '推荐游戏',
     rollaxyDesc:   '以宇宙为主题的下落合并益智游戏。合并天体，挑战星系团。',
+    playNow:       '立即游玩 ▶',
     gamesPageDesc: '免费网页游戏列表',
     // ── 排行榜页面 ──
     rankingTitle: '🏆 Rollaxy 排行榜',
