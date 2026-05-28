@@ -187,12 +187,12 @@ async function handleSharePost(request, env) {
       dayRank, dayTotal,
       wkRank,  wkTotal,
     ] = await Promise.all([
-      env.DB.prepare(`SELECT COUNT(*) AS cnt FROM shares WHERE game_id=? AND score>?`         ).bind(GAME_ID, score   ).first(),
-      env.DB.prepare(`SELECT COUNT(*) AS cnt FROM shares WHERE game_id=?`                      ).bind(GAME_ID          ).first(),
-      env.DB.prepare(`SELECT COUNT(*) AS cnt FROM shares WHERE game_id=? AND score>? AND created_at>=?`).bind(GAME_ID, score, day1ago).first(),
-      env.DB.prepare(`SELECT COUNT(*) AS cnt FROM shares WHERE game_id=? AND created_at>=?`    ).bind(GAME_ID, day1ago ).first(),
-      env.DB.prepare(`SELECT COUNT(*) AS cnt FROM shares WHERE game_id=? AND score>? AND created_at>=?`).bind(GAME_ID, score, day7ago).first(),
-      env.DB.prepare(`SELECT COUNT(*) AS cnt FROM shares WHERE game_id=? AND created_at>=?`    ).bind(GAME_ID, day7ago ).first(),
+      env.DB.prepare(`SELECT COUNT(*) AS cnt FROM shares WHERE game_id=? AND score>?          AND COALESCE(mode,'endless')=?`).bind(GAME_ID, score,   mode).first(),
+      env.DB.prepare(`SELECT COUNT(*) AS cnt FROM shares WHERE game_id=?                      AND COALESCE(mode,'endless')=?`).bind(GAME_ID,         mode).first(),
+      env.DB.prepare(`SELECT COUNT(*) AS cnt FROM shares WHERE game_id=? AND score>? AND created_at>=? AND COALESCE(mode,'endless')=?`).bind(GAME_ID, score, day1ago, mode).first(),
+      env.DB.prepare(`SELECT COUNT(*) AS cnt FROM shares WHERE game_id=? AND created_at>=?    AND COALESCE(mode,'endless')=?`).bind(GAME_ID, day1ago, mode).first(),
+      env.DB.prepare(`SELECT COUNT(*) AS cnt FROM shares WHERE game_id=? AND score>? AND created_at>=? AND COALESCE(mode,'endless')=?`).bind(GAME_ID, score, day7ago, mode).first(),
+      env.DB.prepare(`SELECT COUNT(*) AS cnt FROM shares WHERE game_id=? AND created_at>=?    AND COALESCE(mode,'endless')=?`).bind(GAME_ID, day7ago, mode).first(),
     ]);
     periods = {
       all:   { rank: (allRank?.cnt ?? 0) + 1, total: Math.max(allTotal?.cnt ?? 1, 1) },
