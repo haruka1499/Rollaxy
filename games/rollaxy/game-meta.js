@@ -500,6 +500,7 @@ function closeResearch() {
 
 // ---- ランキングオーバーレイ（/api/rollaxy/ranking をネイティブ表示）----
 let _rankPeriod = 'daily';
+let _rankMode   = 'endless';
 function _esc(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
@@ -511,11 +512,13 @@ async function renderRankingHome() {
   if (!list) return;
   document.querySelectorAll('#rank-period-tabs .rank-period')
     .forEach(b => b.classList.toggle('active', b.dataset.period === _rankPeriod));
+  document.querySelectorAll('#rank-mode-tabs .rank-mode')
+    .forEach(b => b.classList.toggle('active', b.dataset.mode === _rankMode));
   list.innerHTML = `<div class="rank-status">${T('rankLoading')}</div>`;
   const tz = -(new Date().getTimezoneOffset());
   let entries;
   try {
-    const res = await fetch(`/api/rollaxy/ranking?period=${_rankPeriod}&limit=50&tz=${tz}`);
+    const res = await fetch(`/api/rollaxy/ranking?period=${_rankPeriod}&mode=${_rankMode}&limit=50&tz=${tz}`);
     if (!res.ok) throw new Error('http');
     entries = (await res.json()).entries || [];
   } catch (_) {
@@ -585,6 +588,9 @@ on(document.getElementById('research-civ-up'), () => {
 // ランキング期間タブ
 document.querySelectorAll('#rank-period-tabs .rank-period').forEach((btn) => {
   on(btn, () => { _rankPeriod = btn.dataset.period; renderRankingHome(); });
+});
+document.querySelectorAll('#rank-mode-tabs .rank-mode').forEach((btn) => {
+  on(btn, () => { _rankMode = btn.dataset.mode; renderRankingHome(); });
 });
 const _researchListEl = document.getElementById('research-list');
 if (_researchListEl) {

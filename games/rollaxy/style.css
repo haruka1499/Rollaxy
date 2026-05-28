@@ -1332,7 +1332,14 @@ canvas { position: absolute; top: 0; left: 0; transform-origin: top left; }
   gap: 14px; width: 100%; max-width: 420px; padding: 32px 16px;
 }
 #ranking-panel h2 { font-size: 26px; font-weight: bold; }
+#rank-mode-tabs   { display: flex; gap: 8px; margin-bottom: 8px; }
 #rank-period-tabs { display: flex; gap: 8px; }
+.rank-mode {
+  padding: 6px 14px; font-size: 12px; border-radius: 999px; cursor: pointer;
+  border: 1px solid rgba(124, 92, 252, 0.3); background: transparent; color: #b9a9e6;
+  -webkit-tap-highlight-color: transparent;
+}
+.rank-mode.active { background: #7c5cfc; border-color: #7c5cfc; color: #fff; }
 .rank-period {
   padding: 7px 16px; font-size: 13px; border-radius: 999px; cursor: pointer;
   border: 1px solid rgba(124, 92, 252, 0.4); background: transparent; color: #b9a9e6;
