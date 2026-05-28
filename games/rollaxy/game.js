@@ -1630,6 +1630,22 @@ function updateHomeNav() {
     b.style.display = done ? '' : 'none';
   });
   document.getElementById('home-nav')?.classList.toggle('tutorial-only', !done);
+  const skipBtn = document.getElementById('skip-tutorial-btn');
+  if (skipBtn) skipBtn.style.display = done ? 'none' : '';
+}
+// チュートリアルスキップ
+const _skipTutorialBtn = document.getElementById('skip-tutorial-btn');
+if (_skipTutorialBtn) {
+  _skipTutorialBtn.addEventListener('click', () => {
+    localStorage.setItem(STORAGE_KEYS.STAGE_TUTORIAL_DONE, '1');
+    localStorage.setItem(STORAGE_KEYS.TUTORIAL_DONE, '1');
+    tutorialDone = true;
+    const _saved = localStorage.getItem(STORAGE_KEYS.MODE);
+    currentModeId = (_saved && CFG.MODES.some(m => m.id === _saved && m.type !== 'tutorial'))
+      ? _saved : CFG.DEFAULT_MODE;
+    updateHomeNav();
+    updateModeToggle();
+  });
 }
 // バー全体のクリックを委譲（プレイは音声解除も行う）
 // ランキング・実績は同じボタンをもう一度押すとプレイに戻る（トグル）

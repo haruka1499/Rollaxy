@@ -944,6 +944,14 @@ canvas { position: absolute; top: 0; left: 0; transform-origin: top left; }
   -webkit-tap-highlight-color: transparent;
 }
 
+#skip-tutorial-btn {
+  margin-top: 10px; padding: 7px 22px; font-size: 13px;
+  background: transparent; color: rgba(180,160,255,0.7);
+  border: 1px solid rgba(180,160,255,0.3); border-radius: 20px;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+#skip-tutorial-btn:hover { color: rgba(200,180,255,0.9); border-color: rgba(180,160,255,0.6); }
+
 /* 設定オーバーレイ（#overlay と同じ半透明+blur デザイン） */
 #settings-overlay {
   display: none; position: absolute; inset: 0;
@@ -1058,12 +1066,6 @@ canvas { position: absolute; top: 0; left: 0; transform-origin: top left; }
   transform-origin: center center;
   animation: energyFloatUp 1.3s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
-#cosmos-balances {
-  display: flex; gap: 20px; font-size: 18px; font-weight: bold;
-  font-variant-numeric: tabular-nums;
-}
-#cosmos-stardust { color: #ffd86b; }
-#cosmos-energy   { color: #8fd6ff; }
 #cosmos-mass     { font-size: 13px; color: #c8b8f0; margin-bottom: 2px; }
 #cosmos-rate     { font-size: 13px; color: #b9a9e6; }
 #cosmos-generator {

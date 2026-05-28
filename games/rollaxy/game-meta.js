@@ -355,8 +355,6 @@ function renderCosmos() {
   }
   // 質量・残高
   _setTxt('cosmos-mass',     T('massInfo')(_fmt(metaState.mass), massProdRate().toFixed(1)));
-  _setTxt('cosmos-stardust', `💫 ${_fmt(metaState.stardust)}`);
-  _setTxt('cosmos-energy',   `⚡ ${_fmt(metaState.energy)}`);
   _setTxt('cosmos-rate',     `⚡ +${starEnergyRate().toFixed(2)} ${T('stellarEnergy')}${T('energyRate')}`);
   // 物質生成器
   _setTxt('cosmos-gen-level', T('generatorLevel')(metaState.genLevel));
