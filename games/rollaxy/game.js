@@ -1392,6 +1392,14 @@ function updateObjectivePointer() {
     );
     _skillTarget = _unmet ? _unmet[0] : null;
   }
+  // requireAnySkill: スコア目標達成済みでスキル未使用 → 所持スキルを指す
+  if (!_skillTarget && st.requireAnySkill && _skillUsedTypes.size < st.requireAnySkill) {
+    if (!st.goalScore || score >= st.goalScore) {
+      _skillTarget = ['bomb', 'upgrade', 'delete'].find(
+        s => skillCharges && (skillCharges[s] || 0) > 0
+      ) || 'bomb';
+    }
+  }
   let targetEl = null, text = '';
   if      (_skillTarget === 'bomb')    { targetEl = document.getElementById('skill-bomb');    text = T('skillHintBomb'); }
   else if (_skillTarget === 'upgrade') { targetEl = document.getElementById('skill-upgrade'); text = T('skillHintUpgrade'); }
