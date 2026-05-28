@@ -298,8 +298,10 @@ const STORAGE_KEYS = {
   PLAYER_ID:     'novora_player_id',
   DISPLAY_NAME:  'novora_display_name',
   SHARE_IDS:     'novora_share_ids',
-  BEST_SCORE:    'novora_best_score',
-  BEST_SHARE_ID: 'novora_best_share_id',
+  BEST_SCORE:         'novora_best_score',
+  BEST_SHARE_ID:      'novora_best_share_id',
+  BEST_SCORE_TIME:    'novora_best_score_time',
+  BEST_SHARE_ID_TIME: 'novora_best_share_id_time',
   LANG:          'novora_lang',
 
   // ── rollaxy_ : このゲーム専用（リセット対象） ──

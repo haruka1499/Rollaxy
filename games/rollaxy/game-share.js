@@ -41,6 +41,7 @@ async function _createShare() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         score,
+        mode:              typeof currentModeId !== 'undefined' ? currentModeId : 'endless',
         highest_body_tier: highestTier,
         snapshot_payload:  {
           bodies,
@@ -60,7 +61,8 @@ async function _createShare() {
     if (res.ok) {
       const { id, rank, total, periods } = await res.json();
       _pendingShareId = id;
-      addMyShareId(id, shareScore); // share_ids / best_share_id を localStorage に記録
+      const _shareMode = typeof currentModeId !== 'undefined' ? currentModeId : 'endless';
+      addMyShareId(id, shareScore, _shareMode); // share_ids / best_share_id を localStorage に記録
       // OGP 画像をバックグラウンドで生成（fire-and-forget）
       fetch(`/games/rollaxy/ogp/${id}`).catch(() => {});
       // 上位%を計算してゲームオーバー画面に表示（今日・今週・全期間の最良値）

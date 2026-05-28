@@ -28,6 +28,8 @@ const _I18N = {
     gamesPageDesc: 'ブラウザで遊べるゲーム一覧',
     // ── ランキングページ ──
     rankingTitle: '🏆 Rollaxy ランキング',
+    tabEndless:   'エンドレス',
+    tabTime:      'タイムアタック',
     tabAll:       '全期間',
     tabWeekly:    '今週',
     tabDaily:     '今日',
@@ -79,6 +81,8 @@ const _I18N = {
     gamesPageDesc: 'Free browser games — play instantly',
     // ── Ranking page ──
     rankingTitle: '🏆 Rollaxy Ranking',
+    tabEndless:   'Endless',
+    tabTime:      'Time Attack',
     tabAll:       'All Time',
     tabWeekly:    'This Week',
     tabDaily:     'Today',
@@ -130,6 +134,8 @@ const _I18N = {
     gamesPageDesc: '免费网页游戏列表',
     // ── 排行榜页面 ──
     rankingTitle: '🏆 Rollaxy 排行榜',
+    tabEndless:   '无尽模式',
+    tabTime:      '限时挑战',
     tabAll:       '全部时间',
     tabWeekly:    '本周',
     tabDaily:     '今日',

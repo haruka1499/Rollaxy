@@ -66,7 +66,8 @@ async function handleSharePost(request, env) {
   try { body = await request.json(); }
   catch { return json({ error: 'Invalid JSON' }, 400, corsHeaders(origin)); }
 
-  const { score, highest_body_tier, snapshot_payload, ui_lang = 'ja', version = 1, player_id = null, display_name = null } = body;
+  const { score, highest_body_tier, snapshot_payload, ui_lang = 'ja', version = 1, player_id = null, display_name = null, mode: rawMode = 'endless' } = body;
+  const mode = rawMode === 'time' ? 'time' : 'endless';
 
   // ── 基本バリデーション ──
   if (typeof score !== 'number' || !Number.isInteger(score) || score < 0 || score > 999999) {
@@ -137,9 +138,9 @@ async function handleSharePost(request, env) {
   // shares への INSERT（player_id / display_name 列が未追加の場合はフォールバック）
   try {
     await env.DB.prepare(
-      `INSERT INTO shares (id, game_id, version, score, highest_body_tier, snapshot_payload, ui_lang, created_at, retention_type, player_id, display_name)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'normal', ?, ?)`
-    ).bind(id, GAME_ID, version, score, highest_body_tier, payload, ui_lang, created_at, pid, dname).run();
+      `INSERT INTO shares (id, game_id, version, score, highest_body_tier, snapshot_payload, ui_lang, created_at, retention_type, player_id, display_name, mode)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'normal', ?, ?, ?)`
+    ).bind(id, GAME_ID, version, score, highest_body_tier, payload, ui_lang, created_at, pid, dname, mode).run();
   } catch (_) {
     await env.DB.prepare(
       `INSERT INTO shares (id, game_id, version, score, highest_body_tier, snapshot_payload, ui_lang, created_at, retention_type)
@@ -218,6 +219,7 @@ async function handleRanking(request, env) {
   const url    = new URL(request.url);
   const period = url.searchParams.get('period') ?? 'all';
   const limit  = Math.min(parseInt(url.searchParams.get('limit') ?? DEF_LIMIT, 10), MAX_LIMIT);
+  const mode   = url.searchParams.get('mode') === 'time' ? 'time' : 'endless';
 
   // tz: クライアントのUTCオフセット（分）。例: JST=+540、EST=-300
   // -(new Date().getTimezoneOffset()) で取得した値をそのまま渡す。
@@ -231,8 +233,8 @@ async function handleRanking(request, env) {
 
   // all はタイムゾーン無関係。daily/weekly はtz別にキャッシュを分ける
   const cacheKey = period === 'all'
-    ? `${GAME_ID}:ranking:${period}:${limit}`
-    : `${GAME_ID}:ranking:${period}:${limit}:tz${tz}`;
+    ? `${GAME_ID}:ranking:${mode}:${period}:${limit}`
+    : `${GAME_ID}:ranking:${mode}:${period}:${limit}:tz${tz}`;
   try {
     const cached = await env.RANKING_CACHE.get(cacheKey, 'json');
     if (cached) return json(cached, 200, { 'X-Cache': 'HIT' });
@@ -279,10 +281,11 @@ async function handleRanking(request, env) {
          FROM shares s
          LEFT JOIN players p ON s.player_id = p.player_id
          WHERE s.game_id=? AND s.created_at>=? AND s.player_id IS NOT NULL
+           AND COALESCE(s.mode,'endless')=?
        )
        WHERE rn=1
        ORDER BY score DESC LIMIT ?`
-    ).bind(GAME_ID, since, limit).all());
+    ).bind(GAME_ID, since, mode, limit).all());
   } catch (_) {
     try {
       ({ results } = await env.DB.prepare(
@@ -295,10 +298,11 @@ async function handleRanking(request, env) {
                   ) AS rn
            FROM shares
            WHERE game_id=? AND created_at>=? AND player_id IS NOT NULL
+             AND COALESCE(mode,'endless')=?
          )
          WHERE rn=1
          ORDER BY score DESC LIMIT ?`
-      ).bind(GAME_ID, since, limit).all());
+      ).bind(GAME_ID, since, mode, limit).all());
     } catch (_) {
       ({ results } = await env.DB.prepare(
         `SELECT id, score, highest_body_tier, created_at
@@ -310,10 +314,11 @@ async function handleRanking(request, env) {
                   ) AS rn
            FROM shares
            WHERE game_id=? AND created_at>=? AND player_id IS NOT NULL
+             AND COALESCE(mode,'endless')=?
          )
          WHERE rn=1
          ORDER BY score DESC LIMIT ?`
-      ).bind(GAME_ID, since, limit).all());
+      ).bind(GAME_ID, since, mode, limit).all());
     }
   }
 

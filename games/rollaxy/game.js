@@ -293,7 +293,8 @@ let debugBi      = 0;     // パレットで選択中の天体インデックス
 let debugDragging = false; // 左ボタン押しっぱなし中
 
 // korokoro_hi は旧キー名。rollaxy_hi に移行済みなら旧キーは無視される。
-let hiScore = +(localStorage.getItem(STORAGE_KEYS.HI_SCORE) || localStorage.getItem(STORAGE_KEYS.LEGACY_HI) || 0);
+let hiScore     = +(localStorage.getItem(STORAGE_KEYS.HI_SCORE)       || localStorage.getItem(STORAGE_KEYS.LEGACY_HI) || 0);
+let hiScoreTime = +(localStorage.getItem(STORAGE_KEYS.BEST_SCORE_TIME) || 0);
 hiEl.textContent = `${T('best')}: ${hiScore}`;
 
 // ============================================================
@@ -1124,14 +1125,20 @@ function doGameOver() {
       _endReason === 'timeup' ? T('timeUp') :
                                 T('gameOver');
   }
-  // 自己ベスト更新は endless のみ（time/tutorial は best 表示・ランキング対象外）。
-  const isHi = curMode().type === 'endless' && score > hiScore;
+  // 自己ベスト更新（endless / time それぞれ独立して管理）
+  const _mtype = curMode().type;
+  const isHi = (_mtype === 'endless' && score > hiScore) || (_mtype === 'time' && score > hiScoreTime);
   toggleShow(newHiEl, isHi);
   if (isHi) {
-    hiScore = score;
-    localStorage.setItem(STORAGE_KEYS.HI_SCORE, score);
-    localStorage.removeItem(STORAGE_KEYS.LEGACY_HI); // 旧キーを削除（移行完了）
-    hiEl.textContent = `${T('best')}: ${hiScore}`;
+    if (_mtype === 'endless') {
+      hiScore = score;
+      localStorage.setItem(STORAGE_KEYS.HI_SCORE, score);
+      localStorage.removeItem(STORAGE_KEYS.LEGACY_HI);
+      hiEl.textContent = `${T('best')}: ${hiScore}`;
+    } else if (_mtype === 'time') {
+      hiScoreTime = score;
+      localStorage.setItem(STORAGE_KEYS.BEST_SCORE_TIME, score);
+    }
   }
   // GA4 game_over イベント
   // _startGameOverAnim() が bmap を順次削除する前にここで計算する
@@ -1188,10 +1195,9 @@ function doGameOver() {
     is_new_best:        isHi ? 1 : 0,
     lang:               typeof currentLang !== 'undefined' ? currentLang : 'ja',
   });
-  // ランキング送信は endless モードのみ（stage スコアで endless リーダーボードを汚さない）。
-  // stage モードではシェアボタンを隠し、_createShare() も呼ばない。
+  // ランキング送信は endless / time モード（tutorial/stage は対象外）
   _pendingShareId = null;
-  if (curMode()?.type === 'endless') {
+  if (curMode()?.type === 'endless' || curMode()?.type === 'time') {
     shareBtn.classList.remove('is-hidden');
     shareBtn.disabled = true;
     shareBtn.textContent = T('sharePreparing');

@@ -94,13 +94,15 @@ function getGuestCode() {
 
 // 自分のシェアID一覧を localStorage に追記（最大50件）
 // ベストスコア更新時は best_share_id / best_score も更新
-function addMyShareId(shareId, currentScore) {
+function addMyShareId(shareId, currentScore, mode = 'endless') {
   const ids = JSON.parse(localStorage.getItem(STORAGE_KEYS.SHARE_IDS) || '[]');
   if (!ids.includes(shareId)) ids.push(shareId);
   localStorage.setItem(STORAGE_KEYS.SHARE_IDS, JSON.stringify(ids.slice(-50)));
-  const best = Number(localStorage.getItem(STORAGE_KEYS.BEST_SCORE) || 0);
+  const bestKey      = mode === 'time' ? STORAGE_KEYS.BEST_SCORE_TIME    : STORAGE_KEYS.BEST_SCORE;
+  const bestShareKey = mode === 'time' ? STORAGE_KEYS.BEST_SHARE_ID_TIME : STORAGE_KEYS.BEST_SHARE_ID;
+  const best = Number(localStorage.getItem(bestKey) || 0);
   if (currentScore >= best) {
-    localStorage.setItem(STORAGE_KEYS.BEST_SCORE, String(currentScore));
-    localStorage.setItem(STORAGE_KEYS.BEST_SHARE_ID, shareId);
+    localStorage.setItem(bestKey,      String(currentScore));
+    localStorage.setItem(bestShareKey, shareId);
   }
 }

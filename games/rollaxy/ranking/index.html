@@ -41,8 +41,10 @@
       display: flex;
       justify-content: center;
       gap: 8px;
-      margin-bottom: 20px;
+      margin-bottom: 10px;
     }
+    .rank-mode-tabs  { margin-bottom: 8px; }
+    .rank-period-tabs { margin-bottom: 20px; }
     .rank-tab {
       padding: 9px 22px;
       border: 1px solid rgba(124,92,252,0.35);
@@ -277,11 +279,17 @@
   <div class="ranking-wrap">
     <h1 class="ranking-title" data-i18n="rankingTitle">🏆 Rollaxy ランキング</h1>
 
-    <!-- タブ（全期間 / 今週 / 今日） -->
-    <div class="rank-tabs">
+    <!-- モードタブ（エンドレス / タイムアタック） -->
+    <div class="rank-tabs rank-mode-tabs">
+      <button class="rank-tab" data-mode="endless" data-i18n="tabEndless">エンドレス</button>
+      <button class="rank-tab" data-mode="time"    data-i18n="tabTime">タイムアタック</button>
+    </div>
+
+    <!-- 期間タブ（全期間 / 今週 / 今日） -->
+    <div class="rank-tabs rank-period-tabs">
       <button class="rank-tab" data-period="weekly" data-i18n="tabWeekly">今週</button>
-      <button class="rank-tab" data-period="daily" data-i18n="tabDaily">今日</button>
-      <button class="rank-tab" data-period="all" data-i18n="tabAll">全期間</button>
+      <button class="rank-tab" data-period="daily"  data-i18n="tabDaily">今日</button>
+      <button class="rank-tab" data-period="all"    data-i18n="tabAll">全期間</button>
     </div>
 
     <!-- カードリスト（自分のベストカードはリスト先頭にJSで挿入） -->
@@ -328,8 +336,13 @@ function fmtDate(unixSec) {
 function getMyShareIds() {
   try { return JSON.parse(localStorage.getItem('novora_share_ids') || '[]'); } catch { return []; }
 }
-function getBestShareId() {
-  return localStorage.getItem('novora_best_share_id') || null;
+function getBestShareId(mode) {
+  const key = mode === 'time' ? 'novora_best_share_id_time' : 'novora_best_share_id';
+  return localStorage.getItem(key) || null;
+}
+function getBestScore(mode) {
+  const key = mode === 'time' ? 'novora_best_score_time' : 'novora_best_score';
+  return Number(localStorage.getItem(key) || 0);
 }
 
 // ゲームに戻るボタン
@@ -342,28 +355,44 @@ document.getElementById('back-btn').addEventListener('click', () => {
 
 // ── URL state ──
 const VALID_PERIODS = ['all', 'weekly', 'daily'];
+const VALID_MODES   = ['endless', 'time'];
 const params = new URLSearchParams(location.search);
 let period = VALID_PERIODS.includes(params.get('period')) ? params.get('period') : 'daily';
+let rankMode = VALID_MODES.includes(params.get('mode')) ? params.get('mode') : 'endless';
 
 // ── タブ ──
 function renderTabs() {
-  document.querySelectorAll('.rank-tab').forEach(btn => {
+  document.querySelectorAll('.rank-period-tabs .rank-tab').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.period === period);
+  });
+  document.querySelectorAll('.rank-mode-tabs .rank-tab').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.mode === rankMode);
   });
 }
 
-document.querySelectorAll('.rank-tab').forEach(btn => {
+document.querySelectorAll('.rank-period-tabs .rank-tab').forEach(btn => {
   btn.addEventListener('click', () => {
     if (btn.dataset.period === period) return;
     period = btn.dataset.period;
-    history.pushState({ period }, '', `?period=${period}`);
+    history.pushState({ period, rankMode }, '', `?period=${period}&mode=${rankMode}`);
+    renderTabs();
+    loadRanking();
+  });
+});
+
+document.querySelectorAll('.rank-mode-tabs .rank-tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    if (btn.dataset.mode === rankMode) return;
+    rankMode = btn.dataset.mode;
+    history.pushState({ period, rankMode }, '', `?period=${period}&mode=${rankMode}`);
     renderTabs();
     loadRanking();
   });
 });
 
 window.addEventListener('popstate', e => {
-  period = e.state?.period || 'daily';
+  period   = e.state?.period   || 'daily';
+  rankMode = e.state?.rankMode || 'endless';
   renderTabs();
   loadRanking();
 });
@@ -375,15 +404,15 @@ async function loadRanking() {
   list.innerHTML = `<div class="rank-status">${tg('rankLoading')}</div>`;
 
   const myIds     = getMyShareIds();
-  const bestId    = getBestShareId();
-  const bestScore = Number(localStorage.getItem('novora_best_score') || 0);
+  const bestId    = getBestShareId(rankMode);
+  const bestScore = getBestScore(rankMode);
   const scoreUnit = tg('scoreUnit') || '点';
 
   // tz: -(getTimezoneOffset()) でUTC+分数に変換（getTimezoneOffset は符号が逆）
   const _tz = -(new Date().getTimezoneOffset());
   let entries;
   try {
-    const res = await fetch(`/api/rollaxy/ranking?period=${period}&limit=100&tz=${_tz}`);
+    const res = await fetch(`/api/rollaxy/ranking?period=${period}&mode=${rankMode}&limit=100&tz=${_tz}`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     entries = data.entries || [];
@@ -467,10 +496,10 @@ renderTabs();
 loadRanking();
 
 // ranking_open イベント（ページ読み込み時に一度だけ送信）
-// タブ切り替えや言語変更による loadRanking() 再呼び出しでは送信しない
 gtag('event', 'ranking_open', {
-  game_id: 'rollaxy',
-  period,  // URL パラメータから取得した初期タブ
+  game_id:   'rollaxy',
+  period,
+  rank_mode: rankMode,
 });
 </script>
 
