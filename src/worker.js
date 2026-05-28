@@ -241,25 +241,21 @@ async function handleRanking(request, env) {
   } catch (_) {}
 
   const now   = Math.floor(Date.now() / 1000);
-  // ── カレンダー境界計算 ──
-  // ローリングウィンドウ（now-86400s）ではなく、ローカル時刻の「今日00:00」「今週月曜00:00」を使う。
-  // tzSec: UTCオフセットを秒換算。localNow: ローカル時刻での Unix 秒（擬似値）。
+  // ── 期間境界計算 ──
+  // daily: 直近24hローリングウィンドウ（カレンダー0時区切りではない）
+  // weekly: ローカル時刻の今週月曜00:00（カレンダー区切りを維持）
   let since;
   if (period === 'all') {
     since = 0;
+  } else if (period === 'daily') {
+    since = now - 86400; // 直近24時間
   } else {
-    const tzSec   = tz * 60;
-    const localNow = now + tzSec; // ローカル時刻でのUnix秒（エポックからの秒数をローカル基準にずらす）
-    if (period === 'daily') {
-      // ローカルの今日 00:00:00 をUTCのUnix秒に変換
-      since = Math.floor(localNow / 86400) * 86400 - tzSec;
-    } else {
-      // ローカルの今週月曜 00:00:00 をUTCのUnix秒に変換
-      // エポック(1970-01-01)は木曜 → 月曜起算(0=Mon)で index 3
-      const localDays       = Math.floor(localNow / 86400);
-      const daysSinceMonday = (localDays + 3) % 7; // 0=月,1=火,...,6=日
-      since = (localDays - daysSinceMonday) * 86400 - tzSec;
-    }
+    // weekly: ローカルの今週月曜 00:00:00 をUTCのUnix秒に変換
+    const tzSec          = tz * 60;
+    const localNow       = now + tzSec;
+    const localDays      = Math.floor(localNow / 86400);
+    const daysSinceMonday = (localDays + 3) % 7; // 0=月,1=火,...,6=日
+    since = (localDays - daysSinceMonday) * 86400 - tzSec;
   }
 
   // ── ランキング取得（プレイヤーごとにベストスコアのみ表示） ──
