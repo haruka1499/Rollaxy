@@ -323,9 +323,9 @@ async function handleRanking(request, env) {
       } catch (_) {
         // mode列未追加(migration未実施)の場合の最終フォールバック。modeフィルターなし。
         ({ results } = await env.DB.prepare(
-          `SELECT id, score, highest_body_tier, created_at
+          `SELECT id, score, highest_body_tier, created_at, display_name
            FROM (
-             SELECT id, score, highest_body_tier, created_at,
+             SELECT id, score, highest_body_tier, created_at, display_name,
                     ROW_NUMBER() OVER (
                       PARTITION BY player_id
                       ORDER BY score DESC, created_at DESC
