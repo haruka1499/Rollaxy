@@ -802,6 +802,100 @@ async function handleReport(request, env) {
 }
 
 // ============================================================
+// POST /api/rollaxy/feedback — ユーザーからのフィードバック投稿。
+// Discord webhook (env.FEEDBACK_DISCORD_WEBHOOK) に embed 形式で転送。
+// D1 保存はせず、流れたら見逃すリスクは許容（開発期フィードバック収集用）。
+// レート制限: IP 5件/10分。
+// ============================================================
+async function _rateLimitFeedback(env, ip) {
+  const key = `rl:feedback:${ip}`;
+  try {
+    const cur = parseInt(await env.RANKING_CACHE.get(key) || '0', 10);
+    if (cur >= 5) return false;
+    await env.RANKING_CACHE.put(key, String(cur + 1), { expirationTtl: 600 });
+    return true;
+  } catch { return true; }
+}
+
+async function handleFeedback(request, env) {
+  const origin = request.headers.get('Origin') ?? '';
+
+  let body;
+  try { body = await request.json(); }
+  catch { return json({ error: 'Invalid JSON' }, 400, corsHeaders(origin)); }
+
+  // 本文（必須・1〜1000 文字・サニタイズ）
+  const rawText = typeof body.text === 'string' ? body.text.trim() : '';
+  if (rawText.length < 1 || rawText.length > 1000) {
+    return json({ error: 'invalid text length' }, 400, corsHeaders(origin));
+  }
+  const text = rawText.replace(/[<>"&]/g, c => ({
+    '<': '&lt;', '>': '&gt;', '"': '&quot;', '&': '&amp;',
+  })[c]);
+
+  // source
+  const source = ['start', 'gameover', 'clear'].includes(body.source) ? body.source : 'unknown';
+
+  // context（クライアント値を採用、サーバーで型だけ検証）
+  const ctx = (body.context && typeof body.context === 'object') ? body.context : {};
+  const pid = (typeof ctx.player_id === 'string' && /^[a-z]+_[a-z0-9]{8,28}$/.test(ctx.player_id))
+    ? ctx.player_id : '?';
+  const dname = (typeof ctx.display_name === 'string')
+    ? ctx.display_name.trim().replace(/[<>"&]/g, '').slice(0, 15) : '';
+  const score = (typeof ctx.score === 'number' && Number.isFinite(ctx.score)) ? ctx.score : null;
+  const mode  = (typeof ctx.mode === 'string') ? ctx.mode.slice(0, 16) : '';
+  const stage = (typeof ctx.stage_id === 'string') ? ctx.stage_id.slice(0, 16) : '';
+  const lang  = (typeof ctx.lang === 'string') ? ctx.lang.slice(0, 8) : '';
+
+  // レート制限
+  const ip = request.headers.get('CF-Connecting-IP') ?? 'unknown';
+  if (!(await _rateLimitFeedback(env, ip))) {
+    return json({ error: 'rate limit exceeded' }, 429, corsHeaders(origin));
+  }
+
+  // Discord webhook
+  const webhook = env.FEEDBACK_DISCORD_WEBHOOK;
+  if (!webhook) {
+    console.warn('[feedback] FEEDBACK_DISCORD_WEBHOOK not configured');
+    return json({ error: 'webhook not configured' }, 500, corsHeaders(origin));
+  }
+
+  const ua = (request.headers.get('User-Agent') || '').slice(0, 200);
+  const country = (request.cf && request.cf.country) || '?';
+
+  const embed = {
+    title: `🎮 Rollaxy フィードバック (${source})`,
+    description: text,
+    color: 0x8fd6ff,
+    fields: [
+      { name: 'プレイヤー', value: `${dname || '匿名'} (${pid})`, inline: true },
+      { name: 'モード / スコア', value: `${mode || '-'} / ${score ?? '-'}`, inline: true },
+      { name: 'ステージ', value: stage || '-', inline: true },
+      { name: '言語 / 国', value: `${lang || '-'} / ${country}`, inline: true },
+      { name: 'UA', value: ua || '-', inline: false },
+    ],
+    timestamp: new Date().toISOString(),
+  };
+
+  try {
+    const res = await fetch(webhook, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ embeds: [embed] }),
+    });
+    if (!res.ok) {
+      console.warn(`[feedback] discord webhook failed: ${res.status}`);
+      return json({ ok: false }, 502, corsHeaders(origin));
+    }
+  } catch (err) {
+    console.warn(`[feedback] discord webhook error: ${err}`);
+    return json({ ok: false }, 502, corsHeaders(origin));
+  }
+
+  return json({ ok: true }, 200, corsHeaders(origin));
+}
+
+// ============================================================
 // メインルーター
 // ============================================================
 const ID_RE = /^[a-zA-Z0-9]{8,12}$/;
@@ -842,6 +936,10 @@ export default {
 
     if (method === 'POST' && path === '/api/rollaxy/report') {
       return handleReport(request, env);
+    }
+
+    if (method === 'POST' && path === '/api/rollaxy/feedback') {
+      return handleFeedback(request, env);
     }
 
     if (method === 'POST' && path === '/api/admin/cleanup') {

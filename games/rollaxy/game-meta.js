@@ -556,26 +556,92 @@ function closeRankingHome() {
 // 初期化・イベント配線（スクリプトは body 末尾のため DOM 構築済み）
 // ============================================================
 loadMeta();
-// オフライン報酬: settleEnergy 前に経過時間を測り、戻り値（獲得エネルギー）を通知。
-(function _grantOfflineReward() {
-  const elapsedSec = (Date.now() - metaState.lastSaved) / 1000;
-  const gain = settleEnergy(); // lastSaved を更新（12h 上限・シンプル計算）
-  // 1分以上放置かつ 1以上の獲得があったときだけ控えめに通知
-  if (elapsedSec >= 60 && gain >= 1) _showOfflineReward(gain);
+// オフライン報酬: 質量のみ先に精算し、エネルギーは保留してモーダルで「受け取る」ボタンを表示。
+let _pendingOfflineEnergy = 0;
+(function _initOfflineReward() {
+  const now = Date.now();
+  let elapsedSec = (now - metaState.lastSaved) / 1000;
+  if (!Number.isFinite(elapsedSec) || elapsedSec < 0) elapsedSec = 0;
+  const T = Math.min(elapsedSec, CFG.META.IDLE.CAP_SEC);
+
+  // エネルギー獲得量を計算（まだ加算しない）
+  let energyGain = energyRateFromMass(metaState.mass) * T;
+  if (!Number.isFinite(energyGain) || energyGain < 0) energyGain = 0;
+
+  // 質量は即時反映・lastSaved 更新（エネルギーは保留）
+  metaState.mass     += massProdRate() * T;
+  metaState.lastSaved = now;
+  saveMeta();
+  updateResourceBar();
+
+  // 1分以上放置 & 1以上の獲得があればモーダル表示
+  if (elapsedSec >= 60 && energyGain >= 1) {
+    _pendingOfflineEnergy = energyGain;
+    _showOfflineRewardModal(elapsedSec, energyGain);
+  }
 })();
 
-// オフライン報酬トースト（ホーム上部に数秒表示）
-function _showOfflineReward(gain) {
-  const el = document.createElement('div');
-  el.className = 'offline-reward-toast';
-  el.textContent = T('offlineGain')(_fmt(gain));
-  document.body.appendChild(el);
-  requestAnimationFrame(() => el.classList.add('show'));
-  setTimeout(() => {
-    el.classList.add('hiding');
-    setTimeout(() => el.remove(), 450);
-  }, 4000);
+// オフライン報酬モーダルを表示
+function _showOfflineRewardModal(elapsedSec, energyGain) {
+  const modal = document.getElementById('offline-reward-modal');
+  if (!modal) return;
+
+  const totalMin = Math.floor(elapsedSec / 60);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+
+  document.getElementById('offline-reward-title').textContent   = T('offlineTitle');
+  document.getElementById('offline-reward-duration').textContent = T('offlineDuration')(h, m);
+  document.getElementById('offline-reward-label').textContent   = T('offlineEnergyLabel');
+  document.getElementById('offline-reward-amount').textContent  = '+' + _fmt(Math.floor(energyGain));
+  document.getElementById('offline-reward-collect-btn').textContent = T('offlineCollectBtn');
+
+  modal.style.display = 'flex';
 }
+
+// 「受け取る」ボタン: エネルギー付与 → パーティクル → モーダル閉じる
+function _collectOfflineReward() {
+  if (_pendingOfflineEnergy <= 0) return;
+  metaState.energy += _pendingOfflineEnergy;
+  _pendingOfflineEnergy = 0;
+  saveMeta();
+  updateResourceBar();
+
+  // エネルギーパーティクルをモーダルの受け取るボタン付近から #res-energy へ飛ばす
+  const target = document.getElementById('res-energy');
+  const btn    = document.getElementById('offline-reward-collect-btn');
+  if (target && btn) {
+    const tRect = target.getBoundingClientRect();
+    const bRect = btn.getBoundingClientRect();
+    const sx = bRect.left + bRect.width  / 2;
+    const sy = bRect.top  + bRect.height / 2;
+    const tx = tRect.left + tRect.width  / 2 - sx;
+    const ty = tRect.top  + tRect.height / 2 - sy;
+    const count = Math.min(18, Math.max(6, Math.floor(metaState.energy / 50)));
+    for (let i = 0; i < count; i++) {
+      const p = document.createElement('span');
+      p.className = 'energy-particle';
+      p.textContent = '⚡';
+      const spread = 40;
+      const ox = (Math.random() - 0.5) * spread;
+      const oy = (Math.random() - 0.5) * spread;
+      const dur = 0.5 + Math.random() * 0.35;
+      const delay = i * 0.03;
+      p.style.cssText = `left:${sx + ox}px; top:${sy + oy}px;`
+        + `--tx:${tx - ox}px; --ty:${ty - oy}px; --dur:${dur}s;`
+        + `animation-delay:${delay}s;`;
+      document.body.appendChild(p);
+      setTimeout(() => p.remove(), (dur + delay + 0.1) * 1000);
+    }
+  }
+
+  // モーダルを閉じる
+  const modal = document.getElementById('offline-reward-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+// オフライン報酬モーダルの「受け取る」ボタン
+on(document.getElementById('offline-reward-collect-btn'), () => _collectOfflineReward());
 
 // ※ 下部バーのタブ切替（恒星/研究/実績/ランキング/プレイ）は game.js の showHomeTab() が統括。
 //    ここでは各パネル内の操作だけ配線する。

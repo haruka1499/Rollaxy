@@ -1842,20 +1842,168 @@ canvas { position: absolute; top: 0; left: 0; transform-origin: top left; }
 .ach-toast-in  { animation: achToastIn  0.35s cubic-bezier(0.22,1,0.36,1) both; }
 .ach-toast-out { animation: achToastOut 0.42s cubic-bezier(0.4,0,1,1) both; }
 
-/* ── オフライン報酬トースト（ホーム上部） ── */
-.offline-reward-toast {
-  position: fixed; top: calc(16px + env(safe-area-inset-top, 0px)); left: 50%;
-  transform: translate(-50%, -140%);
-  z-index: 1003;
-  padding: 10px 20px; border-radius: 999px;
-  background: linear-gradient(135deg, rgba(60,40,120,0.96), rgba(30,18,70,0.96));
-  border: 1px solid rgba(143,214,255,0.5);
-  color: #cfe9ff; font-size: 14px; font-weight: bold; white-space: nowrap;
-  box-shadow: 0 6px 24px rgba(0,0,0,0.5), 0 0 18px rgba(143,214,255,0.3);
-  opacity: 0; transition: transform 0.45s cubic-bezier(0.22,1,0.36,1), opacity 0.45s;
+/* ── フィードバックモーダル ── */
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+#feedback-modal {
+  position: fixed; inset: 0; z-index: 9200;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0,0,0,0.65);
+  backdrop-filter: blur(4px);
+  animation: fadeIn 0.25s ease both;
 }
-.offline-reward-toast.show   { transform: translate(-50%, 0); opacity: 1; }
-.offline-reward-toast.hiding { transform: translate(-50%, -140%); opacity: 0; }
+#feedback-panel {
+  background: linear-gradient(160deg, #1e1246 0%, #0d0820 100%);
+  border: 1px solid rgba(143,214,255,0.35);
+  border-radius: 18px;
+  padding: 22px 24px 20px;
+  width: min(420px, 92vw);
+  display: flex; flex-direction: column; gap: 10px;
+  box-shadow: 0 12px 48px rgba(0,0,0,0.6), 0 0 32px rgba(100,160,255,0.15);
+}
+#feedback-title {
+  font-size: 17px; font-weight: bold;
+  color: #e0d4ff; letter-spacing: 0.04em;
+  text-align: center;
+}
+#feedback-text {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(143,214,255,0.25);
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: #e8ecff; font-size: 14px; line-height: 1.5;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 140px; max-height: 320px;
+  outline: none;
+}
+#feedback-text:focus {
+  border-color: rgba(143,214,255,0.6);
+  background: rgba(255,255,255,0.09);
+}
+#feedback-text::placeholder { color: rgba(200,210,240,0.45); }
+#feedback-counter {
+  font-size: 11px; color: #8a9bc0; text-align: right;
+}
+#feedback-status {
+  font-size: 13px; min-height: 18px; text-align: center;
+}
+#feedback-status.ok  { color: #8fffb0; }
+#feedback-status.err { color: #ff9a9a; }
+#feedback-actions {
+  display: flex; gap: 10px; justify-content: flex-end;
+  margin-top: 4px;
+}
+#feedback-cancel, #feedback-send {
+  padding: 10px 22px;
+  border: none; border-radius: 999px;
+  font-size: 14px; font-weight: bold;
+  cursor: pointer; letter-spacing: 0.04em;
+  transition: transform 0.1s, box-shadow 0.1s, opacity 0.2s;
+}
+#feedback-cancel {
+  background: rgba(255,255,255,0.08);
+  color: #c8d0e8;
+}
+#feedback-cancel:hover { background: rgba(255,255,255,0.14); }
+#feedback-send {
+  background: linear-gradient(135deg, #ff8c00, #ffb700);
+  color: #1a0800;
+  box-shadow: 0 4px 14px rgba(255,140,0,0.4);
+}
+#feedback-send:active:not(:disabled) {
+  transform: scale(0.96);
+  box-shadow: 0 2px 6px rgba(255,140,0,0.3);
+}
+#feedback-send:disabled {
+  opacity: 0.4; cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* フィードバック入口ボタン（共通） */
+.feedback-entry {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(143,214,255,0.25);
+  color: #c8d6f0;
+  font-size: 12px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.feedback-entry:hover {
+  background: rgba(255,255,255,0.12);
+  border-color: rgba(143,214,255,0.45);
+}
+/* スタート画面下端のフィードバックボタンを fixed 配置（下部ナビの上） */
+#feedback-start-btn {
+  position: fixed;
+  left: 50%; transform: translateX(-50%);
+  bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+  z-index: 50;
+}
+
+/* ── オフライン報酬モーダル ── */
+#offline-reward-modal {
+  position: fixed; inset: 0; z-index: 9200;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0,0,0,0.65);
+  backdrop-filter: blur(4px);
+  animation: fadeIn 0.25s ease both;
+}
+#offline-reward-panel {
+  background: linear-gradient(160deg, #1e1246 0%, #0d0820 100%);
+  border: 1px solid rgba(143,214,255,0.35);
+  border-radius: 18px;
+  padding: 28px 32px 24px;
+  width: min(320px, 88vw);
+  display: flex; flex-direction: column; align-items: center; gap: 14px;
+  box-shadow: 0 12px 48px rgba(0,0,0,0.6), 0 0 32px rgba(100,160,255,0.15);
+}
+#offline-reward-title {
+  font-size: 18px; font-weight: bold;
+  color: #e0d4ff; letter-spacing: 0.04em;
+}
+#offline-reward-duration {
+  font-size: 13px; color: #a0b8d8;
+}
+#offline-reward-row {
+  display: flex; align-items: center; gap: 10px;
+  background: rgba(255,255,255,0.06); border-radius: 10px;
+  padding: 10px 18px; width: 100%; justify-content: center;
+}
+#offline-reward-label {
+  font-size: 14px; color: #7ec8ff;
+}
+#offline-reward-amount {
+  font-size: 22px; font-weight: bold;
+  color: #ffe170;
+}
+#offline-reward-collect-btn {
+  margin-top: 4px;
+  padding: 12px 36px;
+  border: none; border-radius: 999px;
+  background: linear-gradient(135deg, #ff8c00, #ffb700);
+  color: #1a0800; font-size: 16px; font-weight: bold;
+  cursor: pointer; letter-spacing: 0.04em;
+  box-shadow: 0 4px 18px rgba(255,140,0,0.45);
+  transition: transform 0.1s, box-shadow 0.1s;
+}
+#offline-reward-collect-btn:active {
+  transform: scale(0.96);
+  box-shadow: 0 2px 8px rgba(255,140,0,0.3);
+}
+/* エネルギーパーティクル */
+.energy-particle {
+  position: fixed; pointer-events: none; z-index: 9300;
+  font-size: 16px; line-height: 1;
+  animation: energyFly var(--dur, 0.7s) cubic-bezier(0.22,1,0.36,1) both;
+}
+@keyframes energyFly {
+  0%   { opacity: 1; transform: translate(0, 0) scale(1); }
+  80%  { opacity: 0.9; }
+  100% { opacity: 0; transform: translate(var(--tx), var(--ty)) scale(0.4); }
+}
 
 /* ── ③ タッチデバイス向けタップ領域拡大 ── */
 @media (pointer: coarse) {

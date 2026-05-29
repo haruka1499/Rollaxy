@@ -145,6 +145,7 @@
     </div>
 
   </div><!-- /#home-carousel -->
+  <button id="feedback-start-btn" class="feedback-entry" data-source="start" data-i18n="feedbackBtn"></button>
 </div><!-- /#start-screen -->
 
 <!-- ホーム下部 5ボタンバー。固定要素・z-index でオーバーレイより前面。バーで各パネルを切替 -->
@@ -229,6 +230,33 @@
   </div>
 </div>
 
+<!-- フィードバックモーダル（スタート画面/ゲームオーバー/クリア時から共通で開く） -->
+<div id="feedback-modal" style="display:none">
+  <div id="feedback-panel">
+    <div id="feedback-title" data-i18n="feedbackTitle"></div>
+    <textarea id="feedback-text" maxlength="1000"></textarea>
+    <div id="feedback-counter">0 / 1000</div>
+    <div id="feedback-status"></div>
+    <div id="feedback-actions">
+      <button id="feedback-cancel" data-i18n="feedbackCancel"></button>
+      <button id="feedback-send" data-i18n="feedbackSend"></button>
+    </div>
+  </div>
+</div>
+
+<!-- オフライン報酬モーダル -->
+<div id="offline-reward-modal" style="display:none">
+  <div id="offline-reward-panel">
+    <div id="offline-reward-title"></div>
+    <div id="offline-reward-duration"></div>
+    <div id="offline-reward-row">
+      <span id="offline-reward-label"></span>
+      <span id="offline-reward-amount"></span>
+    </div>
+    <button id="offline-reward-collect-btn"></button>
+  </div>
+</div>
+
 <!-- 宇宙パネルはホームカルーセル内 #panel-cosmos に移動済み -->
 
 <!--
@@ -276,6 +304,7 @@
     <button id="share-btn" data-i18n="shareBtn">X でシェア</button>
     <a id="ranking-link" href="/games/rollaxy/ranking/" data-i18n="rankingBtn">🏆 ランキング</a>
     <button id="overlay-ach-btn" class="ach-open-btn" data-i18n="achievements">🏆 実績</button>
+    <button id="feedback-overlay-btn" class="feedback-entry" data-source="gameover" data-i18n="feedbackBtn"></button>
     <p id="share-note"></p>
   </div>
   <div id="settings-overlay">
@@ -482,6 +511,7 @@
 <script src="achievement-data.js"></script>
 <script src="game-achievements.js"></script>
 <script src="game-meta.js"></script>
+<script src="game-feedback.js"></script>
 <script src="game.js"></script>
 <script src="game-ui.js"></script>
 </body>
