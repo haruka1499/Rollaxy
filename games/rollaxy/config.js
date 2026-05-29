@@ -128,8 +128,8 @@ const CFG = {
       descJa: '60 秒以内に 150 点を取ろう', descEn: 'Score 150 points within 60 seconds', descZh: '在 60 秒内达到 150 分' },
     { id: '1-5', requireTier: 9, unlockLevel: 0,
       descJa: 'ブラックホールを作ろう（時間制限なし）', descEn: 'Create a Black Hole (no time limit)', descZh: '制造一个黑洞（无时间限制）' },
-    { id: '1-6', goalScore: 500, timeLimit: 120, requireAnySkill: 1, unlockLevel: 0,
-      descJa: 'スキルを使い、120 秒で 500 点', descEn: 'Use skills and score 500 in 120s', descZh: '使用技能，120 秒内达到 500 分' },
+    { id: '1-6', goalScore: 500, timeLimit: 120, unlockLevel: 0,
+      descJa: '120 秒以内に 500 点を取ろう', descEn: 'Score 500 points within 120 seconds', descZh: '在 120 秒内达到 500 分' },
   ],
 
   // スキル初期所持数（デバッグ・バランス調整用）
