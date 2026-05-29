@@ -401,7 +401,7 @@ function _detectLang() {
   for (const code of LANG_ORDER) {
     if (nav === code || nav.startsWith(code + '-')) return code;
   }
-  return LANG_ORDER[LANG_ORDER.length - 1]; // 対応言語なし → 最後の言語（英語）
+  return 'en'; // 対応言語なし → 英語にフォールバック
 }
 let currentLang = _detectLang();
 document.documentElement.lang = currentLang;
