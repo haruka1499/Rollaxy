@@ -4,6 +4,7 @@ Thumbs.db
 
 # Editor
 .vscode/
+.claude/
 *.swp
 
 # Debug / dev tools (本番不要)

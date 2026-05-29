@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Board SVG 調整ツール</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #1a1a2e; color: #e0e0e0; font-family: monospace; display: flex; gap: 24px; padding: 24px; min-height: 100vh; }
+
+  #preview-area {
+    flex-shrink: 0;
+    background: #060412;
+    border: 1px solid #443;
+    border-radius: 8px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+  #preview-area h3 { font-size: 12px; color: #888; letter-spacing: 2px; }
+  #board-svg-wrap { border: 1px solid #554; }
+
+  #controls {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .section { background: #0e1422; border: 1px solid #334; border-radius: 8px; padding: 16px; }
+  .section h2 { font-size: 12px; color: #7c5cfc; letter-spacing: 3px; text-transform: uppercase; margin-bottom: 14px; }
+
+  .row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+  .row label { width: 100px; font-size: 12px; color: #aaa; }
+  .row input[type=range] { flex: 1; accent-color: #7c5cfc; }
+  .row .val { width: 64px; text-align: right; font-size: 13px; color: #fff; background: #1a1a2e; border: 1px solid #334; border-radius: 4px; padding: 2px 6px; }
+
+  #output {
+    background: #060412;
+    border: 1px solid #443;
+    border-radius: 6px;
+    padding: 14px;
+    font-size: 12px;
+    line-height: 1.8;
+    white-space: pre;
+    color: #3ecfff;
+  }
+
+  button {
+    padding: 8px 16px; background: #7c5cfc; color: #fff; border: none;
+    border-radius: 6px; cursor: pointer; font-size: 13px; letter-spacing: 1px;
+  }
+  button:active { opacity: 0.8; }
+
+  #sample-selector { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+  .sample-btn { padding: 4px 10px; font-size: 11px; background: #222; border: 1px solid #555; border-radius: 4px; cursor: pointer; color: #ccc; }
+  .sample-btn.active { background: #7c5cfc; border-color: #7c5cfc; color: #fff; }
+</style>
+</head>
+<body>
+
+<div id="preview-area">
+  <h3>PREVIEW</h3>
+  <div id="board-svg-wrap"></div>
+  <div style="font-size:11px;color:#555;margin-top:4px;">SVG canvas size</div>
+</div>
+
+<div id="controls">
+  <div class="section">
+    <h2>サンプルデータ</h2>
+    <div id="sample-selector">
+      <button class="sample-btn active" onclick="setSample(0)">小さい天体</button>
+      <button class="sample-btn" onclick="setSample(1)">中〜大</button>
+      <button class="sample-btn" onclick="setSample(2)">盤面いっぱい</button>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>スケール・オフセット</h2>
+    <div class="row">
+      <label>SCALE</label>
+      <input type="range" id="scale" min="0.3" max="1.0" step="0.01" value="0.5">
+      <input class="val" type="number" id="scale_v" step="0.01" value="0.5">
+    </div>
+    <div class="row">
+      <label>offset X</label>
+      <input type="range" id="ox" min="-60" max="60" step="1" value="0">
+      <input class="val" type="number" id="ox_v" step="1" value="0">
+    </div>
+    <div class="row">
+      <label>offset Y</label>
+      <input type="range" id="oy" min="-60" max="60" step="1" value="0">
+      <input class="val" type="number" id="oy_v" step="1" value="0">
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>キャンバスサイズ</h2>
+    <div class="row">
+      <label>LW (幅)</label>
+      <input type="range" id="lw" min="100" max="400" step="1" value="200">
+      <input class="val" type="number" id="lw_v" step="1" value="200">
+    </div>
+    <div class="row">
+      <label>LH (高さ)</label>
+      <input type="range" id="lh" min="150" max="700" step="1" value="350">
+      <input class="val" type="number" id="lh_v" step="1" value="350">
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>ボードBOX（ゲーム座標）</h2>
+    <div class="row">
+      <label>BOX_L</label>
+      <input type="range" id="bl" min="0" max="100" step="1" value="18">
+      <input class="val" type="number" id="bl_v" step="1" value="18">
+    </div>
+    <div class="row">
+      <label>BOX_T</label>
+      <input type="range" id="bt" min="0" max="300" step="1" value="168">
+      <input class="val" type="number" id="bt_v" step="1" value="168">
+    </div>
+    <div class="row">
+      <label>BOX_R</label>
+      <input type="range" id="br" min="200" max="500" step="1" value="382">
+      <input class="val" type="number" id="br_v" step="1" value="382">
+    </div>
+    <div class="row">
+      <label>BOX_B</label>
+      <input type="range" id="bb" min="400" max="800" step="1" value="688">
+      <input class="val" type="number" id="bb_v" step="1" value="688">
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>調整値（この値を共有してください）</h2>
+    <div id="output"></div>
+    <br>
+    <button onclick="copyOutput()">コピー</button>
+    <button onclick="resetAll()" style="background:#444;margin-left:8px;">リセット</button>
+  </div>
+</div>
+
+<script>
+const BODY_COLORS = ['#b0a090','#807060','#d0c8b0','#3388cc','#d4a870','#ffcc00','#cc2200','#c8d8ff','#2244cc','#110022','#7744cc','#aa44ff'];
+const BODY_RADII  = [12,18,25,33,42,51,61,70,79,88,97,106];
+const BODY_KEYS   = ['dust','asteroid','moon','earth','jupiter','sun','red_giant','white_dwarf','neutron_star','black_hole','galaxy','galaxy_cluster'];
+
+// 画像パスは tools/ の親フォルダ基準
+const IMG_BASE = '../games/rollaxy/images/';
+
+const SAMPLES = [
+  // 小さい天体（底付近に密集）
+  [
+    {tier:0,x:80,y:640},{tier:1,x:140,y:620},{tier:0,x:200,y:650},
+    {tier:2,x:260,y:600},{tier:1,x:320,y:640},{tier:0,x:100,y:580},
+    {tier:3,x:170,y:560},{tier:2,x:240,y:570},{tier:1,x:300,y:600},
+  ],
+  // 中〜大
+  [
+    {tier:5,x:100,y:580},{tier:4,x:220,y:560},{tier:6,x:310,y:550},
+    {tier:3,x:80,y:500},{tier:4,x:200,y:490},{tier:2,x:320,y:520},
+    {tier:7,x:150,y:620},{tier:5,x:270,y:610},
+  ],
+  // 盤面いっぱい
+  [
+    {tier:11,x:200,y:580},{tier:10,x:80,y:520},{tier:9,x:320,y:530},
+    {tier:8,x:150,y:450},{tier:7,x:270,y:460},{tier:6,x:90,y:400},
+    {tier:5,x:310,y:410},{tier:4,x:200,y:380},{tier:3,x:120,y:340},
+    {tier:2,x:280,y:350},{tier:1,x:200,y:310},{tier:0,x:80,y:290},
+  ],
+];
+
+let currentSample = SAMPLES[0];
+
+function setSample(i) {
+  currentSample = SAMPLES[i];
+  document.querySelectorAll('.sample-btn').forEach((b,j) => b.classList.toggle('active', i===j));
+  render();
+}
+
+function g(id)  { return parseFloat(document.getElementById(id).value); }
+function set(id, v) {
+  document.getElementById(id).value = v;
+  document.getElementById(id+'_v').value = v;
+}
+
+function render() {
+  const SCALE = g('scale');
+  const OX    = g('ox');
+  const OY    = g('oy');
+  const LW    = g('lw');
+  const LH    = g('lh');
+  const BOX_L = g('bl'), BOX_T = g('bt'), BOX_R = g('br'), BOX_B = g('bb');
+
+  let defs = '<defs>', circles = '', images = '';
+
+  currentSample.forEach((b, i) => {
+    const tier = Math.max(0, Math.min(11, b.tier));
+    const cx = (b.x * SCALE + OX).toFixed(1);
+    const cy = (b.y * SCALE + OY).toFixed(1);
+    const rn = BODY_RADII[tier] * SCALE;
+    const r  = rn.toFixed(1);
+    const lx = (b.x * SCALE + OX - rn).toFixed(1);
+    const ly = (b.y * SCALE + OY - rn).toFixed(1);
+    const d  = (rn * 2).toFixed(1);
+
+    circles += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${BODY_COLORS[tier]}" opacity="0.85"/>`;
+    defs    += `<clipPath id="c${i}"><circle cx="${cx}" cy="${cy}" r="${r}"/></clipPath>`;
+    images  += `<image href="${IMG_BASE}${BODY_KEYS[tier]}.png" x="${lx}" y="${ly}" width="${d}" height="${d}" clip-path="url(#c${i})" preserveAspectRatio="xMidYMid slice"/>`;
+  });
+  defs += '</defs>';
+
+  const bx = (BOX_L * SCALE + OX).toFixed(1);
+  const by = (BOX_T * SCALE + OY).toFixed(1);
+  const bw = ((BOX_R - BOX_L) * SCALE).toFixed(1);
+  const bh = ((BOX_B - BOX_T) * SCALE).toFixed(1);
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${LW}" height="${LH}" viewBox="0 0 ${LW} ${LH}">
+  ${defs}
+  <rect width="${LW}" height="${LH}" fill="#060412"/>
+  <rect x="${bx}" y="${by}" width="${bw}" height="${bh}" fill="#0c0720"/>
+  <rect x="${bx}" y="${by}" width="${bw}" height="${bh}" fill="none" stroke="#7744bb" stroke-width="1.5"/>
+  ${circles}${images}
+</svg>`;
+
+  document.getElementById('board-svg-wrap').innerHTML = svg;
+
+  document.getElementById('output').textContent =
+`SCALE  = ${SCALE}
+OX     = ${OX}
+OY     = ${OY}
+LW     = ${LW}
+LH     = ${LH}
+BOX_L  = ${BOX_L}
+BOX_T  = ${BOX_T}
+BOX_R  = ${BOX_R}
+BOX_B  = ${BOX_B}`;
+}
+
+// スライダー ↔ 数値入力の双方向バインド
+['scale','ox','oy','lw','lh','bl','bt','br','bb'].forEach(id => {
+  const slider = document.getElementById(id);
+  const numIn  = document.getElementById(id+'_v');
+  slider.addEventListener('input', () => { numIn.value = slider.value; render(); });
+  numIn.addEventListener('input',  () => { slider.value = numIn.value; render(); });
+});
+
+function resetAll() {
+  set('scale',0.5); set('ox',0); set('oy',0);
+  set('lw',200); set('lh',350);
+  set('bl',18); set('bt',168); set('br',382); set('bb',688);
+  render();
+}
+
+function copyOutput() {
+  navigator.clipboard.writeText(document.getElementById('output').textContent)
+    .then(() => alert('コピーしました'));
+}
+
+render();
+</script>
+</body>
+</html>

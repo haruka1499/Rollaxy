@@ -1,0 +1,19 @@
+{
+  "name": "Rollaxy | NOVORA GAME",
+  "short_name": "Rollaxy",
+  "description": "Space-themed falling merge browser game. Combine celestial bodies and aim for the galaxy cluster.",
+  "start_url": "/games/rollaxy/",
+  "scope": "/games/rollaxy/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#060412",
+  "theme_color": "#1a0e30",
+  "lang": "ja",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64",
+      "type": "image/x-icon"
+    }
+  ]
+}
