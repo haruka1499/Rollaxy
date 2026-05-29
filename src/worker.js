@@ -621,7 +621,7 @@ async function handleSharePage(id, env) {
   <div class="share-rank">${rankText}</div>
   <div>
     <a class="share-play" href="/games/rollaxy/">▶ ${L.playBtn}</a>
-    <a class="share-tweet" href="https://twitter.com/intent/tweet?text=${encodeURIComponent(L.tweetText(scoreStr, titleStr))}&url=${encodeURIComponent(shareUrl)}" target="_blank" rel="noopener">${L.tweetBtn}</a>
+    <a id="share-tweet-btn" class="share-tweet" href="https://twitter.com/intent/tweet?text=${encodeURIComponent(L.tweetText(scoreStr, titleStr))}&url=${encodeURIComponent(shareUrl)}" target="_blank" rel="noopener" style="display:none">${L.tweetBtn}</a>
   </div>
   <div class="share-links"><a href="/games/">${L.gamesLink}</a></div>
 </div></main>
@@ -632,6 +632,16 @@ document.getElementById('back-to-ranking-btn').addEventListener('click', functio
   window.close();
   setTimeout(function() { location.href = '/games/rollaxy/ranking/'; }, 150);
 });
+// 自分のシェアIDの場合のみ X 共有ボタンを表示（他人のスコアを誤って共有できないように）
+(function(){
+  try {
+    var ids = JSON.parse(localStorage.getItem('novora_share_ids') || '[]');
+    if (ids.indexOf('${id}') >= 0) {
+      var btn = document.getElementById('share-tweet-btn');
+      if (btn) btn.style.display = '';
+    }
+  } catch(_) {}
+})();
 </script>
 <footer class="site-footer">
   <div class="footer-links">
