@@ -121,6 +121,10 @@ canvas { position: absolute; top: 0; left: 0; transform-origin: top left; }
    ============================================================ */
 #overlay {
   display: none; position: absolute; inset: 0;
+  /* ヘッダー(#header z-index:5) より前面に出す。
+     これより低いとヘッダーの「スコア」「ベスト」「残り時間」表示が
+     オーバーレイの「タイムアップ」見出しや結果文字に重なって読めなくなる */
+  z-index: 6;
   background: rgba(0,0,0,0.78);
   backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
   flex-direction: column; align-items: center; justify-content: center;
