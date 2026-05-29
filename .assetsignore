@@ -1,0 +1,25 @@
+# Cloudflare Workers Static Assets から除外するパターン
+# .gitignore と同じ書式
+
+# Git 内部ファイル（pack ファイルが 25MiB 制限を超えるためデプロイ失敗の原因）
+.git/
+
+# 開発環境設定
+.claude/
+.gitignore
+.assetsignore
+
+# Worker のソース・設定（[assets] とは別経路で main から読み込まれる）
+src/
+wrangler.toml
+package.json
+package-lock.json
+
+# 内部ツール・DB マイグレーション（公開不要）
+tools/
+db/
+
+# 内部ドキュメント（公開不要）
+CLAUDE.md
+architecture-summary.md
+handoff.md
