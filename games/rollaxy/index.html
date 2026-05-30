@@ -138,7 +138,7 @@
       <div id="cosmos-overlay-top">
         <h2 data-i18n="cosmosTitle">宇宙</h2>
       </div>
-      <!-- 下部オーバーレイ HUD: 既存指標（質量/レート/物質生成器） -->
+      <!-- 下部オーバーレイ HUD: 既存指標（質量/レート/物質生成器）+ 惑星 -->
       <div id="cosmos-compact">
         <div id="cosmos-mass"></div>
         <div id="cosmos-rate"></div>
@@ -146,6 +146,11 @@
           <div id="cosmos-gen-head" data-i18n="generatorTitle">物質生成器</div>
           <div id="cosmos-gen-level">Lv 1</div>
           <button id="cosmos-upgrade-btn">強化</button>
+        </div>
+        <!-- 惑星 HUD 行 -->
+        <div id="cosmos-planet-row">
+          <span id="cosmos-planet-count">🪐 0 / 0</span>
+          <button id="cosmos-planet-add">＋</button>
         </div>
       </div>
     </div>
@@ -267,6 +272,20 @@
       <span id="offline-reward-amount"></span>
     </div>
     <button id="offline-reward-collect-btn"></button>
+  </div>
+</div>
+
+<!-- 惑星追加モーダル（宇宙パネルの「＋追加」から開く） -->
+<div id="planet-modal" style="display:none">
+  <div id="planet-panel">
+    <div id="planet-modal-title"></div>
+    <div id="planet-choices"></div>
+    <input id="planet-name-input" type="text" maxlength="15">
+    <div id="planet-modal-cost"></div>
+    <div id="planet-modal-actions">
+      <button id="planet-modal-cancel"></button>
+      <button id="planet-modal-add"></button>
+    </div>
   </div>
 </div>
 

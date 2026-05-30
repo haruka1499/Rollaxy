@@ -23,6 +23,7 @@ const metaState = {
   genLevel: CFG.META.GENERATOR.START_LEVEL,
   civLevel: CFG.META.CIV.START_LEVEL,
   research: new Set(), // 所持研究ID
+  planets: [],         // 生成済み惑星 [{ key:'mercury'|'venus'|'earth', name:string }]
   lastSaved: Date.now(),
   _suspect: false,     // 簡易チート対策: セーブ署名不一致フラグ（将来サーバー検証へ送出）
 };
@@ -30,6 +31,24 @@ const metaState = {
 function _metaNum(key, def) {
   const v = parseFloat(localStorage.getItem(key));
   return Number.isFinite(v) ? v : def;
+}
+
+// 惑星データの読込＋サニタイズ。未知 key を除外、name を 15 文字に切り、上限スロット数でクランプ。
+function _loadPlanets() {
+  const validKeys = new Set(CFG.META.PLANET.TYPES.map(t => t.key));
+  let arr = [];
+  try {
+    const raw = JSON.parse(localStorage.getItem(STORAGE_KEYS.META_PLANETS) || '[]');
+    if (Array.isArray(raw)) arr = raw;
+  } catch (_) { arr = []; }
+  const out = [];
+  for (const p of arr) {
+    if (!p || !validKeys.has(p.key)) continue;
+    const name = String(p.name || '').slice(0, 15);
+    out.push({ key: p.key, name });
+    if (out.length >= CFG.META.PLANET.MAX_SLOTS) break;
+  }
+  return out;
 }
 
 // 簡易チート対策: セーブ全体の整合性チェックサム（FNV-1a, 暗号強度なし＝改ざん抑止用）。
@@ -40,6 +59,7 @@ function _metaSig() {
     metaState.stardust, metaState.energy, metaState.mass,
     metaState.genLevel, metaState.civLevel,
     [...metaState.research].sort().join(','),
+    metaState.planets.map(p => p.key + ':' + p.name).join(','),
     metaState.lastSaved,
   ].join('|');
   let h = 0x811c9dc5;
@@ -63,6 +83,8 @@ function loadMeta() {
     const ids = JSON.parse(localStorage.getItem(STORAGE_KEYS.META_RESEARCH) || '[]');
     metaState.research = new Set(Array.isArray(ids) ? ids : []);
   } catch (_) { metaState.research = new Set(); }
+  // 惑星: 既知の key のみ採用し、name は 15 文字に切り詰め・上限スロット数でクランプ（サニタイズ）
+  metaState.planets = _loadPlanets();
   metaState.lastSaved = _metaNum(STORAGE_KEYS.META_LAST_SAVED, Date.now());
 
   // 簡易チート対策: 署名検証。不一致＝外部編集の疑い。破壊的措置は取らず
@@ -101,6 +123,7 @@ function saveMeta() {
   localStorage.setItem(STORAGE_KEYS.META_GEN_LEVEL,  String(metaState.genLevel));
   localStorage.setItem(STORAGE_KEYS.META_CIV_LEVEL,  String(metaState.civLevel));
   localStorage.setItem(STORAGE_KEYS.META_RESEARCH,   JSON.stringify([...metaState.research]));
+  localStorage.setItem(STORAGE_KEYS.META_PLANETS,    JSON.stringify(metaState.planets));
   localStorage.setItem(STORAGE_KEYS.META_LAST_SAVED, String(metaState.lastSaved));
   localStorage.setItem(STORAGE_KEYS.META_SIG,        _metaSig()); // 整合性署名（簡易チート対策）
 }
@@ -149,6 +172,37 @@ function generatorCost(level = metaState.genLevel) {
   if (level >= g.MAX_LEVEL) return Infinity;
   const raw = g.BASE_COST * Math.pow(g.GROWTH, level - 1) * getModifier('genCostMult');
   return Math.max(1, Math.floor(raw));
+}
+
+// ---- 惑星（Phase 3）----
+// 解放済み惑星スロット数 = SLOT_LEVELS のうち現在の物質生成器レベル以下の個数。
+function unlockedPlanetSlots(level = metaState.genLevel) {
+  let n = 0;
+  for (const lv of CFG.META.PLANET.SLOT_LEVELS) if (level >= lv) n++;
+  return Math.min(n, CFG.META.PLANET.MAX_SLOTS);
+}
+// 次の惑星生成コスト（星屑）。N 個目 = BASE_COST * COST_GROWTH^(N-1)。
+function nextPlanetCost(count = metaState.planets.length) {
+  const p = CFG.META.PLANET;
+  return Math.floor(p.BASE_COST * Math.pow(p.COST_GROWTH, count));
+}
+// 惑星を追加できるか（空きスロット＋星屑）。
+function canAddPlanet() {
+  return metaState.planets.length < unlockedPlanetSlots()
+      && metaState.stardust >= nextPlanetCost();
+}
+// 惑星生成。key=テクスチャ種別, name=表示名。成功で true。
+function addPlanet(key, name) {
+  const validKeys = new Set(CFG.META.PLANET.TYPES.map(t => t.key));
+  if (!validKeys.has(key)) return false;
+  if (metaState.planets.length >= unlockedPlanetSlots()) return false;
+  const cost = nextPlanetCost();
+  if (metaState.stardust < cost) return false;
+  metaState.stardust -= cost;
+  metaState.planets.push({ key, name: String(name || '').slice(0, 15) });
+  saveMeta();
+  updateResourceBar();
+  return true;
 }
 
 // ---- 文明レベル（消費型）----
@@ -354,6 +408,11 @@ function renderCosmos() {
       energyRate: starEnergyRate(),
     });
   }
+  // 3D に惑星を反映 + 惑星 HUD 行を描画
+  if (window.Cosmos3D && typeof Cosmos3D.setPlanets === 'function') {
+    Cosmos3D.setPlanets(metaState.planets);
+  }
+  _renderPlanetRow();
   // 質量・残高
   _setTxt('cosmos-mass',     T('massInfo')(_fmt(metaState.mass), massProdRate().toFixed(1)));
   _setTxt('cosmos-rate',     `⚡ +${starEnergyRate().toFixed(2)} ${T('stellarEnergy')}${T('energyRate')}`);
@@ -369,6 +428,81 @@ function renderCosmos() {
       btn.textContent = `${T('generatorUpgrade')}  💫 ${_fmt(cost)}`;
       btn.disabled = metaState.stardust < cost;
     }
+  }
+}
+
+// 惑星 HUD 行: 「🪐 惑星 N/スロット数 [＋追加 💫コスト]」を描画。
+function _renderPlanetRow() {
+  const row = document.getElementById('cosmos-planet-row');
+  if (!row) return;
+  const slots = unlockedPlanetSlots();
+  const count = metaState.planets.length;
+  _setTxt('cosmos-planet-count', T('planetCount')(count, slots));
+  const addBtn = document.getElementById('cosmos-planet-add');
+  if (!addBtn) return;
+  if (slots === 0) {
+    // まだ1スロットも解放されていない: 次の解放レベルを案内
+    addBtn.textContent = T('planetLockedAt')(CFG.META.PLANET.SLOT_LEVELS[0]);
+    addBtn.disabled = true;
+  } else if (count >= slots) {
+    // 全スロット使用中: 次スロット解放レベルを案内（あれば）
+    const nextLv = CFG.META.PLANET.SLOT_LEVELS[count];
+    addBtn.textContent = nextLv ? T('planetNextSlot')(nextLv) : T('planetSlotsFull');
+    addBtn.disabled = true;
+  } else {
+    const cost = nextPlanetCost();
+    addBtn.textContent = `${T('planetAdd')}  💫 ${_fmt(cost)}`;
+    addBtn.disabled = metaState.stardust < cost;
+  }
+}
+
+// ---- 惑星追加モーダル ----
+let _planetPickKey = null;
+function openPlanetModal() {
+  const modal = document.getElementById('planet-modal');
+  if (!modal) return;
+  if (metaState.planets.length >= unlockedPlanetSlots()) return;
+  // テクスチャ選択肢を描画
+  const choices = document.getElementById('planet-choices');
+  if (choices) {
+    _planetPickKey = CFG.META.PLANET.TYPES[0].key; // 既定は先頭
+    choices.innerHTML = CFG.META.PLANET.TYPES.map(t =>
+      `<button class="planet-choice" data-key="${t.key}">`
+      + `<img src="images/cosmos/${t.key}.jpg" alt="${_locName(t)}">`
+      + `<span>${_locName(t)}</span></button>`
+    ).join('');
+  }
+  // 既定名 = 種別名 + 連番
+  const input = document.getElementById('planet-name-input');
+  if (input) {
+    const def = CFG.META.PLANET.TYPES[0];
+    input.value = `${_locName(def)} ${metaState.planets.length + 1}`;
+    input.placeholder = T('planetNamePlaceholder');
+  }
+  _setTxt('planet-modal-title', T('planetModalTitle'));
+  _setTxt('planet-modal-cost', `💫 ${_fmt(nextPlanetCost())}`);
+  const addBtn = document.getElementById('planet-modal-add');
+  if (addBtn) addBtn.textContent = T('planetModalAdd');
+  const cancel = document.getElementById('planet-modal-cancel');
+  if (cancel) cancel.textContent = T('planetModalCancel');
+  _refreshPlanetChoiceSelection();
+  modal.style.display = 'flex';
+}
+function closePlanetModal() {
+  const modal = document.getElementById('planet-modal');
+  if (modal) modal.style.display = 'none';
+}
+function _refreshPlanetChoiceSelection() {
+  document.querySelectorAll('.planet-choice').forEach(b => {
+    b.classList.toggle('sel', b.dataset.key === _planetPickKey);
+  });
+}
+function _submitPlanetModal() {
+  const input = document.getElementById('planet-name-input');
+  const name  = input ? input.value.trim() : '';
+  if (addPlanet(_planetPickKey, name || _planetPickKey)) {
+    closePlanetModal();
+    renderCosmos();
   }
 }
 
@@ -641,6 +775,24 @@ on(document.getElementById('offline-reward-collect-btn'), () => _collectOfflineR
 //    ここでは各パネル内の操作だけ配線する。
 on(document.getElementById('cosmos-upgrade-btn'), () => {
   if (upgradeGenerator()) { playUpgradeSound(); renderCosmos(); }
+});
+
+// 惑星追加: HUD の「＋追加」ボタン → モーダル → 種別選択/命名 → 生成
+on(document.getElementById('cosmos-planet-add'), () => openPlanetModal());
+on(document.getElementById('planet-modal-cancel'), () => closePlanetModal());
+on(document.getElementById('planet-modal-add'), () => _submitPlanetModal());
+const _planetChoicesEl = document.getElementById('planet-choices');
+if (_planetChoicesEl) {
+  _planetChoicesEl.addEventListener('click', (e) => {
+    const b = e.target.closest('.planet-choice');
+    if (!b) return;
+    _planetPickKey = b.dataset.key;
+    _refreshPlanetChoiceSelection();
+  });
+}
+// 背景クリックで閉じる
+on(document.getElementById('planet-modal'), (e) => {
+  if (e.target === document.getElementById('planet-modal')) closePlanetModal();
 });
 on(document.getElementById('research-civ-up'), () => {
   if (levelUpCiv()) { playUpgradeSound(); renderResearch(); }

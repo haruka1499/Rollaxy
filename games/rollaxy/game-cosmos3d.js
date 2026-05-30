@@ -34,10 +34,15 @@ window.Cosmos3D = (function () {
     0x9cc0ff, // 11 濃青
   ];
 
-  let scene, camera, renderer, starMesh, glowSprite;
+  let scene, camera, renderer, starMesh, glowSprite, loader, planetGroup;
   let animId = null;
   let initialized = false;
   let pulseT = 0;
+
+  // 惑星（Phase 3）
+  let planetObjs   = [];   // [{ mesh, orbitRadius, angle, speed }]
+  let planetsSig   = '';   // 現在の惑星構成シグネチャ（変化時のみ再構築）
+  const planetTexCache = {}; // key -> THREE.Texture（再ロード回避）
 
   // 最新の連動パラメータ（update で更新、アニメループで反映）
   const target = {
@@ -51,6 +56,16 @@ window.Cosmos3D = (function () {
 
   function _wrap()   { return document.getElementById('cosmos-3d-wrap'); }
   function _canvas() { return document.getElementById('cosmos-3d'); }
+
+  // テクスチャを NPOT セーフに（WebGL1 黒化回避）
+  function _npotSafe(tex) {
+    tex.colorSpace      = THREE.SRGBColorSpace;
+    tex.minFilter       = THREE.LinearFilter;
+    tex.magFilter       = THREE.LinearFilter;
+    tex.generateMipmaps = false;
+    tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
+    return tex;
+  }
 
   // 放射状グラデーション（中心白→外周透明）の Sprite テクスチャを動的生成
   function _makeGlowTexture() {
@@ -91,17 +106,7 @@ window.Cosmos3D = (function () {
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(w, h, false);
 
-    const loader = new THREE.TextureLoader();
-    // テクスチャは 1024×512 (2の冪乗) だが、WebGL1 環境での黒化を確実に防ぐため
-    // NPOT セーフなパラメータ（mipmap無効・Linear・ClampToEdge）を明示設定する
-    function _npotSafe(tex) {
-      tex.colorSpace    = THREE.SRGBColorSpace;
-      tex.minFilter     = THREE.LinearFilter;
-      tex.magFilter     = THREE.LinearFilter;
-      tex.generateMipmaps = false;
-      tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
-      return tex;
-    }
+    loader = new THREE.TextureLoader();
     // 背景（360° 環境マップ）
     loader.load('images/cosmos/space-bg.jpg',
       (tex) => {
@@ -130,6 +135,17 @@ window.Cosmos3D = (function () {
     });
     glowSprite = new THREE.Sprite(glowMat);
     scene.add(glowSprite);
+
+    // 惑星用ライト: 恒星（原点）から放射する点光源 + 弱い環境光（暗黒面が真っ黒にならないよう）
+    const starLight = new THREE.PointLight(0xfff2dd, 2.4, 0, 0.0);
+    starLight.position.set(0, 0, 0);
+    scene.add(starLight);
+    scene.add(new THREE.AmbientLight(0x404a66, 0.6));
+
+    // 惑星の公転グループ（少し傾けて 3D の奥行きを出す）
+    planetGroup = new THREE.Group();
+    planetGroup.rotation.x = -0.5; // 約 -28°
+    scene.add(planetGroup);
 
     window.addEventListener('resize', _onResize);
     if (typeof ResizeObserver !== 'undefined') new ResizeObserver(_onResize).observe(wrap);
@@ -168,6 +184,12 @@ window.Cosmos3D = (function () {
       glowSprite.scale.set(s, s, 1);
       glowSprite.material.opacity = cur.glowOpacity * (0.94 + Math.sin(pulseT) * 0.06);
     }
+    // 惑星の公転 + 自転
+    for (const p of planetObjs) {
+      p.angle += p.speed;
+      p.mesh.position.set(Math.cos(p.angle) * p.orbitRadius, 0, Math.sin(p.angle) * p.orbitRadius);
+      p.mesh.rotation.y += 0.01;
+    }
     renderer.render(scene, camera);
   }
 
@@ -199,6 +221,69 @@ window.Cosmos3D = (function () {
     if (glowSprite) glowSprite.material.color.setHex(target.glowColor);
   }
 
+  // ── 外部 API: 惑星リストを 3D に反映 ──
+  // planets = [{ key, name }]。構成（key の並び）が変わったときだけメッシュを再構築する。
+  function setPlanets(planets) {
+    if (!initialized || !planetGroup) return;
+    planets = Array.isArray(planets) ? planets : [];
+    const sig = planets.map(p => p.key).join(',');
+    if (sig === planetsSig) return; // 変化なし
+    planetsSig = sig;
+
+    // 既存メッシュ破棄
+    for (const p of planetObjs) {
+      planetGroup.remove(p.mesh);
+      p.mesh.geometry.dispose();
+      p.mesh.material.dispose();
+      _removeOrbitLine(p);
+    }
+    planetObjs = [];
+
+    // 再構築
+    planets.forEach((pl, i) => {
+      let tex = planetTexCache[pl.key];
+      if (!tex) {
+        tex = _npotSafe(loader.load('images/cosmos/' + pl.key + '.jpg'));
+        planetTexCache[pl.key] = tex;
+      }
+      const orbitRadius = 1.7 + i * 0.55;
+      const size = 0.13 + (pl.key === 'earth' ? 0.02 : 0);
+      const mesh = new THREE.Mesh(
+        new THREE.SphereGeometry(size, 32, 16),
+        new THREE.MeshLambertMaterial({ map: tex })
+      );
+      // 惑星ごとに開始角を散らし、外側ほどゆっくり公転（見た目のケプラー風）
+      const angle = (i / Math.max(1, planets.length)) * Math.PI * 2;
+      const speed = 0.012 / (1 + i * 0.35);
+      const obj = { mesh, orbitRadius, angle, speed, orbitLine: null };
+      planetGroup.add(mesh);
+      _addOrbitLine(obj);
+      planetObjs.push(obj);
+    });
+  }
+
+  // 公転軌道を表す薄い円リング（LineLoop）
+  function _addOrbitLine(obj) {
+    const seg = 96, pts = [];
+    for (let i = 0; i < seg; i++) {
+      const a = (i / seg) * Math.PI * 2;
+      pts.push(Math.cos(a) * obj.orbitRadius, 0, Math.sin(a) * obj.orbitRadius);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+    const m = new THREE.LineBasicMaterial({ color: 0x7c5cfc, transparent: true, opacity: 0.22 });
+    const line = new THREE.LineLoop(g, m);
+    obj.orbitLine = line;
+    planetGroup.add(line);
+  }
+  function _removeOrbitLine(obj) {
+    if (!obj.orbitLine) return;
+    planetGroup.remove(obj.orbitLine);
+    obj.orbitLine.geometry.dispose();
+    obj.orbitLine.material.dispose();
+    obj.orbitLine = null;
+  }
+
   // DOM 準備が整い次第 init（カルーセル外で width=0 のうちは setTimeout 再試行）
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
@@ -206,5 +291,5 @@ window.Cosmos3D = (function () {
     init();
   }
 
-  return { init, update };
+  return { init, update, setPlanets };
 })();

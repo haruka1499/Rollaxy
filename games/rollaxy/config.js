@@ -259,6 +259,25 @@ const CFG = {
         nameJa: '重力制御 II', nameEn: 'Gravity Control II', nameZh: '引力控制 II',
         descJa: 'ゲーム内スコア +20%', descEn: '+20% in-game score', descZh: '游戏内分数 +20%' },
     ],
+
+    // ── 惑星（Phase 3）──
+    // 物質生成器レベルに応じて惑星スロットが解放され、星屑を消費して惑星を生成する。
+    // スロット数 = SLOT_LEVELS のうち genLevel 以下の個数。
+    // N 個目の惑星コスト = floor(BASE_COST * COST_GROWTH^(N-1)) 星屑。
+    // ※ growth% 導入（Phase 4）後はスロット解放条件を growth% ベースへ移行予定。
+    PLANET: {
+      BASE_COST:   500,
+      COST_GROWTH: 3.0,
+      MAX_SLOTS:   8,
+      // slot k (1-indexed) が解放される物質生成器レベル
+      SLOT_LEVELS: [3, 8, 15, 25, 38, 54, 73, 95],
+      // 選択可能な惑星テクスチャ（images/cosmos/{key}.jpg）
+      TYPES: [
+        { key: 'mercury', nameJa: '水星', nameEn: 'Mercury', nameZh: '水星' },
+        { key: 'venus',   nameJa: '金星', nameEn: 'Venus',   nameZh: '金星' },
+        { key: 'earth',   nameJa: '地球', nameEn: 'Earth',   nameZh: '地球' },
+      ],
+    },
   },
 
   // ゲーム用天体画像の表示調整値（image-adjuster.html で決定した値）
@@ -336,6 +355,7 @@ const STORAGE_KEYS = {
   META_MASS:          'rollaxy_meta_mass',         // 蓄積質量
   META_CIV_LEVEL:     'rollaxy_civ_level',         // 文明レベル
   META_RESEARCH:      'rollaxy_research',           // 所持研究ID配列(JSON)
+  META_PLANETS:       'rollaxy_planets',            // 生成済み惑星配列(JSON) [{key,name}]
   META_SIG:           'rollaxy_meta_sig',           // セーブ整合性チェックサム（簡易チート対策）
 
   // ── レガシー（移行済み・読み取り/削除のみ。新規利用しない） ──
