@@ -34,7 +34,79 @@ window.Cosmos3D = (function () {
     0x9cc0ff, // 11 濃青
   ];
 
+  // ── GLSL: 3D simplex noise (Ashima Arts / Stefan Gustavson, MIT) + fbm ──
+  // 恒星表面の沸騰プラズマとコロナの揺らぎに使う手続き型ノイズ。
+  const NOISE_GLSL = `
+    vec4 permute(vec4 x){return mod(((x*34.0)+1.0)*x,289.0);}
+    vec4 taylorInvSqrt(vec4 r){return 1.79284291400159-0.85373472095314*r;}
+    float snoise(vec3 v){
+      const vec2 C=vec2(1.0/6.0,1.0/3.0); const vec4 D=vec4(0.0,0.5,1.0,2.0);
+      vec3 i=floor(v+dot(v,C.yyy)); vec3 x0=v-i+dot(i,C.xxx);
+      vec3 g=step(x0.yzx,x0.xyz); vec3 l=1.0-g; vec3 i1=min(g.xyz,l.zxy); vec3 i2=max(g.xyz,l.zxy);
+      vec3 x1=x0-i1+1.0*C.xxx; vec3 x2=x0-i2+2.0*C.xxx; vec3 x3=x0-1.0+3.0*C.xxx;
+      i=mod(i,289.0);
+      vec4 p=permute(permute(permute(i.z+vec4(0.0,i1.z,i2.z,1.0))+i.y+vec4(0.0,i1.y,i2.y,1.0))+i.x+vec4(0.0,i1.x,i2.x,1.0));
+      float n_=1.0/7.0; vec3 ns=n_*D.wyz-D.xzx;
+      vec4 j=p-49.0*floor(p*ns.z*ns.z);
+      vec4 x_=floor(j*ns.z); vec4 y_=floor(j-7.0*x_);
+      vec4 x=x_*ns.x+ns.yyyy; vec4 y=y_*ns.x+ns.yyyy; vec4 h=1.0-abs(x)-abs(y);
+      vec4 b0=vec4(x.xy,y.xy); vec4 b1=vec4(x.zw,y.zw);
+      vec4 s0=floor(b0)*2.0+1.0; vec4 s1=floor(b1)*2.0+1.0; vec4 sh=-step(h,vec4(0.0));
+      vec4 a0=b0.xzyw+s0.xzyw*sh.xxyy; vec4 a1=b1.xzyw+s1.xzyw*sh.zzww;
+      vec3 p0=vec3(a0.xy,h.x); vec3 p1=vec3(a0.zw,h.y); vec3 p2=vec3(a1.xy,h.z); vec3 p3=vec3(a1.zw,h.w);
+      vec4 norm=taylorInvSqrt(vec4(dot(p0,p0),dot(p1,p1),dot(p2,p2),dot(p3,p3)));
+      p0*=norm.x; p1*=norm.y; p2*=norm.z; p3*=norm.w;
+      vec4 m=max(0.6-vec4(dot(x0,x0),dot(x1,x1),dot(x2,x2),dot(x3,x3)),0.0); m=m*m;
+      return 42.0*dot(m*m,vec4(dot(p0,x0),dot(p1,x1),dot(p2,x2),dot(p3,x3)));
+    }
+    float fbm(vec3 p){
+      float a=0.5,f=0.0; for(int i=0;i<4;i++){ f+=a*snoise(p); p*=2.0; a*=0.5; } return f;
+    }
+  `;
+
+  const SUN_VERT = `
+    varying vec2 vUv; varying vec3 vPos; varying vec3 vNormalW; varying vec3 vViewDirW;
+    void main(){
+      vUv=uv; vPos=position;
+      vec4 wp=modelMatrix*vec4(position,1.0);
+      vNormalW=normalize(mat3(modelMatrix)*normal);
+      vViewDirW=normalize(cameraPosition-wp.xyz);
+      gl_Position=projectionMatrix*viewMatrix*wp;
+    }
+  `;
+  // 表面: テクスチャをノイズでドメインワープ（流れる）+ 沸騰する明滅 + 周縁の増光
+  const SUN_FRAG = NOISE_GLSL + `
+    uniform float uTime; uniform sampler2D uTex; uniform vec3 uColor;
+    varying vec2 vUv; varying vec3 vPos; varying vec3 vNormalW; varying vec3 vViewDirW;
+    void main(){
+      float t=uTime*0.18;
+      vec3 q=vPos*2.4;
+      float w=fbm(q+vec3(0.0,0.0,t));
+      vec2 uv2=vUv+vec2(w)*0.025;
+      vec3 base=texture2D(uTex,uv2).rgb;
+      float boil=0.8+0.55*fbm(q*1.7+vec3(t*1.9));
+      vec3 col=base*boil;
+      col=mix(col,col*uColor*1.5,0.3);
+      float fres=pow(1.0-max(dot(vNormalW,vViewDirW),0.0),2.0);
+      col+=uColor*fres*0.7;
+      gl_FragColor=vec4(col,1.0);
+    }
+  `;
+  // コロナ殻: フレネル + ノイズで「炎の舌」状に揺らぐ外縁グロー（加算合成）
+  const CORONA_FRAG = NOISE_GLSL + `
+    uniform float uTime; uniform vec3 uColor;
+    varying vec2 vUv; varying vec3 vPos; varying vec3 vNormalW; varying vec3 vViewDirW;
+    void main(){
+      float fres=pow(1.0-max(dot(vNormalW,vViewDirW),0.0),2.2);
+      float t=uTime*0.4;
+      float tongues=0.45+0.85*fbm(vPos*3.2+vec3(t));
+      float a=clamp(fres*tongues,0.0,1.0);
+      gl_FragColor=vec4(uColor*a*1.4,a);
+    }
+  `;
+
   let scene, camera, renderer, starMesh, glowSprite, loader, planetGroup;
+  let sunMat, coronaMesh, coronaMat;   // 恒星サーフェス/コロナのシェーダ
   let animId = null;
   let initialized = false;
   let pulseT = 0;
@@ -118,12 +190,36 @@ window.Cosmos3D = (function () {
       (err) => console.warn('[cosmos3d] 背景テクスチャ読込失敗', err)
     );
 
-    // 恒星（sun テクスチャ）。MeshBasicMaterial = 自己発光的に見える（恒星は光源なので影不要）
+    // 恒星サーフェス: sun テクスチャを手続き型ノイズで沸騰・流動させる ShaderMaterial。
+    // 単なる貼り付け（プラスチック球）ではなく、生きたプラズマの揺らぎを表現。
     const sunTex = _npotSafe(loader.load('images/cosmos/sun.jpg'));
-    const geo = new THREE.SphereGeometry(1, 64, 32);
-    const mat = new THREE.MeshBasicMaterial({ map: sunTex });
-    starMesh = new THREE.Mesh(geo, mat);
+    sunMat = new THREE.ShaderMaterial({
+      uniforms: {
+        uTime:  { value: 0 },
+        uTex:   { value: sunTex },
+        uColor: { value: new THREE.Color(target.glowColor) },
+      },
+      vertexShader:   SUN_VERT,
+      fragmentShader: SUN_FRAG,
+    });
+    starMesh = new THREE.Mesh(new THREE.SphereGeometry(1, 64, 32), sunMat);
     scene.add(starMesh);
+
+    // コロナ殻: 恒星より一回り大きい球を加算合成で重ね、フレネル+ノイズで炎の揺らぎを出す
+    coronaMat = new THREE.ShaderMaterial({
+      uniforms: {
+        uTime:  { value: 0 },
+        uColor: { value: new THREE.Color(target.glowColor) },
+      },
+      vertexShader:   SUN_VERT,
+      fragmentShader: CORONA_FRAG,
+      transparent:    true,
+      blending:       THREE.AdditiveBlending,
+      depthWrite:     false,
+      side:           THREE.FrontSide,
+    });
+    coronaMesh = new THREE.Mesh(new THREE.SphereGeometry(1.18, 48, 24), coronaMat);
+    scene.add(coronaMesh);
 
     // グロー光輪（Sprite + 加算合成）
     const glowMat = new THREE.SpriteMaterial({
@@ -177,6 +273,13 @@ window.Cosmos3D = (function () {
       starMesh.rotation.y += 0.0025;
       starMesh.scale.setScalar(cur.radius);
     }
+    if (sunMat)    sunMat.uniforms.uTime.value    = pulseT;
+    if (coronaMat) coronaMat.uniforms.uTime.value = pulseT;
+    if (coronaMesh) {
+      // コロナは恒星に追従。回転は恒星と少しずらして躍動感を出す
+      coronaMesh.scale.setScalar(cur.radius);
+      coronaMesh.rotation.y -= 0.0012;
+    }
     if (glowSprite) {
       // ゆるやかな脈動（±4%）
       const pulse = 1 + Math.sin(pulseT) * 0.04;
@@ -219,6 +322,8 @@ window.Cosmos3D = (function () {
     target.glowOpacity = 0.32 + 0.4 * erNorm;
 
     if (glowSprite) glowSprite.material.color.setHex(target.glowColor);
+    if (sunMat)    sunMat.uniforms.uColor.value.setHex(target.glowColor);
+    if (coronaMat) coronaMat.uniforms.uColor.value.setHex(target.glowColor);
   }
 
   // ── 外部 API: 惑星リストを 3D に反映 ──
