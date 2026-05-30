@@ -1006,52 +1006,53 @@ canvas { position: absolute; top: 0; left: 0; transform-origin: top left; }
 #home-lang-row { display: flex; gap: 8px; }
 
 /* ============================================================
-   宇宙パネル（#panel-cosmos 内 #cosmos-panel）
+   宇宙パネル（#panel-cosmos）— Phase 2: 3D が全面、タイトル/HUD はオーバーレイ
    ============================================================ */
-/* モバイルでも恒星パネルに背景グラデーション */
+/* パネル自体はスクロールさせず、3D とオーバーレイを重ねる基点にする。
+   背景グラデーションは 3D テクスチャ読込前のフォールバック */
 #panel-cosmos {
   background: radial-gradient(circle at 50% 35%, #1a0e38 0%, #060412 70%);
+  position: relative;
+  overflow: hidden;
+  padding: 0;
+  justify-content: flex-start;
 }
-#cosmos-panel {
-  display: flex; flex-direction: column; align-items: center;
-  gap: 18px; width: 100%; max-width: 360px; padding: 32px 20px;
+/* 3D 宇宙ビューア (Three.js が canvas に描画) — パネル全面を占める */
+#cosmos-3d-wrap {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  overflow: hidden;
+  background: #000;
 }
-#cosmos-panel h2 { font-size: 28px; font-weight: bold; }
-#cosmos-star {
-  display: flex; align-items: center; justify-content: center;
-  filter: drop-shadow(0 0 20px rgba(150,110,255,0.65));
+#cosmos-3d { display: block; width: 100%; height: 100%; }
+
+/* 上部オーバーレイ: タイトル（3D の上に浮かせる） */
+#cosmos-overlay-top {
+  position: absolute; top: 0; left: 0; right: 0;
+  z-index: 2;
+  padding: 16px 16px 28px;
+  text-align: center;
+  pointer-events: none;
+  background: linear-gradient(to bottom, rgba(6,4,18,0.75) 0%, rgba(6,4,18,0) 100%);
 }
-#cosmos-star img {
-  display: block;
-  width: clamp(110px, 36vw, 190px);
-  height: clamp(110px, 36vw, 190px);
-  object-fit: contain;
-  max-width: 90%;
+#cosmos-overlay-top h2 {
+  font-size: 24px; font-weight: bold;
+  text-shadow: 0 2px 12px rgba(0,0,0,0.8);
 }
-/* デスクトップの恒星パネルでは適切なサイズに */
-@media (min-width: 760px) {
-  #panel-cosmos #cosmos-star img {
-    width: clamp(120px, 14vw, 200px);
-    height: clamp(120px, 14vw, 200px);
-  }
+
+/* 下部オーバーレイ HUD: 既存の質量/レート/物質生成器。
+   下部 5ボタンバー (#home-nav 高さ約66px + safe-area) と中央の持ち上げプレイボタン
+   に重ならないよう、bottom を nav 分だけ上げる（モバイル/デスクトップ共通でナビ表示中） */
+#cosmos-compact {
+  position: absolute; left: 0; right: 0;
+  bottom: calc(70px + env(safe-area-inset-bottom, 0px));
+  z-index: 2;
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 16px;
+  background: linear-gradient(to top, rgba(6,4,18,0.92) 0%, rgba(6,4,18,0.7) 55%, rgba(6,4,18,0) 100%);
 }
-/*
- * 恒星 脈動演出（JS で .star-pulse クラスを付与してトリガー）
- * 0%: 等倍 → 16%: 押し込み最大 → 36%: スプリングバック → 80%: 安定
- * 数字の float と同時に開始されることで「絞り出される」感を出す
- */
-@keyframes starPulseSync {
-  0%   { transform: scale(1); }
-  16%  { transform: scale(0.76); }
-  36%  { transform: scale(1.12); }
-  52%  { transform: scale(0.97); }
-  66%  { transform: scale(1.04); }
-  82%  { transform: scale(1); }
-  100% { transform: scale(1); }
-}
-#cosmos-star.star-pulse {
-  animation: starPulseSync 0.9s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-}
+/* 恒星本体の脈動演出は Phase 2 で 3D 側 (game-cosmos3d.js のグロー脈動) へ移行。
+   旧 #cosmos-star の CSS 脈動 (starPulseSync) は廃止。 */
 
 /*
  * 浮き上がる数値 — JS で生成して body に追加

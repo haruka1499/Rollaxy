@@ -345,15 +345,14 @@ function _setTxt(id, txt) { const e = document.getElementById(id); if (e) e.text
 function _fmt(n) { return Math.floor(n).toLocaleString(); }
 
 function renderCosmos() {
-  if (!document.getElementById('cosmos-panel')) return;
-  // 恒星の見た目（天体画像 PNG）。tier に応じた key で images/{key}.png を使用
-  const bi = starTierBi();
-  const starEl = document.getElementById('cosmos-star');
-  if (starEl) {
-    const key  = CFG.BODIES[bi].key;
-    const name = CFG.BODIES[bi].n;
-    starEl.innerHTML = `<img src="images/${key}.png" alt="${name}">`;
-    starEl.style.fontSize = ''; // 旧emoji用 font-size をクリア
+  if (!document.getElementById('cosmos-3d-wrap')) return;
+  // 3D 宇宙ビューアに恒星の見た目を反映（サイズ＝レベル、グロー色＝tier、強度＝レート）
+  if (window.Cosmos3D && typeof Cosmos3D.update === 'function') {
+    Cosmos3D.update({
+      level:      metaState.genLevel,
+      tier:       starTierBi(),
+      energyRate: starEnergyRate(),
+    });
   }
   // 質量・残高
   _setTxt('cosmos-mass',     T('massInfo')(_fmt(metaState.mass), massProdRate().toFixed(1)));
@@ -373,25 +372,20 @@ function renderCosmos() {
   }
 }
 
-// 毎秒: 恒星を脈動させながら数値を「絞り出す」演出（同期）
+// 毎秒: 恒星から数値が「絞り出される」演出。3D ビューアの中央付近から +X⚡ を浮かせる。
+// （恒星本体の脈動演出は 3D 側 game-cosmos3d.js が担当）
 function _tickStarEffect() {
-  const starEl = document.getElementById('cosmos-star');
-  if (!starEl) return;
+  const wrapEl = document.getElementById('cosmos-3d-wrap');
+  if (!wrapEl) return;
   const rate = starEnergyRate();
   if (rate <= 0) return;
 
-  // ① 恒星を押し込む（star-pulse クラスで CSS animation をトリガー）
-  starEl.classList.remove('star-pulse');
-  void starEl.offsetWidth; // reflow で animation をリセット
-  starEl.classList.add('star-pulse');
-  starEl.addEventListener('animationend', () => starEl.classList.remove('star-pulse'), { once: true });
-
-  // ② 同タイミングで数値を「押し出される」ように浮かせる
-  const rect = starEl.getBoundingClientRect();
+  const rect = wrapEl.getBoundingClientRect();
+  if (rect.width < 10) return; // パネル非表示中はスキップ
   const p = document.createElement('span');
   p.className = 'energy-float';
   p.textContent = `+${rate.toFixed(2)} ⚡`;
-  // 水平方向に少しランダムにずらし、恒星の中央やや上から出現
+  // 3D ビューア中央やや上から、水平に少しランダムにずらして出現
   const ox = (Math.random() - 0.5) * 44;
   p.style.left = (rect.left + rect.width / 2 + ox) + 'px';
   p.style.top  = (rect.top + rect.height * 0.42) + 'px';

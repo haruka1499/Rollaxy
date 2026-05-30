@@ -127,10 +127,19 @@
     </div>
 
     <!-- パネル2: 恒星（RIGHT） -->
+    <!-- Phase 2: 3D 宇宙ビューアがパネル全面を占め、タイトル/HUD はオーバーレイ。
+         3D の恒星サイズ・グロー色は生成器レベル/tier/エネルギーレートに連動する -->
     <div class="home-panel" id="panel-cosmos">
-      <div id="cosmos-panel">
+      <!-- 3D 宇宙ビューア (Three.js) — パネル全面 -->
+      <div id="cosmos-3d-wrap">
+        <canvas id="cosmos-3d"></canvas>
+      </div>
+      <!-- 上部オーバーレイ: タイトル -->
+      <div id="cosmos-overlay-top">
         <h2 data-i18n="cosmosTitle">宇宙</h2>
-        <div id="cosmos-star"></div>
+      </div>
+      <!-- 下部オーバーレイ HUD: 既存指標（質量/レート/物質生成器） -->
+      <div id="cosmos-compact">
         <div id="cosmos-mass"></div>
         <div id="cosmos-rate"></div>
         <div id="cosmos-generator">
@@ -503,6 +512,8 @@
   <div id="skill-toast" style="display:none"></div>
 </div>
 
+<!-- Three.js (3D 宇宙ビューア用。CDN 読込、defer なしで panel-cosmos 描画前にロード完了させる) -->
+<script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
 <script src="vendor/matter.min.js"></script>
 <script src="config.js"></script>
 <script src="lang.js"></script>
@@ -515,6 +526,7 @@
 <script src="achievement-data.js"></script>
 <script src="game-achievements.js"></script>
 <script src="game-meta.js"></script>
+<script src="game-cosmos3d.js"></script>
 <script src="game-feedback.js"></script>
 <script src="game.js"></script>
 <script src="game-ui.js"></script>
