@@ -93,25 +93,28 @@ window.Cosmos3D = (function () {
     }
   `;
   // ── コロナ用バーテックスシェーダ ──
-  // 各頂点を「法線(=球中心からの方向)」沿いに、放射方向ノイズで外向きに押し出す。
-  // これで輪郭そのものが崩れ、円ではなく不規則な火球シルエットになる。
-  // uDisplace で押し出し量、uTime でノイズパターンを外へ流す（炎が燃え上がる動き）。
+  // 「ほとんどの頂点は球のまま」「ピーク値の頂点だけ細く外へ突き出る」を実現する。
+  // smoothstep でしきい値以下は完全に切り落とし → 突き出る本数を絞る（細い炎の舌）。
+  // 続けて pow(d, 3.5) で先端を更に鋭利化。最後に uDisplace で R に対する割合に縮小。
+  // uTime でノイズパターンを外向きに流し「燃え上がる」アニメ。
   const CORONA_VERT = NOISE_GLSL + `
     uniform float uTime; uniform float uDisplace;
     varying vec2 vUv; varying vec3 vPos; varying vec3 vNormalW; varying vec3 vViewDirW;
-    varying float vDisplace; // 押し出し量を frag に渡し、先端を強く光らせる
+    varying float vDisplace; // 押し出し量比 (frag で先端を強く光らせる)
     void main(){
       vUv = uv;
-      vec3 nrm = normalize(position); // 球面なので位置=法線方向
-      float t = uTime * 0.5;
-      // 放射方向に時間流動するノイズ。+vec3(t) で「外へ流れる」感を出す
-      float n1 = fbm(nrm * 2.5 + vec3(t));
-      float n2 = fbm(nrm * 5.0 + vec3(t * 1.7));
-      // 外向きのみ（負の方向には引っ込めず、炎の舌のように外へだけ伸びる）
-      float d = max(0.0, n1 * 0.7 + n2 * 0.3);
-      // pow で鋭い舌状に
-      d = pow(d, 1.4) * uDisplace;
-      vDisplace = d;
+      vec3 nrm = normalize(position);
+      float t = uTime * 0.6;
+      // 高周波 + 低周波の混合。+vec3(t) でノイズパターンが外向きに流れる
+      float n1 = fbm(nrm * 3.0 + vec3(t));
+      float n2 = fbm(nrm * 7.0 + vec3(t * 1.8));
+      float n  = n1 * 0.6 + n2 * 0.4 + 0.5; // 0..1 程度
+      // しきい値以下を切り捨て（ピーク値のみ残す）→ 突き出る頂点数を絞る = 細い炎の舌
+      float peak = smoothstep(0.55, 1.0, n);
+      // 更に鋭利化
+      peak = pow(peak, 2.0);
+      float d = peak * uDisplace; // R に対する割合
+      vDisplace = peak; // frag では正規化された 0..1 値を使う（色合い計算用）
       vec3 displaced = position + nrm * d;
       vPos = displaced;
       vec4 wp = modelMatrix * vec4(displaced, 1.0);
@@ -193,10 +196,12 @@ window.Cosmos3D = (function () {
 
   // ── 動的品質（Phase 7）──
   // HIGH: 全機能 / MID: 中間 / LOW: 軽量。起動時HIGH、fps が画面更新の90%を下回ったら段階的に下げる
+  // 押し出し量は球半径(=1.0)に対する割合。0.03〜0.08 程度に抑えて「ほぼ球+細い炎の舌」を実現。
+  // geomDetail は SphereGeometry の widthSegments。高分割で押し出しエッジを滑らかに見せる。
   const QUALITY = {
-    HIGH: { tongueDisplace: 0.95, hazeOpacity: 1.0, particleCount: 100, geomDetail: 64 },
-    MID:  { tongueDisplace: 0.60, hazeOpacity: 0.85, particleCount: 50,  geomDetail: 48 },
-    LOW:  { tongueDisplace: 0.30, hazeOpacity: 0.7,  particleCount: 20,  geomDetail: 32 },
+    HIGH: { tongueDisplace: 0.08, hazeOpacity: 1.0,  particleCount: 100, geomDetail: 160 },
+    MID:  { tongueDisplace: 0.05, hazeOpacity: 0.85, particleCount: 50,  geomDetail: 112 },
+    LOW:  { tongueDisplace: 0.03, hazeOpacity: 0.7,  particleCount: 20,  geomDetail: 80 },
   };
   let qualityLevel = 'HIGH';
 
@@ -316,11 +321,12 @@ window.Cosmos3D = (function () {
     // コロナ: 頂点押し出しの炎の舌層 + 滑らかな遠方ヘイズの 2 層構成。
     // CORONA_VERT で頂点自体を法線方向にノイズ押し出しするため、輪郭が円ではなくなる。
     const q = QUALITY[qualityLevel];
+    // コロナは恒星表面のすぐ外側に寄せる。離れすぎると「球が重なって見える」原因になる
     const layerDefs = [
-      // 押し出し量大: 「炎の舌」が外向きに伸びる
-      { scale: 1.15, frag: CORONA_TONGUE_FRAG, speed: -0.0014, displace: q.tongueDisplace, opacity: 1.0 },
-      // 押し出しなし: 滑らかな遠方ヘイズ
-      { scale: 1.55, frag: CORONA_HAZE_FRAG,   speed:  0.0008, displace: 0.0,            opacity: q.hazeOpacity },
+      // 押し出し付き炎の舌（恒星表面ぎりぎり外側、押し出しで少し外へ伸びる）
+      { scale: 1.02, frag: CORONA_TONGUE_FRAG, speed: -0.0014, displace: q.tongueDisplace, opacity: 1.0 },
+      // 滑らかな遠方ヘイズ（控えめに表面近く）
+      { scale: 1.08, frag: CORONA_HAZE_FRAG,   speed:  0.0008, displace: 0.0,             opacity: q.hazeOpacity },
     ];
     for (const d of layerDefs) {
       const mat = new THREE.ShaderMaterial({
