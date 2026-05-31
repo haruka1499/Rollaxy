@@ -1039,6 +1039,29 @@ canvas { position: absolute; top: 0; left: 0; transform-origin: top left; }
   font-size: 24px; font-weight: bold;
   text-shadow: 0 2px 12px rgba(0,0,0,0.8);
 }
+/* 多恒星セレクタ: 横並びタブ + 解放ボタン。pointer-events を子で有効化 */
+#cosmos-star-tabs {
+  display: flex; flex-wrap: wrap; justify-content: center; gap: 6px;
+  margin-top: 8px;
+}
+.star-tab {
+  pointer-events: auto;
+  padding: 5px 10px; font-size: 12px; font-weight: 600;
+  border-radius: 14px; border: 1px solid rgba(124,92,252,0.5);
+  background: rgba(20,12,40,0.7); color: #cbb6ff;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+  white-space: nowrap; transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.star-tab:active { transform: scale(0.96); }
+.star-tab.active {
+  background: linear-gradient(135deg, #6a4fd0, #9a7cff);
+  color: #fff; border-color: #b6a0ff;
+  box-shadow: 0 0 12px rgba(154,124,255,0.5);
+}
+.star-tab.unlock {
+  background: rgba(255,140,0,0.18); border-color: rgba(255,140,0,0.5); color: #ffd76b;
+}
+.star-tab.unlock:disabled { background: rgba(80,60,30,0.4); color: #887; cursor: default; border-color: rgba(80,60,30,0.5); }
 
 /* 下部オーバーレイ HUD: 既存の質量/レート/物質生成器。
    下部 5ボタンバー (#home-nav 高さ約66px + safe-area) と中央の持ち上げプレイボタン

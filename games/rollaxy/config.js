@@ -260,6 +260,14 @@ const CFG = {
         descJa: 'ゲーム内スコア +20%', descEn: '+20% in-game score', descZh: '游戏内分数 +20%' },
     ],
 
+    // ── 多恒星（Phase 5）──
+    // 恒星枠 N 個目の解放コスト（文明ポイント）。COSTS[0] は初期保有なので未使用。
+    // 例: 2個目=5pt, 3個目=15pt, 4個目=45pt（おおむね×3）
+    STAR_SLOTS: {
+      COSTS: [0, 5, 15, 45, 135, 405, 1215, 3645],
+      MAX:   8,
+    },
+
     // ── 超新星（Phase 4）──
     // 成長% = mass / GROWTH_DIVISOR（mass 5000 で 100%）。100% 以上で超新星実行可。
     // 1000% で進行不能（ソフトキャップ・mass 蓄積停止）。
@@ -370,6 +378,9 @@ const STORAGE_KEYS = {
   META_PLANETS:       'rollaxy_planets',            // 生成済み惑星配列(JSON) [{key,name}]
   META_CIV_POINTS:    'rollaxy_civ_points',          // 文明ポイント（超新星で獲得・永続）
   META_SUPERNOVA_CNT: 'rollaxy_supernova_count',     // 通算超新星回数（=宇宙数）
+  META_STARS:         'rollaxy_stars',                // 全恒星 [{id,mass,planets}] JSON
+  META_ACTIVE_STAR:   'rollaxy_active_star',          // 現在選択中の恒星ID
+  META_STAR_SLOTS:    'rollaxy_star_slots',           // 解放済み恒星枠数（初期1）
   META_SIG:           'rollaxy_meta_sig',           // セーブ整合性チェックサム（簡易チート対策）
 
   // ── レガシー（移行済み・読み取り/削除のみ。新規利用しない） ──

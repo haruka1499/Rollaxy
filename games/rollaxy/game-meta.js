@@ -23,9 +23,15 @@ const metaState = {
   genLevel: CFG.META.GENERATOR.START_LEVEL,
   civLevel: CFG.META.CIV.START_LEVEL,
   research: new Set(), // 所持研究ID
-  planets: [],         // 生成済み惑星 [{ key:'mercury'|'venus'|'earth', name:string }]
+  planets: [],         // 【アクティブ恒星の鏡】生成済み惑星 [{ key, name }]
   civPoints: 0,        // 文明ポイント（超新星で獲得・永続）
   supernovaCount: 0,   // 通算超新星回数（=宇宙数）
+  // ── 多恒星（Phase 5）──
+  // 各恒星は独立した mass/planets を持つ。metaState.mass/planets は activeStarId が指す恒星の鏡。
+  // 切替時に _syncActiveStarOut() で stars[] に保存、_syncActiveStarIn() で次の active から読み込む。
+  stars: [{ id: 's1', mass: 0, planets: [] }],
+  activeStarId: 's1',
+  starSlots: 1,
   lastSaved: Date.now(),
   _suspect: false,     // 簡易チート対策: セーブ署名不一致フラグ（将来サーバー検証へ送出）
 };
@@ -52,6 +58,84 @@ function _loadPlanets() {
   }
   return out;
 }
+// 恒星リストの読込＋サニタイズ。未保存（旧ユーザー）なら null を返し、呼び出し側で旧 mass/planets から
+// 'sN' 形式の id を持つ最初の恒星を作成する。
+function _loadStars() {
+  const validKeys = new Set(CFG.META.PLANET.TYPES.map(t => t.key));
+  let arr = null;
+  try {
+    const raw = JSON.parse(localStorage.getItem(STORAGE_KEYS.META_STARS) || 'null');
+    if (Array.isArray(raw)) arr = raw;
+  } catch (_) { arr = null; }
+  if (!arr) return null;
+  const max = CFG.META.STAR_SLOTS.MAX;
+  const out = [];
+  for (const s of arr) {
+    if (!s || typeof s.id !== 'string') continue;
+    const mass = Math.max(0, Number.isFinite(+s.mass) ? +s.mass : 0);
+    const planets = [];
+    const ps = Array.isArray(s.planets) ? s.planets : [];
+    for (const p of ps) {
+      if (!p || !validKeys.has(p.key)) continue;
+      planets.push({ key: p.key, name: String(p.name || '').slice(0, 15) });
+      if (planets.length >= CFG.META.PLANET.MAX_SLOTS) break;
+    }
+    out.push({ id: s.id, mass, planets });
+    if (out.length >= max) break;
+  }
+  return out.length > 0 ? out : null;
+}
+
+// 多恒星: アクティブ恒星の鏡（metaState.mass/planets）と stars[] を同期するユーティリティ。
+function currentStar() {
+  return metaState.stars.find(s => s.id === metaState.activeStarId) || metaState.stars[0];
+}
+// 鏡 → stars[]: 計算系（mass増加・planet追加）の結果を恒星エンティティに書き戻す
+function _syncActiveStarOut() {
+  const s = currentStar();
+  if (!s) return;
+  s.mass    = metaState.mass;
+  s.planets = metaState.planets.slice();
+}
+// stars[] → 鏡: 恒星切替時、active 側の値を metaState.mass/planets にコピー
+function _syncActiveStarIn() {
+  const s = currentStar();
+  if (!s) return;
+  metaState.mass    = s.mass;
+  metaState.planets = s.planets.slice();
+}
+// 次の恒星枠解放コスト（文明ポイント）。MAX 到達で Infinity。
+function nextStarSlotCost() {
+  const C = CFG.META.STAR_SLOTS;
+  if (metaState.starSlots >= C.MAX) return Infinity;
+  // COSTS[N] が N+1 個目の解放コスト（COSTS[0]=0 は初期保有なので未使用）
+  return C.COSTS[metaState.starSlots] ?? Infinity;
+}
+// 恒星枠を1つ解放（文明ポイント消費）。成功で新規恒星 ID を返す（失敗時 null）。
+function unlockStarSlot() {
+  const cost = nextStarSlotCost();
+  if (!Number.isFinite(cost) || metaState.civPoints < cost) return null;
+  metaState.civPoints -= cost;
+  metaState.starSlots += 1;
+  // 新規恒星を末尾に追加（ID は既存と被らない s{N}）
+  let n = metaState.stars.length + 1;
+  while (metaState.stars.find(s => s.id === 's' + n)) n++;
+  const newId = 's' + n;
+  metaState.stars.push({ id: newId, mass: 0, planets: [] });
+  saveMeta();
+  updateResourceBar();
+  return newId;
+}
+// アクティブ恒星を切り替え（鏡を保存→active 変更→新 active を鏡へ）。同 ID なら no-op。
+function switchActiveStar(id) {
+  if (id === metaState.activeStarId) return false;
+  if (!metaState.stars.find(s => s.id === id)) return false;
+  _syncActiveStarOut();
+  metaState.activeStarId = id;
+  _syncActiveStarIn();
+  saveMeta();
+  return true;
+}
 
 // 簡易チート対策: セーブ全体の整合性チェックサム（FNV-1a, 暗号強度なし＝改ざん抑止用）。
 // localStorage を手で書き換えると署名が一致しなくなり _suspect フラグが立つ。
@@ -63,6 +147,9 @@ function _metaSig() {
     [...metaState.research].sort().join(','),
     metaState.planets.map(p => p.key + ':' + p.name).join(','),
     metaState.civPoints, metaState.supernovaCount,
+    metaState.starSlots, metaState.activeStarId,
+    // stars[] は active 鏡を更新済み前提でシリアライズ
+    metaState.stars.map(s => s.id + '@' + Math.floor(s.mass) + ':' + s.planets.map(p => p.key + ',' + p.name).join('|')).join(';'),
     metaState.lastSaved,
   ].join('|');
   let h = 0x811c9dc5;
@@ -90,6 +177,24 @@ function loadMeta() {
   metaState.planets = _loadPlanets();
   metaState.civPoints      = Math.max(0, Math.floor(_metaNum(STORAGE_KEYS.META_CIV_POINTS, 0)));
   metaState.supernovaCount = Math.max(0, Math.floor(_metaNum(STORAGE_KEYS.META_SUPERNOVA_CNT, 0)));
+  // 多恒星: stars[] が保存されていれば採用、未保存なら旧 mass/planets を 's1' に移行
+  const loadedStars = _loadStars();
+  if (loadedStars) {
+    metaState.stars = loadedStars;
+    metaState.activeStarId = localStorage.getItem(STORAGE_KEYS.META_ACTIVE_STAR) || loadedStars[0].id;
+    if (!loadedStars.find(s => s.id === metaState.activeStarId)) {
+      metaState.activeStarId = loadedStars[0].id;
+    }
+    metaState.starSlots = Math.max(loadedStars.length,
+      Math.min(CFG.META.STAR_SLOTS.MAX, Math.floor(_metaNum(STORAGE_KEYS.META_STAR_SLOTS, 1))));
+  } else {
+    // 既存ユーザー: 旧 mass/planets を恒星1へ移行
+    metaState.stars = [{ id: 's1', mass: metaState.mass, planets: metaState.planets.slice() }];
+    metaState.activeStarId = 's1';
+    metaState.starSlots = 1;
+  }
+  // active 鏡をセット（旧 mass/planets を上書き）
+  _syncActiveStarIn();
   metaState.lastSaved = _metaNum(STORAGE_KEYS.META_LAST_SAVED, Date.now());
 
   // 簡易チート対策: 署名検証。不一致＝外部編集の疑い。破壊的措置は取らず
@@ -131,6 +236,11 @@ function saveMeta() {
   localStorage.setItem(STORAGE_KEYS.META_PLANETS,    JSON.stringify(metaState.planets));
   localStorage.setItem(STORAGE_KEYS.META_CIV_POINTS, String(metaState.civPoints));
   localStorage.setItem(STORAGE_KEYS.META_SUPERNOVA_CNT, String(metaState.supernovaCount));
+  // 多恒星: 鏡を恒星エンティティに書き戻してから配列を保存
+  _syncActiveStarOut();
+  localStorage.setItem(STORAGE_KEYS.META_STARS,      JSON.stringify(metaState.stars));
+  localStorage.setItem(STORAGE_KEYS.META_ACTIVE_STAR, metaState.activeStarId);
+  localStorage.setItem(STORAGE_KEYS.META_STAR_SLOTS, String(metaState.starSlots));
   localStorage.setItem(STORAGE_KEYS.META_LAST_SAVED, String(metaState.lastSaved));
   localStorage.setItem(STORAGE_KEYS.META_SIG,        _metaSig()); // 整合性署名（簡易チート対策）
 }
@@ -464,6 +574,7 @@ function renderCosmos() {
   }
   _renderPlanetRow();
   _renderGrowthRow();
+  _renderStarTabs();
   // 質量・残高
   _setTxt('cosmos-mass',     T('massInfo')(_fmt(metaState.mass), massProdRate().toFixed(1)));
   _setTxt('cosmos-rate',     `⚡ +${starEnergyRate().toFixed(2)} ${T('stellarEnergy')}${T('energyRate')}`);
@@ -505,6 +616,23 @@ function _renderPlanetRow() {
     addBtn.textContent = `${T('planetAdd')}  💫 ${_fmt(cost)}`;
     addBtn.disabled = metaState.stardust < cost;
   }
+}
+
+// 多恒星セレクタ: 横並びタブ + 「+解放」ボタン。アクティブは強調表示。
+function _renderStarTabs() {
+  const wrap = document.getElementById('cosmos-star-tabs');
+  if (!wrap) return;
+  const cost = nextStarSlotCost();
+  let html = '';
+  metaState.stars.forEach((s, i) => {
+    const active = s.id === metaState.activeStarId;
+    html += `<button class="star-tab${active ? ' active' : ''}" data-star-id="${s.id}">★ ${i + 1}</button>`;
+  });
+  if (Number.isFinite(cost)) {
+    html += `<button id="cosmos-star-unlock" class="star-tab unlock" `
+          + `${metaState.civPoints < cost ? 'disabled' : ''}>＋ 🏛️${cost}</button>`;
+  }
+  wrap.innerHTML = html;
 }
 
 // 成長% バー + 超新星ボタン HUD。100% 以上で超新星可、警告閾値で1回ずつトースト。
@@ -935,6 +1063,28 @@ if (_planetChoicesEl) {
 on(document.getElementById('planet-modal'), (e) => {
   if (e.target === document.getElementById('planet-modal')) closePlanetModal();
 });
+
+// 多恒星: 恒星セレクタタブのクリックをデリゲート。「+解放」は文明ポイントを消費して枠追加。
+const _starTabsEl = document.getElementById('cosmos-star-tabs');
+if (_starTabsEl) {
+  _starTabsEl.addEventListener('click', (e) => {
+    const t = e.target.closest('.star-tab');
+    if (!t || t.disabled) return;
+    if (t.id === 'cosmos-star-unlock') {
+      const newId = unlockStarSlot();
+      if (newId) {
+        switchActiveStar(newId);
+        renderCosmos();
+      }
+      return;
+    }
+    const id = t.dataset.starId;
+    if (id) {
+      switchActiveStar(id);
+      renderCosmos();
+    }
+  });
+}
 
 // 超新星: HUD の「超新星」ボタン → 確認モーダル → 実行
 on(document.getElementById('cosmos-supernova-btn'), () => openSupernovaModal());
