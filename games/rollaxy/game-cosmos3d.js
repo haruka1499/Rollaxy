@@ -386,8 +386,67 @@ window.Cosmos3D = (function () {
     _start();
   }
 
-  // ── ソーラーフレア (ループ状アーチ、ゆっくり emerge → peak → fade)──
-  // 「時々」感を出すため長めの待機 (8〜25 秒) を挟む。同時上限は QUALITY.flareMax。
+  // ── ソーラーフレア (粒子ストリーム + 渦巻きノイズ = 「煙が吹き出して渦巻く」感) ──
+  // 経路: A(始点) → Apex(頂点・恒星外側) → B(終点) の二次ベジエ
+  // 各粒子は独立位相 tOffset で経路上を循環し、3軸ノイズで揺らぐ = 連続噴き出し+渦
+  // 寿命: rise → peak → fade を uLife で全体不透明度として制御
+  const FLARE_VERT = `
+    attribute float tOffset;
+    uniform float uTime;
+    uniform vec3 uA;
+    uniform vec3 uApex;
+    uniform vec3 uB;
+    uniform float uLife;
+    varying float vAlpha;
+    varying float vT;
+    void main(){
+      // 経路上の位置 t = (tOffset + uTime*speed) を 0..1 で循環
+      float t = mod(tOffset + uTime * 0.16, 1.0);
+      vT = t;
+      // 二次ベジエ補間
+      float ot = 1.0 - t;
+      vec3 path = ot*ot*uA + 2.0*ot*t*uApex + t*t*uB;
+      // 中央(t=0.5)ほど膨らみ最大、端で 0 (経路に張り付く = 煙の根元)
+      float spread = sin(t * 3.14159);
+      // 3軸サイン波で「渦巻く」揺らぎ。spread で端を抑制
+      float w = uTime * 1.4 + tOffset * 17.0;
+      vec3 swirl = vec3(
+        sin(w * 1.3),
+        cos(w * 1.1 + tOffset * 9.0),
+        sin(w * 0.9 + tOffset * 13.0)
+      ) * 0.10 * spread;
+      // 加えて、軌道接線方向に螺旋（より「渦」感）
+      vec3 tangent = normalize(2.0*ot*(uApex-uA) + 2.0*t*(uB-uApex));
+      vec3 perpA = normalize(cross(tangent, vec3(0.0, 1.0, 0.0) + vec3(0.001)));
+      vec3 perpB = normalize(cross(tangent, perpA));
+      float spiral = t * 6.28318 + uTime * 1.6 + tOffset * 12.0;
+      vec3 helix = (perpA * cos(spiral) + perpB * sin(spiral)) * 0.06 * spread;
+      vec3 pos = path + swirl + helix;
+      vec4 mv = modelViewMatrix * vec4(pos, 1.0);
+      // 中央ほど大きい粒(煙の膨らみ)
+      gl_PointSize = (8.0 + 26.0 * spread) / -mv.z;
+      vAlpha = spread * uLife;
+      gl_Position = projectionMatrix * mv;
+    }
+  `;
+  const FLARE_FRAG = `
+    uniform vec3 uColor;
+    varying float vAlpha;
+    varying float vT;
+    void main(){
+      // 円形ソフトマスク (gl_PointCoord 0..1)
+      vec2 d = gl_PointCoord - vec2(0.5);
+      float dist = length(d);
+      if (dist > 0.5) discard;
+      float fall = smoothstep(0.5, 0.0, dist);
+      float a = fall * vAlpha;
+      // 中央 (vT ~0.5) ほど白寄り高温、端ほどベース色寄り
+      float hot = 1.0 - abs(vT - 0.5) * 2.0; // 0..1
+      vec3 col = mix(uColor, vec3(1.6, 1.2, 0.7), hot * 0.45);
+      gl_FragColor = vec4(col * a * 1.6, a);
+    }
+  `;
+
   function _randUnitVec() {
     const u = Math.random() * 2 - 1;
     const a = Math.random() * Math.PI * 2;
@@ -395,39 +454,51 @@ window.Cosmos3D = (function () {
     return new THREE.Vector3(s * Math.cos(a), u, s * Math.sin(a));
   }
   function _spawnFlare() {
-    // 表面上の 2 点 A, B（近接）。中間点を 1.55〜2.1 倍 R 外側に膨らませる
+    // 経路の 3 制御点 (A: 表面始点, Apex: 外側頂点, B: 表面終点)
     const a = _randUnitVec();
     const offset = _randUnitVec().multiplyScalar(0.22 + Math.random() * 0.25);
     const b = a.clone().add(offset).normalize();
     const midDir = a.clone().add(b).multiplyScalar(0.5).normalize();
-    const apexH  = 1.55 + Math.random() * 0.55;
-    const apex   = midDir.clone().multiplyScalar(apexH);
-    // 側方に少し膨らませて立体感
+    const apexH = 1.55 + Math.random() * 0.55;
+    const apex = midDir.clone().multiplyScalar(apexH);
     const sideways = new THREE.Vector3();
     sideways.crossVectors(midDir, new THREE.Vector3(0, 1, 0)).normalize();
     if (!isFinite(sideways.x)) sideways.set(1, 0, 0);
     apex.addScaledVector(sideways, (Math.random() - 0.5) * 0.35);
 
-    const curve = new THREE.CatmullRomCurve3([a, apex, b]);
-    const geo = new THREE.TubeGeometry(curve, 36, 0.04, 10, false);
-    const mat = new THREE.MeshBasicMaterial({
-      color: new THREE.Color(1.8, 0.85, 0.35), // HDR 暖色 (Bloom が拾いやすい)
-      transparent: true,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-      opacity: 0,
+    // 粒子: 経路上に分散配置 (実位置は VS で計算するため position は dummy)
+    const N = 80;
+    const positions = new Float32Array(N * 3);
+    const tOffsets  = new Float32Array(N);
+    for (let i = 0; i < N; i++) tOffsets[i] = Math.random();
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geo.setAttribute('tOffset',  new THREE.BufferAttribute(tOffsets, 1));
+    const mat = new THREE.ShaderMaterial({
+      uniforms: {
+        uTime:  { value: 0 },
+        uA:     { value: a },
+        uApex:  { value: apex },
+        uB:     { value: b },
+        uLife:  { value: 0 },
+        uColor: { value: new THREE.Color(0xffae50) },
+      },
+      vertexShader:   FLARE_VERT,
+      fragmentShader: FLARE_FRAG,
+      transparent:    true,
+      blending:       THREE.AdditiveBlending,
+      depthWrite:     false,
     });
     return {
-      mesh: new THREE.Mesh(geo, mat),
+      mesh: new THREE.Points(geo, mat),
       mat,
       t: 0,
-      riseDur: 1.8 + Math.random() * 1.2, // emerge
-      peakDur: 1.0 + Math.random() * 1.5, // peak
-      fadeDur: 3.0 + Math.random() * 1.8, // fade
+      riseDur: 1.6 + Math.random() * 1.2,
+      peakDur: 2.0 + Math.random() * 2.0,  // ピーク長めで「煙が出続ける」時間を確保
+      fadeDur: 3.5 + Math.random() * 2.0,
     };
   }
   function _updateSolarFlares(dt) {
-    // 既存フレアの寿命進行
     for (let i = solarFlares.length - 1; i >= 0; i--) {
       const f = solarFlares[i];
       f.t += dt;
@@ -445,19 +516,18 @@ window.Cosmos3D = (function () {
       } else {
         alpha = 1.0 - (f.t - f.riseDur - f.peakDur) / f.fadeDur;
       }
-      // ease-in-out で見た目を滑らかに
       alpha = alpha * alpha * (3.0 - 2.0 * alpha);
-      f.mat.opacity = alpha * 0.95;
+      f.mat.uniforms.uLife.value = alpha;
+      f.mat.uniforms.uTime.value = pulseT;
       f.mesh.scale.setScalar(cur.radius);
     }
-    // 新規フレア生成
     _nextFlareIn -= dt;
     const limit = QUALITY[qualityLevel].flareMax;
     if (_nextFlareIn <= 0 && solarFlares.length < limit) {
       const f = _spawnFlare();
       scene.add(f.mesh);
       solarFlares.push(f);
-      _nextFlareIn = 8 + Math.random() * 17; // 8〜25 秒
+      _nextFlareIn = 8 + Math.random() * 17;
     }
   }
 
