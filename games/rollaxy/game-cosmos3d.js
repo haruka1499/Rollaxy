@@ -92,21 +92,61 @@ window.Cosmos3D = (function () {
       gl_FragColor=vec4(col,1.0);
     }
   `;
-  // コロナ殻: フレネル + ノイズで「炎の舌」状に揺らぐ外縁グロー（加算合成）
-  const CORONA_FRAG = NOISE_GLSL + `
+  // コアコロナ: 表面すぐ外の燃え芯。明るい黄白で鋭く脈打つ
+  const CORONA_CORE_FRAG = NOISE_GLSL + `
     uniform float uTime; uniform vec3 uColor;
     varying vec2 vUv; varying vec3 vPos; varying vec3 vNormalW; varying vec3 vViewDirW;
     void main(){
-      float fres=pow(1.0-max(dot(vNormalW,vViewDirW),0.0),2.2);
-      float t=uTime*0.4;
-      float tongues=0.45+0.85*fbm(vPos*3.2+vec3(t));
-      float a=clamp(fres*tongues,0.0,1.0);
-      gl_FragColor=vec4(uColor*a*1.4,a);
+      float fres=pow(1.0-max(dot(vNormalW,vViewDirW),0.0),3.5);
+      vec3 q=normalize(vPos);
+      float t=uTime*0.6;
+      // 細かいノイズで「燃えてる」感じ
+      float n=fbm(q*6.0+vec3(t*0.8));
+      float core=pow(fres*(0.5+n),1.2);
+      // 中心は白寄りに、外側ほど色付き
+      vec3 hot=mix(vec3(1.0,0.95,0.7), uColor, 1.0-fres);
+      float a=clamp(core*1.4,0.0,1.0);
+      gl_FragColor=vec4(hot*a*1.8,a);
+    }
+  `;
+  // 炎の舌層: 鋭い炎の舌が外側へ流れる
+  // 放射方向にUV的に「流れる」ノイズで、外に伸びる炎の動きを表現
+  const CORONA_TONGUE_FRAG = NOISE_GLSL + `
+    uniform float uTime; uniform vec3 uColor;
+    varying vec2 vUv; varying vec3 vPos; varying vec3 vNormalW; varying vec3 vViewDirW;
+    void main(){
+      float fres=pow(1.0-max(dot(vNormalW,vViewDirW),0.0),2.0);
+      vec3 q=normalize(vPos);
+      float t=uTime*0.7;
+      // 放射方向(=外向き)に流れるノイズ: q + 時間で外側へ伸びる
+      float n1=fbm(q*3.5+vec3(t*1.2));
+      float n2=fbm(q*7.0-vec3(t*1.8));
+      // pow で鋭くして「舌」状の輪郭を作る
+      float tongues=pow(clamp(n1*0.5+n2*0.5+0.5, 0.0, 1.0), 2.6);
+      // 外側ほど暗くするマスク（炎が外に向かって細る）
+      float a=fres*tongues*1.6;
+      a=clamp(a,0.0,1.0);
+      gl_FragColor=vec4(uColor*a*1.5,a);
+    }
+  `;
+  // 遠方ヘイズ: 柔らかい残光・大気感（既存風味）
+  const CORONA_HAZE_FRAG = NOISE_GLSL + `
+    uniform float uTime; uniform vec3 uColor;
+    varying vec2 vUv; varying vec3 vPos; varying vec3 vNormalW; varying vec3 vViewDirW;
+    void main(){
+      float fres=pow(1.0-max(dot(vNormalW,vViewDirW),0.0),3.0);
+      float t=uTime*0.3;
+      float n=fbm(vPos*1.6+vec3(t));
+      float a=fres*(0.45+0.55*n)*0.55;
+      a=clamp(a,0.0,1.0);
+      gl_FragColor=vec4(uColor*a*1.1,a);
     }
   `;
 
   let scene, camera, renderer, starMesh, glowSprite, loader, planetGroup;
-  let sunMat, coronaMesh, coronaMat;   // 恒星サーフェス/コロナのシェーダ
+  let sunMat;                          // 恒星サーフェスのシェーダ
+  let coronaLayers = [];               // 3層コロナ [{mesh, mat, speed}]
+  let supernovaT = 0;                  // 超新星演出の進行時間（0=非演出, >0=演出中）
   let animId = null;
   let initialized = false;
   let pulseT = 0;
@@ -205,21 +245,30 @@ window.Cosmos3D = (function () {
     starMesh = new THREE.Mesh(new THREE.SphereGeometry(1, 64, 32), sunMat);
     scene.add(starMesh);
 
-    // コロナ殻: 恒星より一回り大きい球を加算合成で重ね、フレネル+ノイズで炎の揺らぎを出す
-    coronaMat = new THREE.ShaderMaterial({
-      uniforms: {
-        uTime:  { value: 0 },
-        uColor: { value: new THREE.Color(target.glowColor) },
-      },
-      vertexShader:   SUN_VERT,
-      fragmentShader: CORONA_FRAG,
-      transparent:    true,
-      blending:       THREE.AdditiveBlending,
-      depthWrite:     false,
-      side:           THREE.FrontSide,
-    });
-    coronaMesh = new THREE.Mesh(new THREE.SphereGeometry(1.18, 48, 24), coronaMat);
-    scene.add(coronaMesh);
+    // 3層コロナ: コア(燃え芯) + 炎の舌 + 遠方ヘイズ
+    // 加算合成で重ねることで、明るい中心 → 鋭い炎 → 柔らかい残光の階調を出す
+    const layerDefs = [
+      { scale: 1.04, frag: CORONA_CORE_FRAG,   speed: -0.0006 },
+      { scale: 1.18, frag: CORONA_TONGUE_FRAG, speed: -0.0014 },
+      { scale: 1.42, frag: CORONA_HAZE_FRAG,   speed:  0.0008 },
+    ];
+    for (const d of layerDefs) {
+      const mat = new THREE.ShaderMaterial({
+        uniforms: {
+          uTime:  { value: 0 },
+          uColor: { value: new THREE.Color(target.glowColor) },
+        },
+        vertexShader:   SUN_VERT,
+        fragmentShader: d.frag,
+        transparent:    true,
+        blending:       THREE.AdditiveBlending,
+        depthWrite:     false,
+        side:           THREE.FrontSide,
+      });
+      const mesh = new THREE.Mesh(new THREE.SphereGeometry(d.scale, 48, 24), mat);
+      scene.add(mesh);
+      coronaLayers.push({ mesh, mat, baseScale: d.scale, speed: d.speed });
+    }
 
     // グロー光輪（Sprite + 加算合成）
     const glowMat = new THREE.SpriteMaterial({
@@ -273,12 +322,12 @@ window.Cosmos3D = (function () {
       starMesh.rotation.y += 0.0025;
       starMesh.scale.setScalar(cur.radius);
     }
-    if (sunMat)    sunMat.uniforms.uTime.value    = pulseT;
-    if (coronaMat) coronaMat.uniforms.uTime.value = pulseT;
-    if (coronaMesh) {
-      // コロナは恒星に追従。回転は恒星と少しずらして躍動感を出す
-      coronaMesh.scale.setScalar(cur.radius);
-      coronaMesh.rotation.y -= 0.0012;
+    if (sunMat) sunMat.uniforms.uTime.value = pulseT;
+    // 3層コロナを更新。各層は恒星半径に追従し、別速度で回転して躍動感を出す
+    for (const L of coronaLayers) {
+      L.mat.uniforms.uTime.value = pulseT;
+      L.mesh.scale.setScalar(cur.radius);
+      L.mesh.rotation.y += L.speed;
     }
     if (glowSprite) {
       // ゆるやかな脈動（±4%）
@@ -292,6 +341,33 @@ window.Cosmos3D = (function () {
       p.angle += p.speed;
       p.mesh.position.set(Math.cos(p.angle) * p.orbitRadius, 0, Math.sin(p.angle) * p.orbitRadius);
       p.mesh.rotation.y += 0.01;
+    }
+    // 超新星演出: 0→1 にかけて急膨張+白くフラッシュ → 1.0以降で星屑に縮小
+    if (supernovaT > 0) {
+      supernovaT += 1 / 60; // 約60fps想定
+      const t = Math.min(supernovaT, 2.5);
+      if (t < 1.0) {
+        // 膨張+発光
+        const expand = 1 + t * 6;
+        if (starMesh) starMesh.scale.setScalar(cur.radius * expand);
+        for (const L of coronaLayers) {
+          L.mesh.scale.setScalar(cur.radius * (expand + 0.3));
+          L.mat.uniforms.uColor.value.setRGB(1, 1, 1); // 白くフラッシュ
+        }
+      } else if (t < 2.0) {
+        // 急縮小+暗転
+        const k = 1 - (t - 1.0);
+        if (starMesh) starMesh.scale.setScalar(cur.radius * k * 0.5);
+        for (const L of coronaLayers) {
+          L.mesh.scale.setScalar(cur.radius * k);
+          L.mat.uniforms.uColor.value.setHex(target.glowColor); // 色を元に戻す
+        }
+      } else {
+        // 終了: 通常スケールへ戻す
+        supernovaT = 0;
+        if (starMesh) starMesh.scale.setScalar(cur.radius);
+        for (const L of coronaLayers) L.mesh.scale.setScalar(cur.radius);
+      }
     }
     renderer.render(scene, camera);
   }
@@ -322,8 +398,8 @@ window.Cosmos3D = (function () {
     target.glowOpacity = 0.32 + 0.4 * erNorm;
 
     if (glowSprite) glowSprite.material.color.setHex(target.glowColor);
-    if (sunMat)    sunMat.uniforms.uColor.value.setHex(target.glowColor);
-    if (coronaMat) coronaMat.uniforms.uColor.value.setHex(target.glowColor);
+    if (sunMat) sunMat.uniforms.uColor.value.setHex(target.glowColor);
+    for (const L of coronaLayers) L.mat.uniforms.uColor.value.setHex(target.glowColor);
   }
 
   // ── 外部 API: 惑星リストを 3D に反映 ──
@@ -396,5 +472,11 @@ window.Cosmos3D = (function () {
     init();
   }
 
-  return { init, update, setPlanets };
+  // ── 外部 API: 超新星演出を発火（約2秒）──
+  function triggerSupernova() {
+    if (!initialized) return;
+    supernovaT = 0.01; // > 0 で演出開始（_animate 内で進行）
+  }
+
+  return { init, update, setPlanets, triggerSupernova };
 })();

@@ -67,6 +67,7 @@
 <div id="resource-bar" style="display:none">
   <span id="res-stardust"><span class="res-icon">💫</span><span id="res-stardust-val">0</span></span>
   <span id="res-energy"><span class="res-icon">⚡</span><span id="res-energy-val">0</span></span>
+  <span id="res-civpoints" style="display:none"><span class="res-icon">🏛️</span><span id="res-civpoints-val">0</span></span>
 </div>
 
 <!--
@@ -151,6 +152,14 @@
         <div id="cosmos-planet-row">
           <span id="cosmos-planet-count">🪐 0 / 0</span>
           <button id="cosmos-planet-add">＋</button>
+        </div>
+        <!-- 成長% + 超新星 HUD 行 -->
+        <div id="cosmos-growth-row">
+          <div id="cosmos-growth-info">
+            <span id="cosmos-growth-pct">0%</span>
+            <div id="cosmos-growth-bar"><div id="cosmos-growth-fill"></div></div>
+          </div>
+          <button id="cosmos-supernova-btn" disabled>—</button>
         </div>
       </div>
     </div>
@@ -272,6 +281,19 @@
       <span id="offline-reward-amount"></span>
     </div>
     <button id="offline-reward-collect-btn"></button>
+  </div>
+</div>
+
+<!-- 超新星確認モーダル -->
+<div id="supernova-modal" style="display:none">
+  <div id="supernova-panel">
+    <div id="supernova-modal-title"></div>
+    <div id="supernova-modal-desc"></div>
+    <div id="supernova-modal-reward"></div>
+    <div id="supernova-modal-actions">
+      <button id="supernova-modal-cancel"></button>
+      <button id="supernova-modal-ok"></button>
+    </div>
   </div>
 </div>
 

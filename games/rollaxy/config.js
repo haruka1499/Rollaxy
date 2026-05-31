@@ -260,6 +260,18 @@ const CFG = {
         descJa: 'ゲーム内スコア +20%', descEn: '+20% in-game score', descZh: '游戏内分数 +20%' },
     ],
 
+    // ── 超新星（Phase 4）──
+    // 成長% = mass / GROWTH_DIVISOR（mass 5000 で 100%）。100% 以上で超新星実行可。
+    // 1000% で進行不能（ソフトキャップ・mass 蓄積停止）。
+    // 報酬 = floor(growth/100) * (1 + planets.length * BONUS_PER_PLANET) 文明ポイント。
+    SUPERNOVA: {
+      GROWTH_DIVISOR:    50,    // mass→growth% 換算（mass 5000 = 100%）
+      READY_AT:          100,   // この成長% 以上で超新星可
+      WARN_THRESHOLDS:  [700, 800, 900], // 段階警告（不安定トースト）
+      CAP_AT:            1000,  // 進行不能（mass 蓄積停止）。手動超新星は引き続き可
+      BONUS_PER_PLANET:  0.20,  // 惑星1個あたり +20% 報酬倍率
+    },
+
     // ── 惑星（Phase 3）──
     // 物質生成器レベルに応じて惑星スロットが解放され、星屑を消費して惑星を生成する。
     // スロット数 = SLOT_LEVELS のうち genLevel 以下の個数。
@@ -356,6 +368,8 @@ const STORAGE_KEYS = {
   META_CIV_LEVEL:     'rollaxy_civ_level',         // 文明レベル
   META_RESEARCH:      'rollaxy_research',           // 所持研究ID配列(JSON)
   META_PLANETS:       'rollaxy_planets',            // 生成済み惑星配列(JSON) [{key,name}]
+  META_CIV_POINTS:    'rollaxy_civ_points',          // 文明ポイント（超新星で獲得・永続）
+  META_SUPERNOVA_CNT: 'rollaxy_supernova_count',     // 通算超新星回数（=宇宙数）
   META_SIG:           'rollaxy_meta_sig',           // セーブ整合性チェックサム（簡易チート対策）
 
   // ── レガシー（移行済み・読み取り/削除のみ。新規利用しない） ──

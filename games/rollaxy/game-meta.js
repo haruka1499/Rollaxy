@@ -24,6 +24,8 @@ const metaState = {
   civLevel: CFG.META.CIV.START_LEVEL,
   research: new Set(), // 所持研究ID
   planets: [],         // 生成済み惑星 [{ key:'mercury'|'venus'|'earth', name:string }]
+  civPoints: 0,        // 文明ポイント（超新星で獲得・永続）
+  supernovaCount: 0,   // 通算超新星回数（=宇宙数）
   lastSaved: Date.now(),
   _suspect: false,     // 簡易チート対策: セーブ署名不一致フラグ（将来サーバー検証へ送出）
 };
@@ -60,6 +62,7 @@ function _metaSig() {
     metaState.genLevel, metaState.civLevel,
     [...metaState.research].sort().join(','),
     metaState.planets.map(p => p.key + ':' + p.name).join(','),
+    metaState.civPoints, metaState.supernovaCount,
     metaState.lastSaved,
   ].join('|');
   let h = 0x811c9dc5;
@@ -85,6 +88,8 @@ function loadMeta() {
   } catch (_) { metaState.research = new Set(); }
   // 惑星: 既知の key のみ採用し、name は 15 文字に切り詰め・上限スロット数でクランプ（サニタイズ）
   metaState.planets = _loadPlanets();
+  metaState.civPoints      = Math.max(0, Math.floor(_metaNum(STORAGE_KEYS.META_CIV_POINTS, 0)));
+  metaState.supernovaCount = Math.max(0, Math.floor(_metaNum(STORAGE_KEYS.META_SUPERNOVA_CNT, 0)));
   metaState.lastSaved = _metaNum(STORAGE_KEYS.META_LAST_SAVED, Date.now());
 
   // 簡易チート対策: 署名検証。不一致＝外部編集の疑い。破壊的措置は取らず
@@ -124,6 +129,8 @@ function saveMeta() {
   localStorage.setItem(STORAGE_KEYS.META_CIV_LEVEL,  String(metaState.civLevel));
   localStorage.setItem(STORAGE_KEYS.META_RESEARCH,   JSON.stringify([...metaState.research]));
   localStorage.setItem(STORAGE_KEYS.META_PLANETS,    JSON.stringify(metaState.planets));
+  localStorage.setItem(STORAGE_KEYS.META_CIV_POINTS, String(metaState.civPoints));
+  localStorage.setItem(STORAGE_KEYS.META_SUPERNOVA_CNT, String(metaState.supernovaCount));
   localStorage.setItem(STORAGE_KEYS.META_LAST_SAVED, String(metaState.lastSaved));
   localStorage.setItem(STORAGE_KEYS.META_SIG,        _metaSig()); // 整合性署名（簡易チート対策）
 }
@@ -172,6 +179,38 @@ function generatorCost(level = metaState.genLevel) {
   if (level >= g.MAX_LEVEL) return Infinity;
   const raw = g.BASE_COST * Math.pow(g.GROWTH, level - 1) * getModifier('genCostMult');
   return Math.max(1, Math.floor(raw));
+}
+
+// ---- 超新星（Phase 4）----
+// 成長% = mass / GROWTH_DIVISOR。CAP_AT 以上は CAP_AT に固定（実値はクランプ済み）。
+function growthPct() {
+  const sn = CFG.META.SUPERNOVA;
+  return metaState.mass / sn.GROWTH_DIVISOR;
+}
+// 超新星実行可？（成長% ≥ READY_AT）
+function canSupernova() {
+  return growthPct() >= CFG.META.SUPERNOVA.READY_AT;
+}
+// 報酬計算: floor(growth/100) * (1 + planets × BONUS_PER_PLANET)。最低 1pt。
+function supernovaReward(growth = growthPct(), planetCount = metaState.planets.length) {
+  const sn = CFG.META.SUPERNOVA;
+  const base = Math.floor(growth / 100);
+  const mult = 1 + planetCount * sn.BONUS_PER_PLANET;
+  return Math.max(1, Math.floor(base * mult));
+}
+// 超新星実行: 報酬付与 + 質量・惑星リセット。生成器Lv・研究・星屑/エネは保持。
+// 戻り値: 付与された文明ポイント数（0 = 実行不可）。
+function doSupernova() {
+  settleEnergy();
+  if (!canSupernova()) return 0;
+  const reward = supernovaReward();
+  metaState.civPoints += reward;
+  metaState.supernovaCount += 1;
+  metaState.mass = 0;
+  metaState.planets = [];
+  saveMeta();
+  updateResourceBar();
+  return reward;
 }
 
 // ---- 惑星（Phase 3）----
@@ -260,7 +299,13 @@ function settleEnergy() {
   let energyGain = energyRateFromMass(metaState.mass) * T;
   if (!Number.isFinite(energyGain) || energyGain < 0) energyGain = 0;
 
-  metaState.mass    += massProdRate() * T; // 質量はレート × 時間で線形増加
+  // 質量増加（超新星ソフトキャップで上限超過時は蓄積停止）
+  if (growthPct() < CFG.META.SUPERNOVA.CAP_AT) {
+    metaState.mass += massProdRate() * T;
+    // 上限を超えないようクランプ
+    const massCap = CFG.META.SUPERNOVA.CAP_AT * CFG.META.SUPERNOVA.GROWTH_DIVISOR;
+    if (metaState.mass > massCap) metaState.mass = massCap;
+  }
   metaState.energy  += energyGain;
   metaState.lastSaved = now;
   saveMeta();
@@ -309,8 +354,13 @@ function upgradeGenerator() {
 function updateResourceBar() {
   const sdEl = document.getElementById('res-stardust-val');
   const enEl = document.getElementById('res-energy-val');
+  const cpEl = document.getElementById('res-civpoints-val');
   if (sdEl) sdEl.textContent = Math.floor(metaState.stardust).toLocaleString();
   if (enEl) enEl.textContent = Math.floor(metaState.energy).toLocaleString();
+  // 文明ポイントは保有時のみ表示（0 のうちは非表示にして UI を簡潔に保つ）
+  const cpWrap = document.getElementById('res-civpoints');
+  if (cpEl) cpEl.textContent = Math.floor(metaState.civPoints).toLocaleString();
+  if (cpWrap) cpWrap.style.display = metaState.civPoints > 0 ? '' : 'none';
 }
 
 // ステージクリア時に報酬パーティクルを飛ばす。
@@ -413,6 +463,7 @@ function renderCosmos() {
     Cosmos3D.setPlanets(metaState.planets);
   }
   _renderPlanetRow();
+  _renderGrowthRow();
   // 質量・残高
   _setTxt('cosmos-mass',     T('massInfo')(_fmt(metaState.mass), massProdRate().toFixed(1)));
   _setTxt('cosmos-rate',     `⚡ +${starEnergyRate().toFixed(2)} ${T('stellarEnergy')}${T('energyRate')}`);
@@ -454,6 +505,91 @@ function _renderPlanetRow() {
     addBtn.textContent = `${T('planetAdd')}  💫 ${_fmt(cost)}`;
     addBtn.disabled = metaState.stardust < cost;
   }
+}
+
+// 成長% バー + 超新星ボタン HUD。100% 以上で超新星可、警告閾値で1回ずつトースト。
+let _lastWarnedThreshold = 0;
+function _renderGrowthRow() {
+  const row = document.getElementById('cosmos-growth-row');
+  if (!row) return;
+  const g = growthPct();
+  _setTxt('cosmos-growth-pct', T('growthPct')(g.toFixed(0)));
+  const fill = document.getElementById('cosmos-growth-fill');
+  if (fill) {
+    // 0-100% は通常色、100%超は赤くする。1000%でフル
+    const cap = CFG.META.SUPERNOVA.CAP_AT;
+    fill.style.width = Math.min(100, (g / cap) * 100).toFixed(1) + '%';
+    fill.classList.toggle('ready', g >= CFG.META.SUPERNOVA.READY_AT);
+    fill.classList.toggle('unstable', g >= CFG.META.SUPERNOVA.WARN_THRESHOLDS[0]);
+  }
+  const btn = document.getElementById('cosmos-supernova-btn');
+  if (btn) {
+    if (canSupernova()) {
+      btn.textContent = T('supernovaReady');
+      btn.disabled = false;
+      btn.classList.add('ready');
+    } else {
+      btn.textContent = T('supernovaLocked')(Math.max(0, CFG.META.SUPERNOVA.READY_AT - g).toFixed(0));
+      btn.disabled = true;
+      btn.classList.remove('ready');
+    }
+  }
+  // 警告トースト: WARN_THRESHOLDS のうち、まだ警告していない最大の閾値を超えたら 1回だけ出す
+  for (const th of CFG.META.SUPERNOVA.WARN_THRESHOLDS) {
+    if (g >= th && _lastWarnedThreshold < th) {
+      _lastWarnedThreshold = th;
+      _showSupernovaWarning(th);
+    }
+  }
+  // 1000% 到達でソフトキャップ警告
+  if (g >= CFG.META.SUPERNOVA.CAP_AT && _lastWarnedThreshold < CFG.META.SUPERNOVA.CAP_AT) {
+    _lastWarnedThreshold = CFG.META.SUPERNOVA.CAP_AT;
+    _showSupernovaWarning(CFG.META.SUPERNOVA.CAP_AT);
+  }
+}
+function _showSupernovaWarning(threshold) {
+  // achievement-toast がいれば再利用、なければ簡易 alert 風
+  const msg = threshold >= CFG.META.SUPERNOVA.CAP_AT
+    ? T('supernovaCapped')
+    : T('supernovaWarn')(threshold);
+  if (typeof showAchievementToast === 'function') {
+    showAchievementToast({ titleJa: msg, titleEn: msg, titleZh: msg });
+  } else {
+    console.warn('[supernova]', msg);
+  }
+}
+
+// ---- 超新星モーダル ----
+function openSupernovaModal() {
+  if (!canSupernova()) return;
+  const modal = document.getElementById('supernova-modal');
+  if (!modal) return;
+  const reward = supernovaReward();
+  _setTxt('supernova-modal-title', T('supernovaModalTitle'));
+  _setTxt('supernova-modal-desc',  T('supernovaModalDesc')(growthPct().toFixed(0), metaState.planets.length));
+  _setTxt('supernova-modal-reward', `🏛️ +${reward}`);
+  const ok = document.getElementById('supernova-modal-ok');
+  const ng = document.getElementById('supernova-modal-cancel');
+  if (ok) ok.textContent = T('supernovaModalOk');
+  if (ng) ng.textContent = T('supernovaModalCancel');
+  modal.style.display = 'flex';
+}
+function closeSupernovaModal() {
+  const modal = document.getElementById('supernova-modal');
+  if (modal) modal.style.display = 'none';
+}
+function _confirmSupernova() {
+  const reward = doSupernova();
+  if (reward <= 0) return;
+  closeSupernovaModal();
+  // 警告ステートをリセット（次の宇宙ですべての警告がまた出るように）
+  _lastWarnedThreshold = 0;
+  // 3D 演出
+  if (window.Cosmos3D && typeof Cosmos3D.triggerSupernova === 'function') {
+    Cosmos3D.triggerSupernova();
+  }
+  // 数秒後に状態を再描画（演出と同期）
+  setTimeout(() => renderCosmos(), 200);
 }
 
 // ---- 惑星追加モーダル ----
@@ -697,7 +833,12 @@ let _pendingOfflineEnergy = 0;
   if (!Number.isFinite(energyGain) || energyGain < 0) energyGain = 0;
 
   // 質量は即時反映・lastSaved 更新（エネルギーは保留）
-  metaState.mass     += massProdRate() * T;
+  // 超新星ソフトキャップ: 1000% 以上は蓄積停止
+  if (growthPct() < CFG.META.SUPERNOVA.CAP_AT) {
+    metaState.mass += massProdRate() * T;
+    const massCap = CFG.META.SUPERNOVA.CAP_AT * CFG.META.SUPERNOVA.GROWTH_DIVISOR;
+    if (metaState.mass > massCap) metaState.mass = massCap;
+  }
   metaState.lastSaved = now;
   saveMeta();
   updateResourceBar();
@@ -793,6 +934,14 @@ if (_planetChoicesEl) {
 // 背景クリックで閉じる
 on(document.getElementById('planet-modal'), (e) => {
   if (e.target === document.getElementById('planet-modal')) closePlanetModal();
+});
+
+// 超新星: HUD の「超新星」ボタン → 確認モーダル → 実行
+on(document.getElementById('cosmos-supernova-btn'), () => openSupernovaModal());
+on(document.getElementById('supernova-modal-cancel'), () => closeSupernovaModal());
+on(document.getElementById('supernova-modal-ok'), () => _confirmSupernova());
+on(document.getElementById('supernova-modal'), (e) => {
+  if (e.target === document.getElementById('supernova-modal')) closeSupernovaModal();
 });
 on(document.getElementById('research-civ-up'), () => {
   if (levelUpCiv()) { playUpgradeSound(); renderResearch(); }
