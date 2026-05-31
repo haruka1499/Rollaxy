@@ -1196,6 +1196,29 @@ canvas { position: absolute; top: 0; left: 0; transform-origin: top left; }
 
 
 /* 研究：一覧 */
+/* 研究タブ（通常 / 永続）— Phase 6 */
+#research-tabs {
+  display: flex; gap: 6px; width: 100%; margin: 6px 0 2px;
+}
+.research-tab {
+  flex: 1; padding: 8px 0; font-size: 13px; font-weight: 600;
+  border-radius: 10px 10px 0 0; border: 1px solid rgba(124,92,252,0.4); border-bottom: none;
+  background: rgba(20,12,40,0.55); color: #998eb8;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s, color 0.15s;
+}
+.research-tab.active {
+  background: linear-gradient(180deg, rgba(124,92,252,0.35), rgba(124,92,252,0.18));
+  color: #fff;
+}
+/* 永続研究アイテム: ゴールド系のアクセントで通常と区別 */
+.research-item.perm {
+  border-color: rgba(255,200,80,0.35);
+  background: rgba(60,40,20,0.25);
+}
+.research-buy-btn.perm { background: linear-gradient(135deg, #b58a2a, #ffd76b); color: #1a1000; }
+.research-buy-btn.perm:disabled { background: #443824; color: #888; }
+
 #research-list { display: flex; flex-direction: column; gap: 10px; width: 100%; }
 .research-item {
   display: flex; align-items: center; justify-content: space-between; gap: 10px;

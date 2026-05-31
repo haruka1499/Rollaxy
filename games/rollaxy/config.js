@@ -260,6 +260,28 @@ const CFG = {
         descJa: 'ゲーム内スコア +20%', descEn: '+20% in-game score', descZh: '游戏内分数 +20%' },
     ],
 
+    // ── 永続研究（Phase 6）──
+    // 文明ポイント(civPoints)で購入。超新星リセット対象外。
+    // 既存 getModifier() に effect.type を追加して効果反映する。
+    // effect.type 追加:
+    //   'civPointMult'    超新星報酬倍率（value=0.10 → +10%）
+    //   'massGrowthMult'  恒星の質量生産レート倍率（value=0.20 → +20%）
+    //   'planetCostMult'  惑星生成コスト倍率（value=-0.15 → -15%）
+    PERMANENT_RESEARCH: [
+      { id: 'perm_civ1', cost: 3, effect: { type: 'civPointMult', value: 0.15 },
+        nameJa: '伝承の刻印', nameEn: 'Engraved Lore', nameZh: '传承印记',
+        descJa: '超新星で得る文明ポイント +15%', descEn: '+15% Civilization Points per supernova', descZh: '超新星获得文明点 +15%' },
+      { id: 'perm_mass1', cost: 5, effect: { type: 'massGrowthMult', value: 0.20 },
+        nameJa: '宇宙の遺産', nameEn: 'Cosmic Heritage', nameZh: '宇宙遗产',
+        descJa: '恒星の成長速度 +20%', descEn: '+20% star growth speed', descZh: '恒星成长速度 +20%' },
+      { id: 'perm_planet1', cost: 8, effect: { type: 'planetCostMult', value: -0.20 },
+        nameJa: '惑星標準化', nameEn: 'Planet Standardization', nameZh: '行星标准化',
+        descJa: '惑星生成コスト -20%', descEn: '-20% planet creation cost', descZh: '行星生成成本 -20%' },
+      { id: 'perm_civ2', cost: 20, effect: { type: 'civPointMult', value: 0.30 },
+        nameJa: '文明の昇華', nameEn: 'Civilization Ascension', nameZh: '文明升华',
+        descJa: '超新星で得る文明ポイント +30% (累積)', descEn: '+30% Civilization Points per supernova (stacks)', descZh: '超新星获得文明点 +30%（叠加）' },
+    ],
+
     // ── 多恒星（Phase 5）──
     // 恒星枠 N 個目の解放コスト（文明ポイント）。COSTS[0] は初期保有なので未使用。
     // 例: 2個目=5pt, 3個目=15pt, 4個目=45pt（おおむね×3）
@@ -381,6 +403,7 @@ const STORAGE_KEYS = {
   META_STARS:         'rollaxy_stars',                // 全恒星 [{id,mass,planets}] JSON
   META_ACTIVE_STAR:   'rollaxy_active_star',          // 現在選択中の恒星ID
   META_STAR_SLOTS:    'rollaxy_star_slots',           // 解放済み恒星枠数（初期1）
+  META_PERM_RESEARCH: 'rollaxy_perm_research',        // 永続研究の所持ID配列(JSON)
   META_SIG:           'rollaxy_meta_sig',           // セーブ整合性チェックサム（簡易チート対策）
 
   // ── レガシー（移行済み・読み取り/削除のみ。新規利用しない） ──

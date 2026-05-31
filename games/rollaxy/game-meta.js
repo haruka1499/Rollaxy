@@ -22,7 +22,8 @@ const metaState = {
   mass:     0, // 物質生成器が蓄積した質量
   genLevel: CFG.META.GENERATOR.START_LEVEL,
   civLevel: CFG.META.CIV.START_LEVEL,
-  research: new Set(), // 所持研究ID
+  research: new Set(),          // 通常研究の所持ID
+  permanentResearch: new Set(), // 永続研究の所持ID（civPoints購入・超新星リセット不可）
   planets: [],         // 【アクティブ恒星の鏡】生成済み惑星 [{ key, name }]
   civPoints: 0,        // 文明ポイント（超新星で獲得・永続）
   supernovaCount: 0,   // 通算超新星回数（=宇宙数）
@@ -145,6 +146,7 @@ function _metaSig() {
     metaState.stardust, metaState.energy, metaState.mass,
     metaState.genLevel, metaState.civLevel,
     [...metaState.research].sort().join(','),
+    [...metaState.permanentResearch].sort().join(','),
     metaState.planets.map(p => p.key + ':' + p.name).join(','),
     metaState.civPoints, metaState.supernovaCount,
     metaState.starSlots, metaState.activeStarId,
@@ -173,6 +175,12 @@ function loadMeta() {
     const ids = JSON.parse(localStorage.getItem(STORAGE_KEYS.META_RESEARCH) || '[]');
     metaState.research = new Set(Array.isArray(ids) ? ids : []);
   } catch (_) { metaState.research = new Set(); }
+  // 永続研究: 既知 ID のみ採用（未知 ID は config 変更後の互換性のため除外）
+  try {
+    const ids = JSON.parse(localStorage.getItem(STORAGE_KEYS.META_PERM_RESEARCH) || '[]');
+    const valid = new Set(CFG.META.PERMANENT_RESEARCH.map(r => r.id));
+    metaState.permanentResearch = new Set((Array.isArray(ids) ? ids : []).filter(id => valid.has(id)));
+  } catch (_) { metaState.permanentResearch = new Set(); }
   // 惑星: 既知の key のみ採用し、name は 15 文字に切り詰め・上限スロット数でクランプ（サニタイズ）
   metaState.planets = _loadPlanets();
   metaState.civPoints      = Math.max(0, Math.floor(_metaNum(STORAGE_KEYS.META_CIV_POINTS, 0)));
@@ -233,6 +241,7 @@ function saveMeta() {
   localStorage.setItem(STORAGE_KEYS.META_GEN_LEVEL,  String(metaState.genLevel));
   localStorage.setItem(STORAGE_KEYS.META_CIV_LEVEL,  String(metaState.civLevel));
   localStorage.setItem(STORAGE_KEYS.META_RESEARCH,   JSON.stringify([...metaState.research]));
+  localStorage.setItem(STORAGE_KEYS.META_PERM_RESEARCH, JSON.stringify([...metaState.permanentResearch]));
   localStorage.setItem(STORAGE_KEYS.META_PLANETS,    JSON.stringify(metaState.planets));
   localStorage.setItem(STORAGE_KEYS.META_CIV_POINTS, String(metaState.civPoints));
   localStorage.setItem(STORAGE_KEYS.META_SUPERNOVA_CNT, String(metaState.supernovaCount));
@@ -251,21 +260,35 @@ function saveMeta() {
 //   倍率系(rewardMult/scoreMult/starRateMult/genCostMult): 1 + Σvalue を返す
 //   加算系(skillCharge/timeBonus): Σvalue を返す
 // ============================================================
-const _MULT_KEYS = new Set(['rewardMult', 'scoreMult', 'starRateMult', 'genCostMult']);
+// 倍率キー: 永続研究で追加された civPointMult/massGrowthMult/planetCostMult も含む
+const _MULT_KEYS = new Set([
+  'rewardMult', 'scoreMult', 'starRateMult', 'genCostMult',
+  'civPointMult', 'massGrowthMult', 'planetCostMult',
+]);
 function getModifier(key) {
   let sum = 0;
+  // 通常研究
   for (const r of CFG.META.RESEARCH) {
     if (!metaState.research.has(r.id)) continue;
     if (r.effect && r.effect.type === key) sum += r.effect.value;
+  }
+  // 永続研究も同じ effect.type を加算（同種なら累積される）
+  if (CFG.META.PERMANENT_RESEARCH) {
+    for (const r of CFG.META.PERMANENT_RESEARCH) {
+      if (!metaState.permanentResearch.has(r.id)) continue;
+      if (r.effect && r.effect.type === key) sum += r.effect.value;
+    }
   }
   return _MULT_KEYS.has(key) ? (1 + sum) : sum;
 }
 
 // ---- 計算ヘルパー ----
-// 質量生成レート (質量/秒) = (MASS_BASE + (level-1)*MASS_PER_LEVEL) × 研究倍率
+// 質量生成レート (質量/秒) = (MASS_BASE + (level-1)*MASS_PER_LEVEL) × 研究倍率 × 永続成長倍率
 function massProdRate(level = metaState.genLevel) {
   const s = CFG.META.STAR;
-  return (s.MASS_BASE + (level - 1) * s.MASS_PER_LEVEL) * getModifier('starRateMult');
+  return (s.MASS_BASE + (level - 1) * s.MASS_PER_LEVEL)
+    * getModifier('starRateMult')
+    * getModifier('massGrowthMult');
 }
 // エネルギー生成レート (energy/秒) = K × mass^(2/3)
 function energyRateFromMass(mass) {
@@ -301,11 +324,11 @@ function growthPct() {
 function canSupernova() {
   return growthPct() >= CFG.META.SUPERNOVA.READY_AT;
 }
-// 報酬計算: floor(growth/100) * (1 + planets × BONUS_PER_PLANET)。最低 1pt。
+// 報酬計算: floor(growth/100) * (1 + planets × BONUS_PER_PLANET) × 永続civPointMult。最低 1pt。
 function supernovaReward(growth = growthPct(), planetCount = metaState.planets.length) {
   const sn = CFG.META.SUPERNOVA;
   const base = Math.floor(growth / 100);
-  const mult = 1 + planetCount * sn.BONUS_PER_PLANET;
+  const mult = (1 + planetCount * sn.BONUS_PER_PLANET) * getModifier('civPointMult');
   return Math.max(1, Math.floor(base * mult));
 }
 // 超新星実行: 報酬付与 + 質量・惑星リセット。生成器Lv・研究・星屑/エネは保持。
@@ -330,10 +353,11 @@ function unlockedPlanetSlots(level = metaState.genLevel) {
   for (const lv of CFG.META.PLANET.SLOT_LEVELS) if (level >= lv) n++;
   return Math.min(n, CFG.META.PLANET.MAX_SLOTS);
 }
-// 次の惑星生成コスト（星屑）。N 個目 = BASE_COST * COST_GROWTH^(N-1)。
+// 次の惑星生成コスト（星屑）。N 個目 = BASE_COST * COST_GROWTH^(N-1) × 永続planetCostMult。
 function nextPlanetCost(count = metaState.planets.length) {
   const p = CFG.META.PLANET;
-  return Math.floor(p.BASE_COST * Math.pow(p.COST_GROWTH, count));
+  const raw = p.BASE_COST * Math.pow(p.COST_GROWTH, count) * getModifier('planetCostMult');
+  return Math.max(1, Math.floor(raw));
 }
 // 惑星を追加できるか（空きスロット＋星屑）。
 function canAddPlanet() {
@@ -390,6 +414,24 @@ function buyResearch(id) {
   saveMeta();
   updateResourceBar();
   logEvent('research_unlock', { game_id: 'rollaxy', research_id: id, cost: def.cost });
+  return true;
+}
+
+// ---- 永続研究（Phase 6）----
+function permResearchDef(id)  { return CFG.META.PERMANENT_RESEARCH.find(r => r.id === id) || null; }
+function isPermResearched(id) { return metaState.permanentResearch.has(id); }
+function canBuyPermResearch(def) {
+  return def && !isPermResearched(def.id) && metaState.civPoints >= def.cost;
+}
+// 永続研究を購入（文明ポイント消費）。戻り値 = 成功可否。超新星でリセットされない。
+function buyPermResearch(id) {
+  const def = permResearchDef(id);
+  if (!canBuyPermResearch(def)) return false;
+  metaState.civPoints -= def.cost;
+  metaState.permanentResearch.add(id);
+  saveMeta();
+  updateResourceBar();
+  logEvent('perm_research_unlock', { game_id: 'rollaxy', research_id: id, cost: def.cost });
   return true;
 }
 
@@ -820,9 +862,16 @@ function closeCosmos() {
 function _locName(o) { const c = (currentLang || 'ja').replace(/^./, x => x.toUpperCase()); return o['name' + c] || o.nameJa; }
 function _locDesc(o) { const c = (currentLang || 'ja').replace(/^./, x => x.toUpperCase()); return o['desc' + c] || o.descJa; }
 
+// 現在の研究タブ: 'normal'（星屑購入・文明Lvゲート）or 'perm'（文明P購入・永続）
+let _researchTab = 'normal';
+function setResearchTab(tab) {
+  _researchTab = (tab === 'perm') ? 'perm' : 'normal';
+  renderResearch();
+}
+
 function renderResearch() {
   if (!document.getElementById('research-list')) return;
-  // 文明レベル
+  // 文明レベル（共通: タブに関係なく上部に表示）
   _setTxt('research-civ-level', T('civLevelLabel')(metaState.civLevel));
   const cc = civLevelCost();
   const upBtn = document.getElementById('research-civ-up');
@@ -833,27 +882,52 @@ function renderResearch() {
     _setTxt('research-civ-cost', T('civNextCost')(_fmt(cc)));
     if (upBtn) { upBtn.textContent = T('civUpBtn'); upBtn.disabled = metaState.energy < cc; }
   }
-  // 研究一覧（名前・説明は config 由来の信頼値なので innerHTML 安全）
+  // タブの active 表示
+  document.querySelectorAll('.research-tab').forEach(b => {
+    b.classList.toggle('active', b.dataset.tab === _researchTab);
+  });
+  // タブごとに別リスト描画
   const list = document.getElementById('research-list');
   if (!list) return;
   let html = '';
-  for (const r of CFG.META.RESEARCH) {
-    let status, cls, disabled;
-    if (isResearched(r.id)) {
-      status = T('researchOwned'); cls = 'owned'; disabled = true;
-    } else if (!isResearchUnlocked(r)) {
-      status = T('researchReqCiv')(r.reqCiv); cls = 'locked'; disabled = true;
-    } else {
-      status = `💫 ${_fmt(r.cost)}`;
-      disabled = metaState.stardust < r.cost;
-      cls = disabled ? 'poor' : 'buy';
+  if (_researchTab === 'perm') {
+    // 永続研究: 文明ポイントで購入、超新星リセットなし
+    for (const r of CFG.META.PERMANENT_RESEARCH) {
+      let status, cls, disabled;
+      if (isPermResearched(r.id)) {
+        status = T('researchOwned'); cls = 'owned'; disabled = true;
+      } else {
+        status = `🏛️ ${_fmt(r.cost)}`;
+        disabled = metaState.civPoints < r.cost;
+        cls = disabled ? 'poor' : 'buy';
+      }
+      html += `<div class="research-item perm ${cls}">`
+            + `<div class="research-info">`
+            + `<div class="research-name">${_locName(r)}</div>`
+            + `<div class="research-desc">${_locDesc(r)}</div></div>`
+            + `<button class="research-buy-btn perm" data-id="${r.id}"${disabled ? ' disabled' : ''}>${status}</button>`
+            + `</div>`;
     }
-    html += `<div class="research-item ${cls}">`
-          + `<div class="research-info">`
-          + `<div class="research-name">${_locName(r)}</div>`
-          + `<div class="research-desc">${_locDesc(r)}</div></div>`
-          + `<button class="research-buy-btn" data-id="${r.id}"${disabled ? ' disabled' : ''}>${status}</button>`
-          + `</div>`;
+  } else {
+    // 通常研究（名前・説明は config 由来の信頼値なので innerHTML 安全）
+    for (const r of CFG.META.RESEARCH) {
+      let status, cls, disabled;
+      if (isResearched(r.id)) {
+        status = T('researchOwned'); cls = 'owned'; disabled = true;
+      } else if (!isResearchUnlocked(r)) {
+        status = T('researchReqCiv')(r.reqCiv); cls = 'locked'; disabled = true;
+      } else {
+        status = `💫 ${_fmt(r.cost)}`;
+        disabled = metaState.stardust < r.cost;
+        cls = disabled ? 'poor' : 'buy';
+      }
+      html += `<div class="research-item ${cls}">`
+            + `<div class="research-info">`
+            + `<div class="research-name">${_locName(r)}</div>`
+            + `<div class="research-desc">${_locDesc(r)}</div></div>`
+            + `<button class="research-buy-btn" data-id="${r.id}"${disabled ? ' disabled' : ''}>${status}</button>`
+            + `</div>`;
+    }
   }
   list.innerHTML = html;
 }
@@ -1108,9 +1182,17 @@ if (_researchListEl) {
   _researchListEl.addEventListener('click', (e) => {
     const btn = e.target.closest('.research-buy-btn');
     if (!btn || btn.disabled) return;
-    if (buyResearch(btn.dataset.id)) { playUpgradeSound(); renderResearch(); }
+    // クラスで永続/通常を判定（タブ状態にも依存しないので安全）
+    const ok = btn.classList.contains('perm')
+      ? buyPermResearch(btn.dataset.id)
+      : buyResearch(btn.dataset.id);
+    if (ok) { playUpgradeSound(); renderResearch(); }
   });
 }
+// 研究タブ切替（通常 / 永続）
+document.querySelectorAll('.research-tab').forEach(b => {
+  on(b, () => setResearchTab(b.dataset.tab));
+});
 
 // 言語切替時、ホーム画面が表示中なら動的コンテンツを再描画
 document.addEventListener('langchange', () => {
