@@ -92,18 +92,18 @@ window.Cosmos3D = (function () {
       float NdV = max(dot(vNormalW, vViewDirW), 0.0);
       float center = pow(NdV, 1.3);
       // 白(高温) → 黄 → uColor(基底=ベース色)
-      vec3 hotWhite  = vec3(2.2, 2.0, 1.6);    // > 1.0 で Bloom に拾われる
-      vec3 hotYellow = vec3(1.6, 1.2, 0.5);
+      vec3 hotWhite  = vec3(1.3, 1.2, 1.0);    // 中心: 軽めに > 1.0 で Bloom がほんのり拾う
+      vec3 hotYellow = vec3(1.1, 0.9, 0.5);
       vec3 coolEdge  = uColor;
       vec3 hot = mix(hotYellow, hotWhite, smoothstep(0.55, 0.95, center));
-      hot = mix(coolEdge * 1.2, hot, smoothstep(0.2, 0.9, center));
+      hot = mix(coolEdge, hot, smoothstep(0.2, 0.9, center));
       // テクスチャ模様を保ちつつ、中心ほど発光合成
-      col = mix(col * uColor * 1.3, hot, center * 0.7);
+      col = mix(col * uColor, hot, center * 0.55);
       // 縁の温色補強
       float fres = pow(1.0 - NdV, 2.0);
-      col += uColor * fres * 1.1;
-      // 全体ブースト: HDR 1.0 超で Bloom がしっかり拾う
-      col *= 1.5;
+      col += uColor * fres * 0.6;
+      // 全体ブースト控えめ
+      col *= 1.1;
       gl_FragColor = vec4(col, 1.0);
     }
   `;
@@ -308,10 +308,10 @@ window.Cosmos3D = (function () {
     renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(w, h, false);
-    // Bloom が綺麗に乗るよう ACES Filmic + 露出やや低め
+    // Bloom が綺麗に乗るよう ACES Filmic + 露出を抑えめ（眩しすぎ防止）
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping        = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.0;
+    renderer.toneMappingExposure = 0.7;
 
     loader = new THREE.TextureLoader();
     // 背景（360° 環境マップ）
@@ -396,10 +396,10 @@ window.Cosmos3D = (function () {
       transparent: true,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
-      opacity: 0.35,
+      opacity: 0.18, // 控えめ（Bloom と重ねるので過剰回避）
     });
     outerHaloSprite = new THREE.Sprite(outerMat);
-    outerHaloSprite.scale.set(5.0, 5.0, 1);
+    outerHaloSprite.scale.set(4.0, 4.0, 1);
     scene.add(outerHaloSprite);
 
     // ソーラーフレア: TubeGeometry のループ状アーチが恒星表面から飛び出す
@@ -416,14 +416,14 @@ window.Cosmos3D = (function () {
     planetGroup.rotation.x = -0.5; // 約 -28°
     scene.add(planetGroup);
 
-    // EffectComposer + UnrealBloomPass による本格 Bloom
+    // EffectComposer + UnrealBloomPass による本格 Bloom（眩しすぎ防止のため控えめに）
     if (window.EffectComposer && window.UnrealBloomPass) {
       composer  = new EffectComposer(renderer);
       composer.addPass(new RenderPass(scene, camera));
       bloomPass = new UnrealBloomPass(new THREE.Vector2(w, h),
-        1.6,   // strength: 強度
-        0.55,  // radius: 拡散半径
-        0.0    // threshold: 0 で全画素対象、HDR領域がより強く滲む
+        0.55,  // strength: 強度（眩しすぎ防止のため 1.6→0.55）
+        0.6,   // radius: 拡散半径
+        0.75   // threshold: 0.75 以上の明るい画素のみ Bloom 対象。中心ホットスポットだけ滲む
       );
       composer.addPass(bloomPass);
       composer.addPass(new OutputPass());
@@ -667,9 +667,9 @@ window.Cosmos3D = (function () {
       particleMat.uniforms.uTime.value = pulseT;
       particleSystem.scale.setScalar(cur.radius);
     }
-    // 外側ソフトハロー: 恒星半径×5 で常に大きく
+    // 外側ソフトハロー: 恒星半径×4 で大きめのソフトグロー
     if (outerHaloSprite) {
-      const s = cur.radius * 5.0;
+      const s = cur.radius * 4.0;
       outerHaloSprite.scale.set(s, s, 1);
     }
     // ソーラーフレア更新（dt = 1/60 想定）
