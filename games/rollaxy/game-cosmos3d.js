@@ -74,22 +74,37 @@ window.Cosmos3D = (function () {
       gl_Position=projectionMatrix*viewMatrix*wp;
     }
   `;
-  // 表面: テクスチャをノイズでドメインワープ（流れる）+ 沸騰する明滅 + 周縁の増光
+  // 表面: テクスチャをノイズでドメインワープ + 沸騰する明滅 + 中心輝度ブースト。
+  // 中心(view direction側)を白→黄→ベース色のグラデーションで強発光させ、Bloom がそれを拾って「眩しさ」を作る。
+  // 周縁はベース色寄りで、フレネルで縁の暖色も付加。
   const SUN_FRAG = NOISE_GLSL + `
     uniform float uTime; uniform sampler2D uTex; uniform vec3 uColor;
     varying vec2 vUv; varying vec3 vPos; varying vec3 vNormalW; varying vec3 vViewDirW;
     void main(){
-      float t=uTime*0.18;
-      vec3 q=vPos*2.4;
-      float w=fbm(q+vec3(0.0,0.0,t));
-      vec2 uv2=vUv+vec2(w)*0.025;
-      vec3 base=texture2D(uTex,uv2).rgb;
-      float boil=0.8+0.55*fbm(q*1.7+vec3(t*1.9));
-      vec3 col=base*boil;
-      col=mix(col,col*uColor*1.5,0.3);
-      float fres=pow(1.0-max(dot(vNormalW,vViewDirW),0.0),2.0);
-      col+=uColor*fres*0.7;
-      gl_FragColor=vec4(col,1.0);
+      float t = uTime * 0.18;
+      vec3 q = vPos * 2.4;
+      float w = fbm(q + vec3(0.0, 0.0, t));
+      vec2 uv2 = vUv + vec2(w) * 0.025;
+      vec3 base = texture2D(uTex, uv2).rgb;
+      float boil = 0.8 + 0.55 * fbm(q * 1.7 + vec3(t * 1.9));
+      vec3 col = base * boil;
+      // 中心ホットスポット: 視線正面ほど明るく白寄り。fresnel の逆(1-fres) で内側中央=最大
+      float NdV = max(dot(vNormalW, vViewDirW), 0.0);
+      float center = pow(NdV, 1.3);
+      // 白(高温) → 黄 → uColor(基底=ベース色)
+      vec3 hotWhite  = vec3(2.2, 2.0, 1.6);    // > 1.0 で Bloom に拾われる
+      vec3 hotYellow = vec3(1.6, 1.2, 0.5);
+      vec3 coolEdge  = uColor;
+      vec3 hot = mix(hotYellow, hotWhite, smoothstep(0.55, 0.95, center));
+      hot = mix(coolEdge * 1.2, hot, smoothstep(0.2, 0.9, center));
+      // テクスチャ模様を保ちつつ、中心ほど発光合成
+      col = mix(col * uColor * 1.3, hot, center * 0.7);
+      // 縁の温色補強
+      float fres = pow(1.0 - NdV, 2.0);
+      col += uColor * fres * 1.1;
+      // 全体ブースト: HDR 1.0 超で Bloom がしっかり拾う
+      col *= 1.5;
+      gl_FragColor = vec4(col, 1.0);
     }
   `;
   // ── コロナ用バーテックスシェーダ ──
@@ -192,6 +207,9 @@ window.Cosmos3D = (function () {
   let coronaLayers = [];               // コロナ層 [{mesh, mat, baseScale, speed, displace}]
   let particleSystem = null;           // 外周プラズマ粒子
   let particleMat = null;
+  let outerHaloSprite = null;          // 外側ソフトグロー (Bloom が拾って眩しさを増す)
+  let solarFlares = [];                // [{mesh, mat, t, dur, baseScale}] ループ状の太陽フレア
+  let composer, bloomPass;             // EffectComposer + UnrealBloomPass
   let supernovaT = 0;                  // 超新星演出の進行時間（0=非演出, >0=演出中）
 
   // ── 動的品質（Phase 7）──
@@ -290,6 +308,10 @@ window.Cosmos3D = (function () {
     renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(w, h, false);
+    // Bloom が綺麗に乗るよう ACES Filmic + 露出やや低め
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping        = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.0;
 
     loader = new THREE.TextureLoader();
     // 背景（360° 環境マップ）
@@ -355,7 +377,7 @@ window.Cosmos3D = (function () {
     _initCameraControls();
     _fpsStartT = performance.now();
 
-    // グロー光輪（Sprite + 加算合成）
+    // グロー光輪（Sprite + 加算合成）。Bloom と相まって眩しい中心光を作る。
     const glowMat = new THREE.SpriteMaterial({
       map: _makeGlowTexture(),
       color: target.glowColor,
@@ -365,6 +387,23 @@ window.Cosmos3D = (function () {
     });
     glowSprite = new THREE.Sprite(glowMat);
     scene.add(glowSprite);
+
+    // 外側ソフトハロー: 恒星より大きく、柔らかい外向きグロー。
+    // Bloom が拾わなくても「光が周囲に滲む」感覚を演出
+    const outerMat = new THREE.SpriteMaterial({
+      map: _makeGlowTexture(),
+      color: target.glowColor,
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      opacity: 0.35,
+    });
+    outerHaloSprite = new THREE.Sprite(outerMat);
+    outerHaloSprite.scale.set(5.0, 5.0, 1);
+    scene.add(outerHaloSprite);
+
+    // ソーラーフレア: TubeGeometry のループ状アーチが恒星表面から飛び出す
+    _initSolarFlares();
 
     // 惑星用ライト: 恒星（原点）から放射する点光源 + 弱い環境光（暗黒面が真っ黒にならないよう）
     const starLight = new THREE.PointLight(0xfff2dd, 2.4, 0, 0.0);
@@ -377,10 +416,82 @@ window.Cosmos3D = (function () {
     planetGroup.rotation.x = -0.5; // 約 -28°
     scene.add(planetGroup);
 
+    // EffectComposer + UnrealBloomPass による本格 Bloom
+    if (window.EffectComposer && window.UnrealBloomPass) {
+      composer  = new EffectComposer(renderer);
+      composer.addPass(new RenderPass(scene, camera));
+      bloomPass = new UnrealBloomPass(new THREE.Vector2(w, h),
+        1.6,   // strength: 強度
+        0.55,  // radius: 拡散半径
+        0.0    // threshold: 0 で全画素対象、HDR領域がより強く滲む
+      );
+      composer.addPass(bloomPass);
+      composer.addPass(new OutputPass());
+    } else {
+      console.warn('[cosmos3d] UnrealBloomPass 未ロード。Bloom なしで描画継続');
+    }
+
     window.addEventListener('resize', _onResize);
     if (typeof ResizeObserver !== 'undefined') new ResizeObserver(_onResize).observe(wrap);
 
     _start();
+  }
+
+  // ── ソーラーフレア (3 本のループ状アーチ) ──
+  function _initSolarFlares() {
+    for (const f of solarFlares) {
+      scene.remove(f.mesh); f.mesh.geometry.dispose(); f.mat.dispose();
+    }
+    solarFlares = [];
+    for (let i = 0; i < 3; i++) solarFlares.push(_spawnFlare(i * 2.5));
+  }
+  function _randUnitVec() {
+    const u = Math.random() * 2 - 1;
+    const a = Math.random() * Math.PI * 2;
+    const s = Math.sqrt(1 - u * u);
+    return new THREE.Vector3(s * Math.cos(a), u, s * Math.sin(a));
+  }
+  function _spawnFlare(delay) {
+    // 表面上の2点 A, B をランダムに（近い場所）。中間点を外側に膨らませる
+    const a = _randUnitVec();
+    const offset = _randUnitVec().multiplyScalar(0.35);
+    const b = a.clone().add(offset).normalize();
+    const midDir = a.clone().add(b).multiplyScalar(0.5).normalize();
+    const apex = midDir.multiplyScalar(1.4 + Math.random() * 0.4);
+    const curve = new THREE.CatmullRomCurve3([a, apex, b]);
+    const geo = new THREE.TubeGeometry(curve, 28, 0.025, 8, false);
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0xffe2a0,
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      opacity: 0,
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    scene.add(mesh);
+    return {
+      mesh, mat,
+      t: -delay,          // 負時刻にすることで遅延発火
+      dur: 4.5 + Math.random() * 2.5, // 全体の持続秒
+    };
+  }
+  function _updateSolarFlares(dt) {
+    for (let i = 0; i < solarFlares.length; i++) {
+      const f = solarFlares[i];
+      f.t += dt;
+      if (f.t < 0) { f.mat.opacity = 0; continue; }
+      const p = f.t / f.dur;
+      if (p >= 1.0) {
+        // 寿命終了 → 新規生成
+        scene.remove(f.mesh); f.mesh.geometry.dispose(); f.mat.dispose();
+        solarFlares[i] = _spawnFlare(Math.random() * 1.5);
+        continue;
+      }
+      // sin 波で fade in/out
+      f.mat.opacity = Math.sin(p * Math.PI) * 0.85;
+      // 恒星半径に追従
+      f.mesh.scale.setScalar(cur.radius);
+    }
   }
 
   function _onResize() {
@@ -392,6 +503,8 @@ window.Cosmos3D = (function () {
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
     renderer.setSize(w, h, false);
+    if (composer)  composer.setSize(w, h);
+    if (bloomPass) bloomPass.setSize(w, h);
   }
 
   // ── パーティクル（外周プラズマ）──
@@ -554,6 +667,13 @@ window.Cosmos3D = (function () {
       particleMat.uniforms.uTime.value = pulseT;
       particleSystem.scale.setScalar(cur.radius);
     }
+    // 外側ソフトハロー: 恒星半径×5 で常に大きく
+    if (outerHaloSprite) {
+      const s = cur.radius * 5.0;
+      outerHaloSprite.scale.set(s, s, 1);
+    }
+    // ソーラーフレア更新（dt = 1/60 想定）
+    _updateSolarFlares(1 / 60);
     // 自動回転（ユーザー操作直後の冷却期間中は停止）
     if (now > _userInteractUntil) {
       camTheta += 0.0015;
@@ -600,7 +720,9 @@ window.Cosmos3D = (function () {
         if (particleSystem) particleSystem.scale.setScalar(cur.radius);
       }
     }
-    renderer.render(scene, camera);
+    // 描画: EffectComposer があれば Bloom 付き、なければ通常レンダラ
+    if (composer) composer.render();
+    else renderer.render(scene, camera);
   }
 
   function _start() { if (animId === null) _animate(); }
@@ -629,6 +751,7 @@ window.Cosmos3D = (function () {
     target.glowOpacity = 0.32 + 0.4 * erNorm;
 
     if (glowSprite) glowSprite.material.color.setHex(target.glowColor);
+    if (outerHaloSprite) outerHaloSprite.material.color.setHex(target.glowColor);
     if (sunMat) sunMat.uniforms.uColor.value.setHex(target.glowColor);
     for (const L of coronaLayers) L.mat.uniforms.uColor.value.setHex(target.glowColor);
     if (particleMat) particleMat.uniforms.uColor.value.setHex(target.glowColor);
@@ -697,12 +820,21 @@ window.Cosmos3D = (function () {
     obj.orbitLine = null;
   }
 
-  // DOM 準備が整い次第 init（カルーセル外で width=0 のうちは setTimeout 再試行）
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
-  } else {
-    init();
+  // DOM + ライブラリ両方の準備完了で init。
+  // ライブラリ (THREE + UnrealBloomPass) は ES モジュール経由なので DOMContentLoaded より後に
+  // 準備完了 → window.cosmos-libs-ready イベントで通知される。
+  let _domReady = false, _libsReady = !!window.__cosmosLibsReady;
+  function _maybeInit() {
+    if (_domReady && _libsReady) init();
   }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => { _domReady = true; _maybeInit(); });
+  } else {
+    _domReady = true;
+  }
+  window.addEventListener('cosmos-libs-ready', () => { _libsReady = true; _maybeInit(); });
+  // 既にライブラリが ready なら即 init を試みる
+  if (_libsReady) _maybeInit();
 
   // ── 外部 API: 超新星演出を発火（約2秒）──
   function triggerSupernova() {

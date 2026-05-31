@@ -559,8 +559,31 @@
   <div id="skill-toast" style="display:none"></div>
 </div>
 
-<!-- Three.js (3D 宇宙ビューア用。CDN 読込、defer なしで panel-cosmos 描画前にロード完了させる) -->
-<script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+<!-- Three.js + ポストプロセッシング(UnrealBloomPass) を ES モジュール+importmap で読込。
+     window.THREE / Composer 系を window に公開後、cosmos-libs-ready イベントで通知。
+     game-cosmos3d.js (非モジュール) はこのイベントを待ってから初期化する。 -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+  import * as THREE from 'three';
+  import { EffectComposer }   from 'three/addons/postprocessing/EffectComposer.js';
+  import { RenderPass }       from 'three/addons/postprocessing/RenderPass.js';
+  import { UnrealBloomPass }  from 'three/addons/postprocessing/UnrealBloomPass.js';
+  import { OutputPass }       from 'three/addons/postprocessing/OutputPass.js';
+  window.THREE = THREE;
+  window.EffectComposer  = EffectComposer;
+  window.RenderPass      = RenderPass;
+  window.UnrealBloomPass = UnrealBloomPass;
+  window.OutputPass      = OutputPass;
+  window.__cosmosLibsReady = true;
+  window.dispatchEvent(new CustomEvent('cosmos-libs-ready'));
+</script>
 <script src="vendor/matter.min.js"></script>
 <script src="config.js"></script>
 <script src="lang.js"></script>
