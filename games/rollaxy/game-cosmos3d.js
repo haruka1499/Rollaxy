@@ -116,72 +116,21 @@ window.Cosmos3D = (function () {
       gl_FragColor = vec4(col, 1.0);
     }
   `;
-  // ── 炎シェル用バーテックスシェーダ ──
-  // 目標: 「^^^^☀^^^^」の形状（大量の細かい炎が球表面から短く突き出る）。
-  // 設計:
-  //   - 超高周波ノイズで「炎の本数」を多く出す
-  //   - 高いしきい値で頂点の大多数は球のまま、ピーク部だけスパイク化
-  //   - スパイク高さは uDisplace に応じて短く保つ (R に対し 0.05-0.15)
-  //   - 時間で外向きに流動 → 炎が燃え上がる動き
-  const CORONA_VERT = NOISE_GLSL + `
-    uniform float uTime; uniform float uDisplace;
-    varying vec2 vUv; varying vec3 vPos; varying vec3 vNormalW; varying vec3 vViewDirW;
-    varying float vDisplace;
-    void main(){
-      vUv = uv;
-      vec3 nrm = normalize(position);
-      float t = uTime * 0.55;
-      // 超高周波ノイズ: 細かい炎を大量に作る
-      float n1 = fbm(nrm * 9.0  + vec3(t * 1.4));
-      float n2 = fbm(nrm * 18.0 + vec3(t * 2.4));
-      float n  = n1 * 0.55 + n2 * 0.45 + 0.5;
-      // 高いしきい値 (0.7) で大多数の頂点は突き出ない = まばらな炎
-      float peak = smoothstep(0.7, 1.0, n);
-      // 鋭利化
-      peak = pow(peak, 1.6);
-      float d = peak * uDisplace;
-      vDisplace = peak;
-      vec3 displaced = position + nrm * d;
-      vPos = displaced;
-      vec4 wp = modelMatrix * vec4(displaced, 1.0);
-      vNormalW = normalize(mat3(modelMatrix) * normal);
-      vViewDirW = normalize(cameraPosition - wp.xyz);
-      gl_Position = projectionMatrix * viewMatrix * wp;
-    }
-  `;
-  // 炎シェル フラグメント: vDisplace の大きいピーク（炎の先端）だけ強く光らせる。
-  // 押し出されていない大多数の頂点（球面ほぼそのまま）は ほぼ透明 → 球が「鏡面」のように見えるのを避ける。
-  const CORONA_TONGUE_FRAG = NOISE_GLSL + `
-    uniform float uTime; uniform vec3 uColor;
-    varying vec2 vUv; varying vec3 vPos; varying vec3 vNormalW; varying vec3 vViewDirW;
-    varying float vDisplace;
-    void main(){
-      float t = uTime * 0.7;
-      float flicker = 0.7 + 0.4 * fbm(vPos * 6.0 + vec3(t * 1.6));
-      // 押し出し部のみ発光（vDisplace==0 のところは完全に透明）
-      float intensity = vDisplace * 2.2 * flicker;
-      // 縁での薄っすら補強（炎の根元の輪郭をうっすら描く）
-      float fres = pow(1.0 - max(dot(vNormalW, vViewDirW), 0.0), 2.2);
-      intensity += fres * 0.15;
-      float a = clamp(intensity, 0.0, 1.0);
-      // 先端 (vDisplace 大) ほど白寄り高温、根元はベース色
-      vec3 tip = vec3(1.0, 0.85, 0.55);
-      vec3 col = mix(uColor, tip, clamp(vDisplace * 1.5, 0.0, 0.9));
-      gl_FragColor = vec4(col * a * 1.3, a);
-    }
-  `;
-  // 遠方ヘイズ: 押し出しなし(uDisplace=0)、滑らかな残光。uOpacity で品質低下時に弱める
+  // 炎のスパイク押し出しは廃止 (「とんがり」化問題)。
+  // 外周は「ぼやっと光るハロー」(SpriteMaterial) + 球シェルの fresnel グロー で表現。
+  // 動的な「炎」要素は「時々飛び出す Solar Flare」 (TubeGeometry loop) に集約。
+
+  // ハズシェル フラグメント: 球面の外側ぎりぎりに薄い暖色グロー (fresnel ベース)
   const CORONA_HAZE_FRAG = NOISE_GLSL + `
     uniform float uTime; uniform vec3 uColor; uniform float uOpacity;
     varying vec2 vUv; varying vec3 vPos; varying vec3 vNormalW; varying vec3 vViewDirW;
-    varying float vDisplace;
     void main(){
-      float fres = pow(1.0 - max(dot(vNormalW, vViewDirW), 0.0), 2.8);
-      float t = uTime * 0.3;
-      float n = fbm(vPos * 1.4 + vec3(t));
-      float a = fres * (0.45 + 0.55 * n) * 0.5 * uOpacity;
+      float fres = pow(1.0 - max(dot(vNormalW, vViewDirW), 0.0), 2.6);
+      float t = uTime * 0.25;
+      float n = fbm(vPos * 1.3 + vec3(t));
+      float a = fres * (0.55 + 0.45 * n) * 0.6 * uOpacity;
       a = clamp(a, 0.0, 1.0);
-      gl_FragColor = vec4(uColor * a * 1.1, a);
+      gl_FragColor = vec4(uColor * a * 1.15, a);
     }
   `;
 
@@ -217,10 +166,12 @@ window.Cosmos3D = (function () {
 
   let scene, camera, renderer, starMesh, loader, planetGroup;
   let sunMat;                          // 恒星サーフェスのシェーダ
-  let coronaLayers = [];               // コロナ層 [{mesh, mat, baseScale, speed, displace}]
-                                       //   [0]=炎シェル(1.01×) / [1]=ヘイズ(1.18×)
-  let particleSystem = null;           // 外周プラズマ粒子
+  let coronaLayers = [];               // 1 層: ハズシェル (1.18× の fresnel グロー)
+  let particleSystem = null;           // 外周スパーク (小さい点が明滅)
   let particleMat = null;
+  let outerHaloSprite = null;          // 大きいぼやっとしたハロー (Sprite)
+  let solarFlares = [];                // [{mesh, mat, t, riseDur, peakDur, fadeDur}]
+  let _nextFlareIn = 3.0;              // 次のフレア出現までの秒数 (起動 3 秒後に初回)
   let composer, bloomPass;             // EffectComposer + UnrealBloomPass
   let supernovaT = 0;                  // 超新星演出の進行時間（0=非演出, >0=演出中）
 
@@ -228,10 +179,14 @@ window.Cosmos3D = (function () {
   // HIGH: 全機能 / MID: 中間 / LOW: 軽量。起動時HIGH、fps が画面更新の90%を下回ったら段階的に下げる
   // 押し出し量は球半径(=1.0)に対する割合。0.03〜0.08 程度に抑えて「ほぼ球+細い炎の舌」を実現。
   // geomDetail は SphereGeometry の widthSegments。高分割で押し出しエッジを滑らかに見せる。
+  // hazeOpacity = 球シェルの外周 fresnel グロー強度
+  // haloOpacity = 大きい外側ハロー Sprite の不透明度
+  // particleCount = 周辺スパーク数
+  // flareMax = 同時に存在できる Solar Flare 最大数
   const QUALITY = {
-    HIGH: { tongueDisplace: 0.12, hazeOpacity: 0.6,  particleCount: 60, geomDetail: 192 },
-    MID:  { tongueDisplace: 0.09, hazeOpacity: 0.5,  particleCount: 30, geomDetail: 128 },
-    LOW:  { tongueDisplace: 0.06, hazeOpacity: 0.4,  particleCount: 15, geomDetail: 96  },
+    HIGH: { hazeOpacity: 0.7, haloOpacity: 0.28, particleCount: 50, flareMax: 2 },
+    MID:  { hazeOpacity: 0.6, haloOpacity: 0.22, particleCount: 25, flareMax: 2 },
+    LOW:  { hazeOpacity: 0.5, haloOpacity: 0.16, particleCount: 10, flareMax: 1 },
   };
   let qualityLevel = 'HIGH';
 
@@ -355,33 +310,36 @@ window.Cosmos3D = (function () {
     // コロナ: 頂点押し出しの炎の舌層 + 滑らかな遠方ヘイズの 2 層構成。
     // CORONA_VERT で頂点自体を法線方向にノイズ押し出しするため、輪郭が円ではなくなる。
     const q = QUALITY[qualityLevel];
-    // コロナ層は最小限。
-    //   1) 炎シェル: 表面すぐ外側 (1.01×) でピーク部だけ突き出る
-    //   2) ヘイズ: 球サイズの少し上 (1.18×) で柔らかい外周 Glow
-    // 「巨大コロナ球を重ねる」方式は廃止 (旧 1.55× の HAZE と 1.15× の TONGUE → 削除)
-    const layerDefs = [
-      { scale: 1.01, frag: CORONA_TONGUE_FRAG, speed: -0.0014, displace: q.tongueDisplace, opacity: 1.0 },
-      { scale: 1.18, frag: CORONA_HAZE_FRAG,   speed:  0.0006, displace: 0.0,              opacity: q.hazeOpacity },
-    ];
-    for (const d of layerDefs) {
-      const mat = new THREE.ShaderMaterial({
-        uniforms: {
-          uTime:     { value: 0 },
-          uColor:    { value: new THREE.Color(target.glowColor) },
-          uDisplace: { value: d.displace },
-          uOpacity:  { value: d.opacity },
-        },
-        vertexShader:   CORONA_VERT,
-        fragmentShader: d.frag,
-        transparent:    true,
-        blending:       THREE.AdditiveBlending,
-        depthWrite:     false,
-        side:           THREE.FrontSide,
-      });
-      const mesh = new THREE.Mesh(new THREE.SphereGeometry(d.scale, q.geomDetail, q.geomDetail / 2), mat);
-      scene.add(mesh);
-      coronaLayers.push({ mesh, mat, baseScale: d.scale, speed: d.speed, displace: d.displace });
-    }
+    // ハズシェル: 球サイズの少し上 (1.15×) で fresnel ベースの暖色グロー (1 層のみ)
+    const hazeMat = new THREE.ShaderMaterial({
+      uniforms: {
+        uTime:    { value: 0 },
+        uColor:   { value: new THREE.Color(target.glowColor) },
+        uOpacity: { value: q.hazeOpacity },
+      },
+      vertexShader:   SUN_VERT,
+      fragmentShader: CORONA_HAZE_FRAG,
+      transparent:    true,
+      blending:       THREE.AdditiveBlending,
+      depthWrite:     false,
+      side:           THREE.FrontSide,
+    });
+    const hazeMesh = new THREE.Mesh(new THREE.SphereGeometry(1.15, 64, 32), hazeMat);
+    scene.add(hazeMesh);
+    coronaLayers.push({ mesh: hazeMesh, mat: hazeMat, baseScale: 1.15, speed: 0.0005 });
+
+    // 外側ハロー (Sprite): 大きく、ぼやっとした「光が周囲に滲んでる」感覚
+    const haloMat = new THREE.SpriteMaterial({
+      map: _makeGlowTexture(),
+      color: target.glowColor,
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      opacity: q.haloOpacity,
+    });
+    outerHaloSprite = new THREE.Sprite(haloMat);
+    outerHaloSprite.scale.set(3.2, 3.2, 1);
+    scene.add(outerHaloSprite);
 
     // 外周プラズマ粒子（炎の周りを舞うスパーク）
     _initParticles(q.particleCount);
@@ -428,8 +386,80 @@ window.Cosmos3D = (function () {
     _start();
   }
 
-  // ソーラーフレア機能は削除（大きな弧 → 「短く細かい炎を大量」方針と不一致）。
-  // 炎は CORONA 炎シェル（高頻度スパイク）に統一。
+  // ── ソーラーフレア (ループ状アーチ、ゆっくり emerge → peak → fade)──
+  // 「時々」感を出すため長めの待機 (8〜25 秒) を挟む。同時上限は QUALITY.flareMax。
+  function _randUnitVec() {
+    const u = Math.random() * 2 - 1;
+    const a = Math.random() * Math.PI * 2;
+    const s = Math.sqrt(1 - u * u);
+    return new THREE.Vector3(s * Math.cos(a), u, s * Math.sin(a));
+  }
+  function _spawnFlare() {
+    // 表面上の 2 点 A, B（近接）。中間点を 1.55〜2.1 倍 R 外側に膨らませる
+    const a = _randUnitVec();
+    const offset = _randUnitVec().multiplyScalar(0.22 + Math.random() * 0.25);
+    const b = a.clone().add(offset).normalize();
+    const midDir = a.clone().add(b).multiplyScalar(0.5).normalize();
+    const apexH  = 1.55 + Math.random() * 0.55;
+    const apex   = midDir.clone().multiplyScalar(apexH);
+    // 側方に少し膨らませて立体感
+    const sideways = new THREE.Vector3();
+    sideways.crossVectors(midDir, new THREE.Vector3(0, 1, 0)).normalize();
+    if (!isFinite(sideways.x)) sideways.set(1, 0, 0);
+    apex.addScaledVector(sideways, (Math.random() - 0.5) * 0.35);
+
+    const curve = new THREE.CatmullRomCurve3([a, apex, b]);
+    const geo = new THREE.TubeGeometry(curve, 36, 0.04, 10, false);
+    const mat = new THREE.MeshBasicMaterial({
+      color: new THREE.Color(1.8, 0.85, 0.35), // HDR 暖色 (Bloom が拾いやすい)
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      opacity: 0,
+    });
+    return {
+      mesh: new THREE.Mesh(geo, mat),
+      mat,
+      t: 0,
+      riseDur: 1.8 + Math.random() * 1.2, // emerge
+      peakDur: 1.0 + Math.random() * 1.5, // peak
+      fadeDur: 3.0 + Math.random() * 1.8, // fade
+    };
+  }
+  function _updateSolarFlares(dt) {
+    // 既存フレアの寿命進行
+    for (let i = solarFlares.length - 1; i >= 0; i--) {
+      const f = solarFlares[i];
+      f.t += dt;
+      const total = f.riseDur + f.peakDur + f.fadeDur;
+      if (f.t >= total) {
+        scene.remove(f.mesh); f.mesh.geometry.dispose(); f.mat.dispose();
+        solarFlares.splice(i, 1);
+        continue;
+      }
+      let alpha;
+      if (f.t < f.riseDur) {
+        alpha = f.t / f.riseDur;
+      } else if (f.t < f.riseDur + f.peakDur) {
+        alpha = 1.0;
+      } else {
+        alpha = 1.0 - (f.t - f.riseDur - f.peakDur) / f.fadeDur;
+      }
+      // ease-in-out で見た目を滑らかに
+      alpha = alpha * alpha * (3.0 - 2.0 * alpha);
+      f.mat.opacity = alpha * 0.95;
+      f.mesh.scale.setScalar(cur.radius);
+    }
+    // 新規フレア生成
+    _nextFlareIn -= dt;
+    const limit = QUALITY[qualityLevel].flareMax;
+    if (_nextFlareIn <= 0 && solarFlares.length < limit) {
+      const f = _spawnFlare();
+      scene.add(f.mesh);
+      solarFlares.push(f);
+      _nextFlareIn = 8 + Math.random() * 17; // 8〜25 秒
+    }
+  }
 
   function _onResize() {
     if (!initialized) return;
@@ -604,6 +634,15 @@ window.Cosmos3D = (function () {
       particleMat.uniforms.uTime.value = pulseT;
       particleSystem.scale.setScalar(cur.radius);
     }
+    // 外側ぼやっとハロー: 大きく、ゆっくり脈動
+    if (outerHaloSprite) {
+      const s = cur.radius * 3.2;
+      outerHaloSprite.scale.set(s, s, 1);
+      outerHaloSprite.material.opacity =
+        (QUALITY[qualityLevel].haloOpacity) * (0.85 + 0.15 * Math.sin(pulseT * 0.4));
+    }
+    // ソーラーフレア: 時々飛び出す
+    _updateSolarFlares(1 / 60);
     // 自動回転（ユーザー操作直後の冷却期間中は停止）
     if (now > _userInteractUntil) {
       camTheta += 0.0015;
@@ -676,6 +715,7 @@ window.Cosmos3D = (function () {
     if (sunMat) sunMat.uniforms.uColor.value.setHex(target.glowColor);
     for (const L of coronaLayers) L.mat.uniforms.uColor.value.setHex(target.glowColor);
     if (particleMat) particleMat.uniforms.uColor.value.setHex(target.glowColor);
+    if (outerHaloSprite) outerHaloSprite.material.color.setHex(target.glowColor);
   }
 
   // ── 外部 API: 惑星リストを 3D に反映 ──
