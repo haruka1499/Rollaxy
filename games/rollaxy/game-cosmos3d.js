@@ -74,62 +74,73 @@ window.Cosmos3D = (function () {
       gl_Position=projectionMatrix*viewMatrix*wp;
     }
   `;
-  // 表面: テクスチャをノイズでドメインワープ + 沸騰する明滅 + 中心輝度ブースト。
-  // 中心(view direction側)を白→黄→ベース色のグラデーションで強発光させ、Bloom がそれを拾って「眩しさ」を作る。
-  // 周縁はベース色寄りで、フレネルで縁の暖色も付加。
+  // 表面: 「ホットスポット駆動」の色合い。
+  // FBM で表面の温度マップを作り、高温部だけ白〜黄、中間は橙、低温部は赤に。
+  // 発光は表面全体ではなく高温部分中心。テクスチャの模様も保つ。
   const SUN_FRAG = NOISE_GLSL + `
     uniform float uTime; uniform sampler2D uTex; uniform vec3 uColor;
     varying vec2 vUv; varying vec3 vPos; varying vec3 vNormalW; varying vec3 vViewDirW;
     void main(){
       float t = uTime * 0.18;
       vec3 q = vPos * 2.4;
+      // テクスチャを軽くドメインワープ（プラズマの流動）
       float w = fbm(q + vec3(0.0, 0.0, t));
-      vec2 uv2 = vUv + vec2(w) * 0.025;
+      vec2 uv2 = vUv + vec2(w) * 0.02;
       vec3 base = texture2D(uTex, uv2).rgb;
-      float boil = 0.8 + 0.55 * fbm(q * 1.7 + vec3(t * 1.9));
-      vec3 col = base * boil;
-      // 中心ホットスポット: 視線正面ほど明るく白寄り。fresnel の逆(1-fres) で内側中央=最大
+
+      // 表面の温度マップ（球面のどの位置が高温かを FBM で）
+      float heat = fbm(q * 1.6 + vec3(t * 0.8));
+      heat += fbm(q * 4.5 + vec3(t * 1.6)) * 0.5;
+      heat = clamp(heat * 0.5 + 0.55, 0.0, 1.0);
+
+      // 色グラデーション: 赤 → 橙 → 黄 → 白（高温ほど白）
+      vec3 cRed    = vec3(0.45, 0.05, 0.02);
+      vec3 cOrange = vec3(1.10, 0.45, 0.10);
+      vec3 cYellow = vec3(1.30, 0.95, 0.35);
+      vec3 cWhite  = vec3(1.20, 1.10, 0.85); // 控えめに > 1
+      vec3 grad = mix(cRed,    cOrange, smoothstep(0.20, 0.55, heat));
+      grad     = mix(grad,     cYellow, smoothstep(0.50, 0.80, heat));
+      grad     = mix(grad,     cWhite,  smoothstep(0.78, 0.96, heat));
+      // ベース色合い (uColor=恒星 tier 色) で全体トーンを左右
+      grad *= mix(vec3(0.7), uColor / max(uColor.r, 0.001), 0.45);
+
+      // テクスチャの模様で陰影をつける
+      float texLum = (base.r + base.g + base.b) / 3.0;
+      vec3 col = grad * mix(0.6, 1.15, texLum);
+
+      // 周縁の暖色補強（フレネル）— 控えめ
       float NdV = max(dot(vNormalW, vViewDirW), 0.0);
-      float center = pow(NdV, 1.3);
-      // 白(高温) → 黄 → uColor(基底=ベース色)
-      vec3 hotWhite  = vec3(1.3, 1.2, 1.0);    // 中心: 軽めに > 1.0 で Bloom がほんのり拾う
-      vec3 hotYellow = vec3(1.1, 0.9, 0.5);
-      vec3 coolEdge  = uColor;
-      vec3 hot = mix(hotYellow, hotWhite, smoothstep(0.55, 0.95, center));
-      hot = mix(coolEdge, hot, smoothstep(0.2, 0.9, center));
-      // テクスチャ模様を保ちつつ、中心ほど発光合成
-      col = mix(col * uColor, hot, center * 0.55);
-      // 縁の温色補強
-      float fres = pow(1.0 - NdV, 2.0);
-      col += uColor * fres * 0.6;
-      // 全体ブースト控えめ
-      col *= 1.1;
+      float fres = pow(1.0 - NdV, 2.5);
+      col += cOrange * fres * 0.35;
+
       gl_FragColor = vec4(col, 1.0);
     }
   `;
-  // ── コロナ用バーテックスシェーダ ──
-  // 「ほとんどの頂点は球のまま」「ピーク値の頂点だけ細く外へ突き出る」を実現する。
-  // smoothstep でしきい値以下は完全に切り落とし → 突き出る本数を絞る（細い炎の舌）。
-  // 続けて pow(d, 3.5) で先端を更に鋭利化。最後に uDisplace で R に対する割合に縮小。
-  // uTime でノイズパターンを外向きに流し「燃え上がる」アニメ。
+  // ── 炎シェル用バーテックスシェーダ ──
+  // 目標: 「^^^^☀^^^^」の形状（大量の細かい炎が球表面から短く突き出る）。
+  // 設計:
+  //   - 超高周波ノイズで「炎の本数」を多く出す
+  //   - 高いしきい値で頂点の大多数は球のまま、ピーク部だけスパイク化
+  //   - スパイク高さは uDisplace に応じて短く保つ (R に対し 0.05-0.15)
+  //   - 時間で外向きに流動 → 炎が燃え上がる動き
   const CORONA_VERT = NOISE_GLSL + `
     uniform float uTime; uniform float uDisplace;
     varying vec2 vUv; varying vec3 vPos; varying vec3 vNormalW; varying vec3 vViewDirW;
-    varying float vDisplace; // 押し出し量比 (frag で先端を強く光らせる)
+    varying float vDisplace;
     void main(){
       vUv = uv;
       vec3 nrm = normalize(position);
-      float t = uTime * 0.6;
-      // 高周波 + 低周波の混合。+vec3(t) でノイズパターンが外向きに流れる
-      float n1 = fbm(nrm * 3.0 + vec3(t));
-      float n2 = fbm(nrm * 7.0 + vec3(t * 1.8));
-      float n  = n1 * 0.6 + n2 * 0.4 + 0.5; // 0..1 程度
-      // しきい値以下を切り捨て（ピーク値のみ残す）→ 突き出る頂点数を絞る = 細い炎の舌
-      float peak = smoothstep(0.55, 1.0, n);
-      // 更に鋭利化
-      peak = pow(peak, 2.0);
-      float d = peak * uDisplace; // R に対する割合
-      vDisplace = peak; // frag では正規化された 0..1 値を使う（色合い計算用）
+      float t = uTime * 0.55;
+      // 超高周波ノイズ: 細かい炎を大量に作る
+      float n1 = fbm(nrm * 9.0  + vec3(t * 1.4));
+      float n2 = fbm(nrm * 18.0 + vec3(t * 2.4));
+      float n  = n1 * 0.55 + n2 * 0.45 + 0.5;
+      // 高いしきい値 (0.7) で大多数の頂点は突き出ない = まばらな炎
+      float peak = smoothstep(0.7, 1.0, n);
+      // 鋭利化
+      peak = pow(peak, 1.6);
+      float d = peak * uDisplace;
+      vDisplace = peak;
       vec3 displaced = position + nrm * d;
       vPos = displaced;
       vec4 wp = modelMatrix * vec4(displaced, 1.0);
@@ -138,23 +149,25 @@ window.Cosmos3D = (function () {
       gl_Position = projectionMatrix * viewMatrix * wp;
     }
   `;
-  // 炎の舌層フラグメント: 押し出し量(vDisplace)が大きい先端ほど明るく白寄り、
-  // 根元はベース色。フレネルも併用して縁側の透過感を出す。
+  // 炎シェル フラグメント: vDisplace の大きいピーク（炎の先端）だけ強く光らせる。
+  // 押し出されていない大多数の頂点（球面ほぼそのまま）は ほぼ透明 → 球が「鏡面」のように見えるのを避ける。
   const CORONA_TONGUE_FRAG = NOISE_GLSL + `
     uniform float uTime; uniform vec3 uColor;
     varying vec2 vUv; varying vec3 vPos; varying vec3 vNormalW; varying vec3 vViewDirW;
     varying float vDisplace;
     void main(){
-      float fres = pow(1.0 - max(dot(vNormalW, vViewDirW), 0.0), 1.6);
       float t = uTime * 0.7;
-      float n = fbm(vPos * 4.0 + vec3(t * 1.4));
-      // 押し出し先端ほど明るい。根元(displace≈0)は暗くて消える → 「炎の舌」効果
-      float intensity = vDisplace * 2.0 + fres * 0.5;
-      intensity *= (0.7 + 0.5 * n);
+      float flicker = 0.7 + 0.4 * fbm(vPos * 6.0 + vec3(t * 1.6));
+      // 押し出し部のみ発光（vDisplace==0 のところは完全に透明）
+      float intensity = vDisplace * 2.2 * flicker;
+      // 縁での薄っすら補強（炎の根元の輪郭をうっすら描く）
+      float fres = pow(1.0 - max(dot(vNormalW, vViewDirW), 0.0), 2.2);
+      intensity += fres * 0.15;
       float a = clamp(intensity, 0.0, 1.0);
-      // 先端を白寄りに混色（高温部）
-      vec3 hot = mix(uColor, vec3(1.0, 0.92, 0.7), clamp(vDisplace * 1.8, 0.0, 0.7));
-      gl_FragColor = vec4(hot * a * 1.7, a);
+      // 先端 (vDisplace 大) ほど白寄り高温、根元はベース色
+      vec3 tip = vec3(1.0, 0.85, 0.55);
+      vec3 col = mix(uColor, tip, clamp(vDisplace * 1.5, 0.0, 0.9));
+      gl_FragColor = vec4(col * a * 1.3, a);
     }
   `;
   // 遠方ヘイズ: 押し出しなし(uDisplace=0)、滑らかな残光。uOpacity で品質低下時に弱める
@@ -202,13 +215,12 @@ window.Cosmos3D = (function () {
     }
   `;
 
-  let scene, camera, renderer, starMesh, glowSprite, loader, planetGroup;
+  let scene, camera, renderer, starMesh, loader, planetGroup;
   let sunMat;                          // 恒星サーフェスのシェーダ
   let coronaLayers = [];               // コロナ層 [{mesh, mat, baseScale, speed, displace}]
+                                       //   [0]=炎シェル(1.01×) / [1]=ヘイズ(1.18×)
   let particleSystem = null;           // 外周プラズマ粒子
   let particleMat = null;
-  let outerHaloSprite = null;          // 外側ソフトグロー (Bloom が拾って眩しさを増す)
-  let solarFlares = [];                // [{mesh, mat, t, dur, baseScale}] ループ状の太陽フレア
   let composer, bloomPass;             // EffectComposer + UnrealBloomPass
   let supernovaT = 0;                  // 超新星演出の進行時間（0=非演出, >0=演出中）
 
@@ -217,9 +229,9 @@ window.Cosmos3D = (function () {
   // 押し出し量は球半径(=1.0)に対する割合。0.03〜0.08 程度に抑えて「ほぼ球+細い炎の舌」を実現。
   // geomDetail は SphereGeometry の widthSegments。高分割で押し出しエッジを滑らかに見せる。
   const QUALITY = {
-    HIGH: { tongueDisplace: 0.08, hazeOpacity: 1.0,  particleCount: 100, geomDetail: 160 },
-    MID:  { tongueDisplace: 0.05, hazeOpacity: 0.85, particleCount: 50,  geomDetail: 112 },
-    LOW:  { tongueDisplace: 0.03, hazeOpacity: 0.7,  particleCount: 20,  geomDetail: 80 },
+    HIGH: { tongueDisplace: 0.12, hazeOpacity: 0.6,  particleCount: 60, geomDetail: 192 },
+    MID:  { tongueDisplace: 0.09, hazeOpacity: 0.5,  particleCount: 30, geomDetail: 128 },
+    LOW:  { tongueDisplace: 0.06, hazeOpacity: 0.4,  particleCount: 15, geomDetail: 96  },
   };
   let qualityLevel = 'HIGH';
 
@@ -343,12 +355,13 @@ window.Cosmos3D = (function () {
     // コロナ: 頂点押し出しの炎の舌層 + 滑らかな遠方ヘイズの 2 層構成。
     // CORONA_VERT で頂点自体を法線方向にノイズ押し出しするため、輪郭が円ではなくなる。
     const q = QUALITY[qualityLevel];
-    // コロナは恒星表面のすぐ外側に寄せる。離れすぎると「球が重なって見える」原因になる
+    // コロナ層は最小限。
+    //   1) 炎シェル: 表面すぐ外側 (1.01×) でピーク部だけ突き出る
+    //   2) ヘイズ: 球サイズの少し上 (1.18×) で柔らかい外周 Glow
+    // 「巨大コロナ球を重ねる」方式は廃止 (旧 1.55× の HAZE と 1.15× の TONGUE → 削除)
     const layerDefs = [
-      // 押し出し付き炎の舌（恒星表面ぎりぎり外側、押し出しで少し外へ伸びる）
-      { scale: 1.02, frag: CORONA_TONGUE_FRAG, speed: -0.0014, displace: q.tongueDisplace, opacity: 1.0 },
-      // 滑らかな遠方ヘイズ（控えめに表面近く）
-      { scale: 1.08, frag: CORONA_HAZE_FRAG,   speed:  0.0008, displace: 0.0,             opacity: q.hazeOpacity },
+      { scale: 1.01, frag: CORONA_TONGUE_FRAG, speed: -0.0014, displace: q.tongueDisplace, opacity: 1.0 },
+      { scale: 1.18, frag: CORONA_HAZE_FRAG,   speed:  0.0006, displace: 0.0,              opacity: q.hazeOpacity },
     ];
     for (const d of layerDefs) {
       const mat = new THREE.ShaderMaterial({
@@ -377,33 +390,10 @@ window.Cosmos3D = (function () {
     _initCameraControls();
     _fpsStartT = performance.now();
 
-    // グロー光輪（Sprite + 加算合成）。Bloom と相まって眩しい中心光を作る。
-    const glowMat = new THREE.SpriteMaterial({
-      map: _makeGlowTexture(),
-      color: target.glowColor,
-      transparent: true,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-    });
-    glowSprite = new THREE.Sprite(glowMat);
-    scene.add(glowSprite);
-
-    // 外側ソフトハロー: 恒星より大きく、柔らかい外向きグロー。
-    // Bloom が拾わなくても「光が周囲に滲む」感覚を演出
-    const outerMat = new THREE.SpriteMaterial({
-      map: _makeGlowTexture(),
-      color: target.glowColor,
-      transparent: true,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-      opacity: 0.18, // 控えめ（Bloom と重ねるので過剰回避）
-    });
-    outerHaloSprite = new THREE.Sprite(outerMat);
-    outerHaloSprite.scale.set(4.0, 4.0, 1);
-    scene.add(outerHaloSprite);
-
-    // ソーラーフレア: TubeGeometry のループ状アーチが恒星表面から飛び出す
-    _initSolarFlares();
+    // glowSprite / outerHaloSprite / solarFlares は削除:
+    //   - 巨大スプライトを重ねるだけ → 「球が重なって見える/謎リング」原因
+    //   - 大きい弧フレア → 「短く細かい炎を大量」という方針と不一致
+    // 外周 Glow は CORONA_HAZE_FRAG (1.18×シェル) が担う。
 
     // 惑星用ライト: 恒星（原点）から放射する点光源 + 弱い環境光（暗黒面が真っ黒にならないよう）
     const starLight = new THREE.PointLight(0xfff2dd, 2.4, 0, 0.0);
@@ -416,14 +406,15 @@ window.Cosmos3D = (function () {
     planetGroup.rotation.x = -0.5; // 約 -28°
     scene.add(planetGroup);
 
-    // EffectComposer + UnrealBloomPass による本格 Bloom（眩しすぎ防止のため控えめに）
+    // EffectComposer + UnrealBloomPass。
+    // まず Bloom を弱めて炎・色合いの本体を整える → 最後にもう一段強めて仕上げ。
     if (window.EffectComposer && window.UnrealBloomPass) {
       composer  = new EffectComposer(renderer);
       composer.addPass(new RenderPass(scene, camera));
       bloomPass = new UnrealBloomPass(new THREE.Vector2(w, h),
-        0.55,  // strength: 強度（眩しすぎ防止のため 1.6→0.55）
-        0.6,   // radius: 拡散半径
-        0.75   // threshold: 0.75 以上の明るい画素のみ Bloom 対象。中心ホットスポットだけ滲む
+        0.25,  // strength: 弱め（作業中の基準）
+        0.5,   // radius: 拡散半径
+        0.85   // threshold: かなり明るい画素のみ Bloom 対象
       );
       composer.addPass(bloomPass);
       composer.addPass(new OutputPass());
@@ -437,62 +428,8 @@ window.Cosmos3D = (function () {
     _start();
   }
 
-  // ── ソーラーフレア (3 本のループ状アーチ) ──
-  function _initSolarFlares() {
-    for (const f of solarFlares) {
-      scene.remove(f.mesh); f.mesh.geometry.dispose(); f.mat.dispose();
-    }
-    solarFlares = [];
-    for (let i = 0; i < 3; i++) solarFlares.push(_spawnFlare(i * 2.5));
-  }
-  function _randUnitVec() {
-    const u = Math.random() * 2 - 1;
-    const a = Math.random() * Math.PI * 2;
-    const s = Math.sqrt(1 - u * u);
-    return new THREE.Vector3(s * Math.cos(a), u, s * Math.sin(a));
-  }
-  function _spawnFlare(delay) {
-    // 表面上の2点 A, B をランダムに（近い場所）。中間点を外側に膨らませる
-    const a = _randUnitVec();
-    const offset = _randUnitVec().multiplyScalar(0.35);
-    const b = a.clone().add(offset).normalize();
-    const midDir = a.clone().add(b).multiplyScalar(0.5).normalize();
-    const apex = midDir.multiplyScalar(1.4 + Math.random() * 0.4);
-    const curve = new THREE.CatmullRomCurve3([a, apex, b]);
-    const geo = new THREE.TubeGeometry(curve, 28, 0.025, 8, false);
-    const mat = new THREE.MeshBasicMaterial({
-      color: 0xffe2a0,
-      transparent: true,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-      opacity: 0,
-    });
-    const mesh = new THREE.Mesh(geo, mat);
-    scene.add(mesh);
-    return {
-      mesh, mat,
-      t: -delay,          // 負時刻にすることで遅延発火
-      dur: 4.5 + Math.random() * 2.5, // 全体の持続秒
-    };
-  }
-  function _updateSolarFlares(dt) {
-    for (let i = 0; i < solarFlares.length; i++) {
-      const f = solarFlares[i];
-      f.t += dt;
-      if (f.t < 0) { f.mat.opacity = 0; continue; }
-      const p = f.t / f.dur;
-      if (p >= 1.0) {
-        // 寿命終了 → 新規生成
-        scene.remove(f.mesh); f.mesh.geometry.dispose(); f.mat.dispose();
-        solarFlares[i] = _spawnFlare(Math.random() * 1.5);
-        continue;
-      }
-      // sin 波で fade in/out
-      f.mat.opacity = Math.sin(p * Math.PI) * 0.85;
-      // 恒星半径に追従
-      f.mesh.scale.setScalar(cur.radius);
-    }
-  }
+  // ソーラーフレア機能は削除（大きな弧 → 「短く細かい炎を大量」方針と不一致）。
+  // 炎は CORONA 炎シェル（高頻度スパイク）に統一。
 
   function _onResize() {
     if (!initialized) return;
@@ -667,24 +604,10 @@ window.Cosmos3D = (function () {
       particleMat.uniforms.uTime.value = pulseT;
       particleSystem.scale.setScalar(cur.radius);
     }
-    // 外側ソフトハロー: 恒星半径×4 で大きめのソフトグロー
-    if (outerHaloSprite) {
-      const s = cur.radius * 4.0;
-      outerHaloSprite.scale.set(s, s, 1);
-    }
-    // ソーラーフレア更新（dt = 1/60 想定）
-    _updateSolarFlares(1 / 60);
     // 自動回転（ユーザー操作直後の冷却期間中は停止）
     if (now > _userInteractUntil) {
       camTheta += 0.0015;
       _updateCamera();
-    }
-    if (glowSprite) {
-      // ゆるやかな脈動（±4%）
-      const pulse = 1 + Math.sin(pulseT) * 0.04;
-      const s = cur.glowScale * pulse;
-      glowSprite.scale.set(s, s, 1);
-      glowSprite.material.opacity = cur.glowOpacity * (0.94 + Math.sin(pulseT) * 0.06);
     }
     // 惑星の公転 + 自転
     for (const p of planetObjs) {
@@ -750,8 +673,6 @@ window.Cosmos3D = (function () {
     target.glowScale   = target.radius * (2.4 + 1.2 * erNorm);
     target.glowOpacity = 0.32 + 0.4 * erNorm;
 
-    if (glowSprite) glowSprite.material.color.setHex(target.glowColor);
-    if (outerHaloSprite) outerHaloSprite.material.color.setHex(target.glowColor);
     if (sunMat) sunMat.uniforms.uColor.value.setHex(target.glowColor);
     for (const L of coronaLayers) L.mat.uniforms.uColor.value.setHex(target.glowColor);
     if (particleMat) particleMat.uniforms.uColor.value.setHex(target.glowColor);
