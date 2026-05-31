@@ -1144,10 +1144,7 @@ canvas { position: absolute; top: 0; left: 0; transform-origin: top left; }
 #home-nav.show { display: flex; }
 /* チュートリアル中はプレイのみ → 中央寄せ */
 #home-nav.tutorial-only { justify-content: center; }
-/* デスクトップ: 研究・恒星・プレイは常時3列表示なのでナビボタン不要 → 隠す */
-@media (min-width: 760px) {
-  #nav-research, #nav-cosmos { display: none !important; }
-}
+/* デスクトップでも 5 ボタン全部表示。研究/恒星はフォーカスモード切替に使う（body.home-focus-* 参照） */
 .nav-item.active .nav-label { color: #fff; }
 .nav-item.active .nav-icon  { transform: translateY(-1px); filter: drop-shadow(0 0 6px rgba(124,92,252,0.7)); }
 .nav-item {
@@ -1160,6 +1157,15 @@ canvas { position: absolute; top: 0; left: 0; transform-origin: top left; }
 .nav-item .nav-icon  { font-size: 22px; line-height: 1; }
 .nav-item .nav-label { font-size: 11px; }
 .nav-item:active { background: rgba(124, 92, 252, 0.15); }
+
+/* デスクトップフォーカスモード: 研究 or 恒星ボタンを押すと該当パネルを全幅化、他は非表示。
+   再度同じボタンか「プレイ」ボタンで body クラスがクリアされ通常 3 列表示に戻る。 */
+@media (min-width: 760px) {
+  body.home-focus-research #panel-play,
+  body.home-focus-research #panel-cosmos { display: none; }
+  body.home-focus-cosmos   #panel-play,
+  body.home-focus-cosmos   #panel-research { display: none; }
+}
 /* 中央のプレイは一段持ち上げた丸ボタンで強調 */
 .nav-item.nav-play .nav-icon {
   width: 46px; height: 46px; border-radius: 50%; margin-top: -20px;

@@ -1652,6 +1652,12 @@ function showHomeTab(tab) {
   _closeAllHomeOverlays();
   document.querySelectorAll('#home-nav .nav-item')
     .forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  // デスクトップ フォーカスモード:
+  //   通常は 3 列同時表示。研究/恒星 タブを押した時のみ body クラスを付けて該当パネルを全幅化
+  //   ach/ranking は overlay として開くだけで通常 3 列レイアウトを崩さない
+  document.body.classList.remove('home-focus-research', 'home-focus-cosmos');
+  if (tab === 'research')   document.body.classList.add('home-focus-research');
+  else if (tab === 'cosmos') document.body.classList.add('home-focus-cosmos');
   if      (tab === 'cosmos'   && typeof openCosmos      === 'function') openCosmos();
   else if (tab === 'research' && typeof openResearch    === 'function') openResearch();
   else if (tab === 'ranking'  && typeof openRankingHome === 'function') openRankingHome();
@@ -1700,9 +1706,11 @@ if (_homeNavEl) {
     const tab = btn.dataset.tab;
     if (tab === 'play') _tryUnlockAudio();
     playDecisionSound();
-    // すでにアクティブな overlay タブを再押し → プレイに戻す
+    // すでにアクティブなタブを再押し → プレイに戻す（トグル）
+    // 旧仕様: ranking / ach のみ。新仕様: research / cosmos も同様に再押しで通常表示に戻れる。
     const isActive = btn.classList.contains('active');
-    showHomeTab(isActive && (tab === 'ranking' || tab === 'ach') ? 'play' : tab);
+    const toggleable = (tab === 'ranking' || tab === 'ach' || tab === 'research' || tab === 'cosmos');
+    showHomeTab(isActive && toggleable ? 'play' : tab);
   });
 }
 
