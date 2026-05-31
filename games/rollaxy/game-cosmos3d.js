@@ -92,61 +92,129 @@ window.Cosmos3D = (function () {
       gl_FragColor=vec4(col,1.0);
     }
   `;
-  // コアコロナ: 表面すぐ外の燃え芯。明るい黄白で鋭く脈打つ
-  const CORONA_CORE_FRAG = NOISE_GLSL + `
-    uniform float uTime; uniform vec3 uColor;
+  // ── コロナ用バーテックスシェーダ ──
+  // 各頂点を「法線(=球中心からの方向)」沿いに、放射方向ノイズで外向きに押し出す。
+  // これで輪郭そのものが崩れ、円ではなく不規則な火球シルエットになる。
+  // uDisplace で押し出し量、uTime でノイズパターンを外へ流す（炎が燃え上がる動き）。
+  const CORONA_VERT = NOISE_GLSL + `
+    uniform float uTime; uniform float uDisplace;
     varying vec2 vUv; varying vec3 vPos; varying vec3 vNormalW; varying vec3 vViewDirW;
+    varying float vDisplace; // 押し出し量を frag に渡し、先端を強く光らせる
     void main(){
-      float fres=pow(1.0-max(dot(vNormalW,vViewDirW),0.0),3.5);
-      vec3 q=normalize(vPos);
-      float t=uTime*0.6;
-      // 細かいノイズで「燃えてる」感じ
-      float n=fbm(q*6.0+vec3(t*0.8));
-      float core=pow(fres*(0.5+n),1.2);
-      // 中心は白寄りに、外側ほど色付き
-      vec3 hot=mix(vec3(1.0,0.95,0.7), uColor, 1.0-fres);
-      float a=clamp(core*1.4,0.0,1.0);
-      gl_FragColor=vec4(hot*a*1.8,a);
+      vUv = uv;
+      vec3 nrm = normalize(position); // 球面なので位置=法線方向
+      float t = uTime * 0.5;
+      // 放射方向に時間流動するノイズ。+vec3(t) で「外へ流れる」感を出す
+      float n1 = fbm(nrm * 2.5 + vec3(t));
+      float n2 = fbm(nrm * 5.0 + vec3(t * 1.7));
+      // 外向きのみ（負の方向には引っ込めず、炎の舌のように外へだけ伸びる）
+      float d = max(0.0, n1 * 0.7 + n2 * 0.3);
+      // pow で鋭い舌状に
+      d = pow(d, 1.4) * uDisplace;
+      vDisplace = d;
+      vec3 displaced = position + nrm * d;
+      vPos = displaced;
+      vec4 wp = modelMatrix * vec4(displaced, 1.0);
+      vNormalW = normalize(mat3(modelMatrix) * normal);
+      vViewDirW = normalize(cameraPosition - wp.xyz);
+      gl_Position = projectionMatrix * viewMatrix * wp;
     }
   `;
-  // 炎の舌層: 鋭い炎の舌が外側へ流れる
-  // 放射方向にUV的に「流れる」ノイズで、外に伸びる炎の動きを表現
+  // 炎の舌層フラグメント: 押し出し量(vDisplace)が大きい先端ほど明るく白寄り、
+  // 根元はベース色。フレネルも併用して縁側の透過感を出す。
   const CORONA_TONGUE_FRAG = NOISE_GLSL + `
     uniform float uTime; uniform vec3 uColor;
     varying vec2 vUv; varying vec3 vPos; varying vec3 vNormalW; varying vec3 vViewDirW;
+    varying float vDisplace;
     void main(){
-      float fres=pow(1.0-max(dot(vNormalW,vViewDirW),0.0),2.0);
-      vec3 q=normalize(vPos);
-      float t=uTime*0.7;
-      // 放射方向(=外向き)に流れるノイズ: q + 時間で外側へ伸びる
-      float n1=fbm(q*3.5+vec3(t*1.2));
-      float n2=fbm(q*7.0-vec3(t*1.8));
-      // pow で鋭くして「舌」状の輪郭を作る
-      float tongues=pow(clamp(n1*0.5+n2*0.5+0.5, 0.0, 1.0), 2.6);
-      // 外側ほど暗くするマスク（炎が外に向かって細る）
-      float a=fres*tongues*1.6;
-      a=clamp(a,0.0,1.0);
-      gl_FragColor=vec4(uColor*a*1.5,a);
+      float fres = pow(1.0 - max(dot(vNormalW, vViewDirW), 0.0), 1.6);
+      float t = uTime * 0.7;
+      float n = fbm(vPos * 4.0 + vec3(t * 1.4));
+      // 押し出し先端ほど明るい。根元(displace≈0)は暗くて消える → 「炎の舌」効果
+      float intensity = vDisplace * 2.0 + fres * 0.5;
+      intensity *= (0.7 + 0.5 * n);
+      float a = clamp(intensity, 0.0, 1.0);
+      // 先端を白寄りに混色（高温部）
+      vec3 hot = mix(uColor, vec3(1.0, 0.92, 0.7), clamp(vDisplace * 1.8, 0.0, 0.7));
+      gl_FragColor = vec4(hot * a * 1.7, a);
     }
   `;
-  // 遠方ヘイズ: 柔らかい残光・大気感（既存風味）
+  // 遠方ヘイズ: 押し出しなし(uDisplace=0)、滑らかな残光。uOpacity で品質低下時に弱める
   const CORONA_HAZE_FRAG = NOISE_GLSL + `
-    uniform float uTime; uniform vec3 uColor;
+    uniform float uTime; uniform vec3 uColor; uniform float uOpacity;
     varying vec2 vUv; varying vec3 vPos; varying vec3 vNormalW; varying vec3 vViewDirW;
+    varying float vDisplace;
     void main(){
-      float fres=pow(1.0-max(dot(vNormalW,vViewDirW),0.0),3.0);
-      float t=uTime*0.3;
-      float n=fbm(vPos*1.6+vec3(t));
-      float a=fres*(0.45+0.55*n)*0.55;
-      a=clamp(a,0.0,1.0);
-      gl_FragColor=vec4(uColor*a*1.1,a);
+      float fres = pow(1.0 - max(dot(vNormalW, vViewDirW), 0.0), 2.8);
+      float t = uTime * 0.3;
+      float n = fbm(vPos * 1.4 + vec3(t));
+      float a = fres * (0.45 + 0.55 * n) * 0.5 * uOpacity;
+      a = clamp(a, 0.0, 1.0);
+      gl_FragColor = vec4(uColor * a * 1.1, a);
+    }
+  `;
+
+  // ── パーティクル（外周のプラズマ粒）──
+  // 球面上にばらまいた小さな点が明滅する。BufferGeometry + Points で軽量。
+  const PARTICLE_VERT = `
+    attribute float phase;
+    uniform float uTime; uniform float uPointScale;
+    varying float vAlpha;
+    void main(){
+      vec4 wp = modelMatrix * vec4(position, 1.0);
+      vec4 mv = viewMatrix * wp;
+      // 距離に応じてサイズ調整（遠いと小さく）
+      gl_PointSize = uPointScale * (1.0 / -mv.z);
+      // 各粒子の独立位相で明滅
+      float pulse = sin(uTime * 2.5 + phase) * 0.5 + 0.5;
+      vAlpha = pulse * pulse; // 鋭めの明滅
+      gl_Position = projectionMatrix * mv;
+    }
+  `;
+  const PARTICLE_FRAG = `
+    uniform vec3 uColor;
+    varying float vAlpha;
+    void main(){
+      // 円形マスク（gl_PointCoord は 0..1 の正方形）
+      vec2 d = gl_PointCoord - vec2(0.5);
+      float dist = length(d);
+      if (dist > 0.5) discard;
+      float a = smoothstep(0.5, 0.0, dist) * vAlpha;
+      gl_FragColor = vec4(uColor * a * 2.2, a);
     }
   `;
 
   let scene, camera, renderer, starMesh, glowSprite, loader, planetGroup;
   let sunMat;                          // 恒星サーフェスのシェーダ
-  let coronaLayers = [];               // 3層コロナ [{mesh, mat, speed}]
+  let coronaLayers = [];               // コロナ層 [{mesh, mat, baseScale, speed, displace}]
+  let particleSystem = null;           // 外周プラズマ粒子
+  let particleMat = null;
   let supernovaT = 0;                  // 超新星演出の進行時間（0=非演出, >0=演出中）
+
+  // ── 動的品質（Phase 7）──
+  // HIGH: 全機能 / MID: 中間 / LOW: 軽量。起動時HIGH、fps が画面更新の90%を下回ったら段階的に下げる
+  const QUALITY = {
+    HIGH: { tongueDisplace: 0.95, hazeOpacity: 1.0, particleCount: 100, geomDetail: 64 },
+    MID:  { tongueDisplace: 0.60, hazeOpacity: 0.85, particleCount: 50,  geomDetail: 48 },
+    LOW:  { tongueDisplace: 0.30, hazeOpacity: 0.7,  particleCount: 20,  geomDetail: 32 },
+  };
+  let qualityLevel = 'HIGH';
+
+  // fps 計測
+  let _fpsFrames = [];
+  let _fpsStartT = 0;
+  let _fpsTarget = null;               // 画面リフレッシュレート（起動後2秒で確定）
+  let _lastQualityChange = 0;
+
+  // ── カメラ操作（Phase 7）──
+  let camTheta = 0;                    // 方位角（rad）
+  let camPhi   = Math.PI / 2;          // 仰角（rad、π/2=赤道）
+  let camRadius = 3.4;                 // 距離
+  const CAM_MIN_R = 1.8, CAM_MAX_R = 7.0;
+  const CAM_PHI_PAD = 0.15;            // 極での詰まりを防ぐマージン
+  let _userInteractUntil = 0;          // この時刻まで自動回転停止
+  let _pointers = new Map();           // pointerId → {x,y}
+  let _pinchPrevDist = 0;
   let animId = null;
   let initialized = false;
   let pulseT = 0;
@@ -245,30 +313,41 @@ window.Cosmos3D = (function () {
     starMesh = new THREE.Mesh(new THREE.SphereGeometry(1, 64, 32), sunMat);
     scene.add(starMesh);
 
-    // 3層コロナ: コア(燃え芯) + 炎の舌 + 遠方ヘイズ
-    // 加算合成で重ねることで、明るい中心 → 鋭い炎 → 柔らかい残光の階調を出す
+    // コロナ: 頂点押し出しの炎の舌層 + 滑らかな遠方ヘイズの 2 層構成。
+    // CORONA_VERT で頂点自体を法線方向にノイズ押し出しするため、輪郭が円ではなくなる。
+    const q = QUALITY[qualityLevel];
     const layerDefs = [
-      { scale: 1.04, frag: CORONA_CORE_FRAG,   speed: -0.0006 },
-      { scale: 1.18, frag: CORONA_TONGUE_FRAG, speed: -0.0014 },
-      { scale: 1.42, frag: CORONA_HAZE_FRAG,   speed:  0.0008 },
+      // 押し出し量大: 「炎の舌」が外向きに伸びる
+      { scale: 1.15, frag: CORONA_TONGUE_FRAG, speed: -0.0014, displace: q.tongueDisplace, opacity: 1.0 },
+      // 押し出しなし: 滑らかな遠方ヘイズ
+      { scale: 1.55, frag: CORONA_HAZE_FRAG,   speed:  0.0008, displace: 0.0,            opacity: q.hazeOpacity },
     ];
     for (const d of layerDefs) {
       const mat = new THREE.ShaderMaterial({
         uniforms: {
-          uTime:  { value: 0 },
-          uColor: { value: new THREE.Color(target.glowColor) },
+          uTime:     { value: 0 },
+          uColor:    { value: new THREE.Color(target.glowColor) },
+          uDisplace: { value: d.displace },
+          uOpacity:  { value: d.opacity },
         },
-        vertexShader:   SUN_VERT,
+        vertexShader:   CORONA_VERT,
         fragmentShader: d.frag,
         transparent:    true,
         blending:       THREE.AdditiveBlending,
         depthWrite:     false,
         side:           THREE.FrontSide,
       });
-      const mesh = new THREE.Mesh(new THREE.SphereGeometry(d.scale, 48, 24), mat);
+      const mesh = new THREE.Mesh(new THREE.SphereGeometry(d.scale, q.geomDetail, q.geomDetail / 2), mat);
       scene.add(mesh);
-      coronaLayers.push({ mesh, mat, baseScale: d.scale, speed: d.speed });
+      coronaLayers.push({ mesh, mat, baseScale: d.scale, speed: d.speed, displace: d.displace });
     }
+
+    // 外周プラズマ粒子（炎の周りを舞うスパーク）
+    _initParticles(q.particleCount);
+
+    // カメラ操作（ドラッグ回転 + ピンチ/ホイールズーム）
+    _initCameraControls();
+    _fpsStartT = performance.now();
 
     // グロー光輪（Sprite + 加算合成）
     const glowMat = new THREE.SpriteMaterial({
@@ -309,9 +388,144 @@ window.Cosmos3D = (function () {
     renderer.setSize(w, h, false);
   }
 
+  // ── パーティクル（外周プラズマ）──
+  function _initParticles(count) {
+    if (particleSystem) { scene.remove(particleSystem); particleSystem.geometry.dispose(); particleMat.dispose(); particleSystem = null; }
+    if (count <= 0) return;
+    const positions = new Float32Array(count * 3);
+    const phases    = new Float32Array(count);
+    for (let i = 0; i < count; i++) {
+      // 球面上のランダム点 × 半径バリエーション（1.3〜2.0）
+      const u = Math.random() * 2 - 1;
+      const a = Math.random() * Math.PI * 2;
+      const r = 1.3 + Math.random() * 0.7;
+      const sx = Math.sqrt(1 - u * u);
+      positions[i * 3]     = sx * Math.cos(a) * r;
+      positions[i * 3 + 1] = u * r;
+      positions[i * 3 + 2] = sx * Math.sin(a) * r;
+      phases[i] = Math.random() * Math.PI * 2;
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geo.setAttribute('phase',    new THREE.BufferAttribute(phases, 1));
+    particleMat = new THREE.ShaderMaterial({
+      uniforms: {
+        uTime:       { value: 0 },
+        uColor:      { value: new THREE.Color(target.glowColor) },
+        uPointScale: { value: 12 },
+      },
+      vertexShader:   PARTICLE_VERT,
+      fragmentShader: PARTICLE_FRAG,
+      transparent:    true,
+      blending:       THREE.AdditiveBlending,
+      depthWrite:     false,
+    });
+    particleSystem = new THREE.Points(geo, particleMat);
+    scene.add(particleSystem);
+  }
+
+  // ── カメラ操作 ──
+  function _updateCamera() {
+    const x = camRadius * Math.sin(camPhi) * Math.sin(camTheta);
+    const y = camRadius * Math.cos(camPhi);
+    const z = camRadius * Math.sin(camPhi) * Math.cos(camTheta);
+    camera.position.set(x, y, z);
+    camera.lookAt(0, 0, 0);
+  }
+  function _initCameraControls() {
+    const canvas = _canvas();
+    if (!canvas) return;
+    canvas.style.touchAction = 'none'; // ブラウザのジェスチャを抑止し pointer events を取り切る
+    canvas.addEventListener('pointerdown', (e) => {
+      canvas.setPointerCapture(e.pointerId);
+      _pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (_pointers.size === 2) {
+        const a = [..._pointers.values()];
+        _pinchPrevDist = Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y);
+      }
+      _userInteractUntil = performance.now() + 100000; // 操作中は自動回転停止
+    });
+    canvas.addEventListener('pointermove', (e) => {
+      if (!_pointers.has(e.pointerId)) return;
+      const prev = _pointers.get(e.pointerId);
+      const curX = e.clientX, curY = e.clientY;
+      if (_pointers.size === 1) {
+        // ドラッグ回転
+        const dx = curX - prev.x, dy = curY - prev.y;
+        camTheta -= dx * 0.008;
+        camPhi   = Math.max(CAM_PHI_PAD, Math.min(Math.PI - CAM_PHI_PAD, camPhi - dy * 0.008));
+        _updateCamera();
+      } else if (_pointers.size >= 2) {
+        // ピンチ
+        _pointers.set(e.pointerId, { x: curX, y: curY });
+        const a = [..._pointers.values()];
+        const dist = Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y);
+        if (_pinchPrevDist > 0) {
+          const factor = _pinchPrevDist / dist;
+          camRadius = Math.max(CAM_MIN_R, Math.min(CAM_MAX_R, camRadius * factor));
+          _updateCamera();
+        }
+        _pinchPrevDist = dist;
+        return;
+      }
+      _pointers.set(e.pointerId, { x: curX, y: curY });
+    });
+    function _release(e) {
+      _pointers.delete(e.pointerId);
+      if (_pointers.size < 2) _pinchPrevDist = 0;
+      if (_pointers.size === 0) {
+        // 操作終了の 2 秒後に自動回転を再開
+        _userInteractUntil = performance.now() + 2000;
+      }
+    }
+    canvas.addEventListener('pointerup',     _release);
+    canvas.addEventListener('pointercancel', _release);
+    canvas.addEventListener('pointerleave',  _release);
+    // マウスホイールでズーム（passive:false で preventDefault 可能に）
+    canvas.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const factor = e.deltaY > 0 ? 1.1 : (1 / 1.1);
+      camRadius = Math.max(CAM_MIN_R, Math.min(CAM_MAX_R, camRadius * factor));
+      _userInteractUntil = performance.now() + 2000;
+      _updateCamera();
+    }, { passive: false });
+    _updateCamera();
+  }
+
+  // ── 動的品質（fps を測定し、画面リフレッシュレートの 90% を下回ったら品質を下げる）──
+  function _trackFps(now) {
+    _fpsFrames.push(now);
+    while (_fpsFrames.length > 0 && _fpsFrames[0] < now - 1000) _fpsFrames.shift();
+    const fps = _fpsFrames.length;
+    // 起動後 2 秒の最大 fps を画面リフレッシュレートと見なす
+    if (_fpsTarget === null && now - _fpsStartT > 2000) {
+      _fpsTarget = Math.max(60, fps); // 最低 60 を保証
+    }
+    if (_fpsTarget == null) return;
+    // 一度下げたら最低 10 秒は再評価しない
+    if (now - _lastQualityChange < 10000) return;
+    if (fps < _fpsTarget * 0.9 && qualityLevel !== 'LOW') {
+      _lastQualityChange = now;
+      _downgradeQuality();
+    }
+  }
+  function _downgradeQuality() {
+    const next = qualityLevel === 'HIGH' ? 'MID' : 'LOW';
+    qualityLevel = next;
+    const q = QUALITY[next];
+    // コロナの押し出し量とヘイズ不透明度を更新（メッシュ作り直さず uniform のみ）
+    if (coronaLayers[0]) coronaLayers[0].mat.uniforms.uDisplace.value = q.tongueDisplace;
+    if (coronaLayers[1] && coronaLayers[1].mat.uniforms.uOpacity) coronaLayers[1].mat.uniforms.uOpacity.value = q.hazeOpacity;
+    // パーティクル数を変更（再構築）
+    _initParticles(q.particleCount);
+    console.info('[cosmos3d] quality →', next, 'fps target=' + _fpsTarget);
+  }
+
   function _animate() {
     animId = requestAnimationFrame(_animate);
+    const now = performance.now();
     pulseT += 0.02;
+    _trackFps(now);
 
     // target へなめらかに補間（生成器強化時のサイズ変化を滑らかに見せる）
     cur.radius      += (target.radius      - cur.radius)      * 0.08;
@@ -323,11 +537,21 @@ window.Cosmos3D = (function () {
       starMesh.scale.setScalar(cur.radius);
     }
     if (sunMat) sunMat.uniforms.uTime.value = pulseT;
-    // 3層コロナを更新。各層は恒星半径に追従し、別速度で回転して躍動感を出す
+    // コロナ層を更新（半径追従、別速度回転で躍動感）
     for (const L of coronaLayers) {
       L.mat.uniforms.uTime.value = pulseT;
       L.mesh.scale.setScalar(cur.radius);
       L.mesh.rotation.y += L.speed;
+    }
+    // パーティクル更新（恒星半径に追従して外周を広げる）
+    if (particleSystem) {
+      particleMat.uniforms.uTime.value = pulseT;
+      particleSystem.scale.setScalar(cur.radius);
+    }
+    // 自動回転（ユーザー操作直後の冷却期間中は停止）
+    if (now > _userInteractUntil) {
+      camTheta += 0.0015;
+      _updateCamera();
     }
     if (glowSprite) {
       // ゆるやかな脈動（±4%）
@@ -367,6 +591,7 @@ window.Cosmos3D = (function () {
         supernovaT = 0;
         if (starMesh) starMesh.scale.setScalar(cur.radius);
         for (const L of coronaLayers) L.mesh.scale.setScalar(cur.radius);
+        if (particleSystem) particleSystem.scale.setScalar(cur.radius);
       }
     }
     renderer.render(scene, camera);
@@ -400,6 +625,7 @@ window.Cosmos3D = (function () {
     if (glowSprite) glowSprite.material.color.setHex(target.glowColor);
     if (sunMat) sunMat.uniforms.uColor.value.setHex(target.glowColor);
     for (const L of coronaLayers) L.mat.uniforms.uColor.value.setHex(target.glowColor);
+    if (particleMat) particleMat.uniforms.uColor.value.setHex(target.glowColor);
   }
 
   // ── 外部 API: 惑星リストを 3D に反映 ──
